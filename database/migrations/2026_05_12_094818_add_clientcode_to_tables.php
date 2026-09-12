@@ -11,13 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('secretaryrights', function (Blueprint $table) {
-            $table->string('clientcode')->nullable()->index();
-        });
+        // Detailed Comment: Check if 'secretaryrights' table exists and does not already contain
+        // 'clientcode' before attempting to alter the table. This handles fresh databases where
+        // secretaryrights may not be present or legacy databases where clientcode already exists.
+        if (Schema::hasTable('secretaryrights') && !Schema::hasColumn('secretaryrights', 'clientcode')) {
+            Schema::table('secretaryrights', function (Blueprint $table) {
+                $table->string('clientcode')->nullable()->index();
+            });
+        }
 
-        Schema::table('adminrights', function (Blueprint $table) {
-            $table->string('clientcode')->nullable()->index();
-        });
+        // Detailed Comment: Check if 'adminrights' table exists and does not already have 'clientcode'.
+        if (Schema::hasTable('adminrights') && !Schema::hasColumn('adminrights', 'clientcode')) {
+            Schema::table('adminrights', function (Blueprint $table) {
+                $table->string('clientcode')->nullable()->index();
+            });
+        }
     }
 
     /**
@@ -25,12 +33,18 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('secretaryrights', function (Blueprint $table) {
-            $table->dropColumn('secretaryrights');
-        });
+        // Detailed Comment: Safely drop 'clientcode' column from secretaryrights if present.
+        if (Schema::hasTable('secretaryrights') && Schema::hasColumn('secretaryrights', 'clientcode')) {
+            Schema::table('secretaryrights', function (Blueprint $table) {
+                $table->dropColumn('clientcode');
+            });
+        }
 
-        Schema::table('adminrights', function (Blueprint $table) {
-            $table->dropColumn('adminrighs');
-        });
+        // Detailed Comment: Safely drop 'clientcode' column from adminrights if present.
+        if (Schema::hasTable('adminrights') && Schema::hasColumn('adminrights', 'clientcode')) {
+            Schema::table('adminrights', function (Blueprint $table) {
+                $table->dropColumn('clientcode');
+            });
+        }
     }
 };

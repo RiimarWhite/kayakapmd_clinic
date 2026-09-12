@@ -15,10 +15,15 @@ class AdminSeeder extends Seeder
      */
     public function run(): void
     {
-        AdminModel::create([
-            'adminrefno' => Date::now()->format('mdYHis') . 'ADMN',
-            'username' => 'admin',
-            'password' => Hash::make('admin123')
-        ]);
+        // Detailed Comment: Check if the default 'admin' account already exists
+        // before creating a new record. This ensures the seeder remains idempotent
+        // and does not generate duplicate admin accounts upon multiple runs.
+        if (!AdminModel::where('username', 'admin')->exists()) {
+            AdminModel::create([
+                'adminrefno' => Date::now()->format('mdYHis') . 'ADMN',
+                'username' => 'admin',
+                'password' => Hash::make('admin123')
+            ]);
+        }
     }
 }

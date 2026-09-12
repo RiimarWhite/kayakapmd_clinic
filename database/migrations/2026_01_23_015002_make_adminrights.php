@@ -11,13 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('adminrights', function (Blueprint $table) {
-            $table->id();
-            $table->string('adminrefno');
-            $table->string('username');
-            $table->string('password');
-            $table->datetimes();
-        });
+        // Detailed Comment: Check if 'adminrights' table already exists before attempting creation.
+        // This ensures the migration safely passes if the table was pre-created via an external schema import.
+        if (!Schema::hasTable('adminrights')) {
+            Schema::create('adminrights', function (Blueprint $table) {
+                $table->id();
+                $table->string('adminrefno');
+                $table->string('username');
+                $table->string('password');
+                $table->datetimes();
+            });
+        }
     }
 
     /**

@@ -313,6 +313,11 @@ cleanup() {
         kill "$SERVE_PID" 2>/dev/null || true
         wait "$SERVE_PID" 2>/dev/null || true
     fi
+    # Detailed comment: Remove Vite hot file upon shutdown so Laravel does not remain in dev mode
+    # after exit, allowing Apache to seamlessly serve compiled assets via the App URL.
+    if [ -f public/hot ]; then
+        rm -f public/hot
+    fi
     echo -e "${COLOR_GREEN}All processes stopped.${COLOR_RESET}"
     exit 0
 }

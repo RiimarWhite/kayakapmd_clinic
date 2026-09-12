@@ -54,7 +54,13 @@ export default defineConfig({
             jQuery: 'jquery',
         }),
     ],
+    // Detailed comment: Configure Vite development server to bind explicitly to localhost
+    // and specify a clean HTTP origin, avoiding ambiguous IPv6 [::1] addresses in public/hot.
     server: {
+        host: 'localhost',
+        port: 5173,
+        strictPort: true,
+        origin: 'http://localhost:5173',
         watch: {
             ignored: ['**/storage/framework/views/**'],
         }

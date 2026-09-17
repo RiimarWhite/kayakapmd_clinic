@@ -5,6 +5,8 @@
         <link rel="icon" type="image/png" href="{{ asset('favicon.ico') }}">
         <title>{{ config('app.name', 'Laravel') }}</title>
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        <meta name="logout-url" content="{{ route('logout') }}">
+        <meta name="login-url" content="{{ route('login') }}">
         <style>
             #admin_sidebar.nav .active {
                 background-color: white !important;

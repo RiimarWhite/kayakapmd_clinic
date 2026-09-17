@@ -19,9 +19,9 @@ use App\Models\DoctorMedicinesModel;
 use App\Models\DoctorsProfileModel;
 use App\Models\MedicineModel;
 use App\Models\ScheduleModel;
-use App\Models\DoctorModel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class DoctorController extends Controller
 {
@@ -33,6 +33,13 @@ class DoctorController extends Controller
     public function dashboardPage()
     {
         $doctor = auth()->guard('doctor')->user();
+
+        // Detailed Comment: Structured log when doctor dashboard view is accessed
+        Log::info('Doctor dashboard rendered', [
+            'doctor_id' => $doctor ? $doctor->id : null,
+            'docrefno' => $doctor ? $doctor->docrefno : null,
+            'username' => $doctor ? $doctor->username : null,
+        ]);
 
         return view('pages.doctor.dashboard', [
             'doctor' => $doctor,
@@ -568,10 +575,16 @@ class DoctorController extends Controller
     {
         $record = ConsultationModel::where(['consultationrefno' => $request->consultationrefno])->first();
 
-        $record->status = "COMPLETED";
-        $record->save();
-
         if ($record) {
+            $record->status = "COMPLETED";
+            $record->save();
+
+            // Detailed Comment: Log consultation status change
+            Log::info('Consultation marked completed', [
+                'consultationrefno' => $request->consultationrefno,
+                'doctor' => auth()->guard('doctor')->check() ? auth()->guard('doctor')->user()->docrefno : null,
+            ]);
+
             return response()->json(['success' => true]);
         }
 
@@ -588,6 +601,12 @@ class DoctorController extends Controller
             ]);
 
         if ($record) {
+            // Detailed Comment: Log diagnostic notes update
+            Log::info('Consultation impressions and diagnosis updated', [
+                'consultationrefno' => $request->consultationrefno,
+                'doctor' => auth()->guard('doctor')->check() ? auth()->guard('doctor')->user()->docrefno : null,
+            ]);
+
             return response()->json(['success' => true]);
         }
 

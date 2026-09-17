@@ -9,9 +9,13 @@ class SecretaryModel extends Authenticatable
 {
     protected $table = 'secretaryrights';
 
+    // Detailed Comment: Explicitly declare the primary key matching the repaired schema
+    protected $primaryKey = 'id';
+
     protected $fillable = [
         'secrefno',
         'secidno',
+        'username',
         'secpassword',
         'secfname',
         'secmname',
@@ -26,7 +30,8 @@ class SecretaryModel extends Authenticatable
         'recordeddate',
         'logged',
         'verifieddate',
-        'verified'
+        'verified',
+        'clientcode'
     ];
 
     protected $hidden = [
@@ -34,6 +39,23 @@ class SecretaryModel extends Authenticatable
     ];
 
     public $timestamps = false;
+
+    /**
+     * Detailed Comment: Implement Laravel Authenticatable password getter for legacy 'secpassword' column.
+     * Ensures session guard password validation and credential verification execute seamlessly.
+     */
+    public function getAuthPassword(): ?string
+    {
+        return $this->secpassword;
+    }
+
+    /**
+     * Detailed Comment: Explicitly specify 'secpassword' as the auth password attribute name.
+     */
+    public function getAuthPasswordName(): string
+    {
+        return 'secpassword';
+    }
 
     protected function casts() : array
     {

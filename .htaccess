@@ -1,6 +1,9 @@
-RewriteEngine On
-
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-
-RewriteRule ^(.+)$ index.php?url=$1 [QSA,L]
+# Detailed Comment: Forward web requests in subfolder deployments directly to Laravel's
+# public directory front controller (public/index.php), avoiding recursive loops.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^$ public/ [L]
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^((?!public/).*)$ public/$1 [L]
+</IfModule>

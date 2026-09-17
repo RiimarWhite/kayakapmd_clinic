@@ -16,6 +16,7 @@ use App\Models\SecretaryDoctorsModel;
 use App\Models\SettlementsModel;
 use App\Models\ServicesGroupManagementModel;
 use App\Models\ServicesManagementModel;
+use Illuminate\Support\Facades\Log;
 
 class SecretaryController extends Controller
 {
@@ -26,16 +27,27 @@ class SecretaryController extends Controller
 
     public function queuePage()
     {
-        $assigned_doctors = SecretaryDoctorsModel::where([
-            'secrefno' => auth()->guard('secretary')->user()->secrefno
-        ])->pluck('docrefno');
+        $secUser = auth()->guard('secretary')->user();
+        $assigned_doctors = $secUser ? SecretaryDoctorsModel::where([
+            'secrefno' => $secUser->secrefno
+        ])->pluck('docrefno') : collect();
 
         $doctors = DoctorsProfileModel::select(['docrefno', 'docname'])
             ->whereIn('docrefno', $assigned_doctors)
             ->get();
 
+        $secretaries = SecretaryModel::select(['secrefno', 'seclname', 'secfname'])->get();
+
+        // Detailed Comment: Structured logging when secretary queue page is rendered
+        Log::info('Secretary queue page rendered', [
+            'secretary_id' => $secUser ? $secUser->id : null,
+            'secrefno' => $secUser ? $secUser->secrefno : null,
+            'assigned_doctors_count' => $doctors->count()
+        ]);
+
         return view('pages.secretary.queue', [
-            'doctors' => $doctors
+            'doctors' => $doctors,
+            'secretaries' => $secretaries
         ]);
     }
 
@@ -559,6 +571,14 @@ class SecretaryController extends Controller
         }
 
         if ($record) {
+            // Detailed Comment: Log patient billing settlement save
+            Log::info('Consultation settlement saved', [
+                'consultationrefno' => $request->sett_consultationrefno,
+                'total' => $request->total,
+                'transactionrefno' => $record->transactionrefno,
+                'recorded_by' => auth()->guard('secretary')->check() ? auth()->guard('secretary')->user()->seclname : null,
+            ]);
+
             return response()->json(['success' => true]);
         }
 

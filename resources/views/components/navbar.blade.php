@@ -18,7 +18,11 @@
                 </button>
             @endif
 
-            <button class="btn btn-light" id="logout">
+            {{-- Detailed Comment: Hidden POST form for native, environment-agnostic logout --}}
+            <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                @csrf
+            </form>
+            <button class="btn btn-light" id="logout" type="button">
                 <span class="fa fa-arrow-right-from-bracket"></span> Sign out
             </button>
         </div>

@@ -8,7 +8,11 @@
             @if (auth()->guard('doctor')->check())
                 <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#doctor_profile_modal"><i class="fa-solid fa-user-doctor"></i> Profile</button>
             @endif
-            <button class="btn btn-light" id="logout"><span class="fa fa-arrow-right-from-bracket"></span> Sign out</button>
+            {{-- Detailed Comment: Hidden POST form for native, environment-agnostic logout --}}
+            <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                @csrf
+            </form>
+            <button class="btn btn-light" id="logout" type="button"><span class="fa fa-arrow-right-from-bracket"></span> Sign out</button>
         </div>
     </div>
 </nav>

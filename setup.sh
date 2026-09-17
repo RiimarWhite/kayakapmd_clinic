@@ -270,19 +270,26 @@ fi
 echo -e "\n${COLOR_BOLD}${COLOR_BLUE}[7/8] Running: php artisan migrate...${COLOR_RESET}"
 php artisan migrate --force --ansi
 
-# Detailed Comment: Only seed AdminSeeder if .env was freshly created during this script run
+# Detailed Comment: Only seed AdminSeeder and UserSeeder if .env was freshly created during this script run.
+# This ensures default administrative, doctor, and secretary accounts are available on fresh installations.
 if [ "$ENV_CREATED" = true ]; then
-    echo -e "\n${COLOR_BOLD}${COLOR_CYAN}New environment detected: running AdminSeeder...${COLOR_RESET}"
+    echo -e "\n${COLOR_BOLD}${COLOR_CYAN}New environment detected: running AdminSeeder and UserSeeder...${COLOR_RESET}"
     php artisan db:seed --class=AdminSeeder --force --ansi
+    php artisan db:seed --class=UserSeeder --force --ansi
 else
-    echo -e "  [✓] Existing environment: skipping AdminSeeder to preserve database state."
+    echo -e "  [✓] Existing environment: skipping default seeders to preserve database state."
 fi
 
 # ==============================================================================
-# SECTION 8: Build Frontend Assets (npm run build)
+# SECTION 8: Build Frontend Assets (npm run build) & Set Directory Permissions
 # ==============================================================================
-echo -e "\n${COLOR_BOLD}${COLOR_BLUE}[8/8] Running: npm run build...${COLOR_RESET}"
+echo -e "\n${COLOR_BOLD}${COLOR_BLUE}[8/8] Running: npm run build & configuring permissions...${COLOR_RESET}"
 npm run build
+
+# Detailed Comment: Ensure storage and bootstrap/cache directories are fully writable (777)
+# across both Docker CLI processes (running as root) and Apache web server (running as www-data).
+# This prevents permission denied crashes on storage/logs/laravel.log and compiled blade templates.
+chmod -R 777 storage bootstrap/cache 2>/dev/null || true
 
 # ==============================================================================
 # SECTION 9: Start Development Servers Concurrently (php artisan serve & npm run dev)

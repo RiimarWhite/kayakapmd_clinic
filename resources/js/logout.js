@@ -26,24 +26,40 @@ $(function () {
         });
     });
 
-    // Sign out of session
-    $("#logout").on("click", function () {
+    // Detailed Comment: Sign out of session with universal environment support (XAMPP, Docker Apache, and Artisan serve)
+    $(document).on("click", "#logout", function (e) {
+        e.preventDefault();
         Swal.fire({
             title: "Logout?",
             text: "Are you sure you want to logout?",
             icon: "warning",
             showCancelButton: true,
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#d33",
             confirmButtonText: "Logout"
         }).then((result) => {
             if (result.isConfirmed) {
-                $.ajax({
-                    url: "/logout",
-                    type: "POST",
-                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-                    success: function () {
-                        window.location.href = "/login";
-                    }
-                });
+                const $form = $('#logout-form');
+                // Detailed Comment: If native logout form is present, submit it directly to let the browser natively follow the redirect
+                if ($form.length) {
+                    $form.submit();
+                } else {
+                    // Detailed Comment: Fallback to dynamic AJAX endpoint if form is unavailable
+                    const logoutUrl = $('meta[name="logout-url"]').attr('content') || 'logout';
+                    const loginUrl = $('meta[name="login-url"]').attr('content') || 'login';
+
+                    $.ajax({
+                        url: logoutUrl,
+                        type: "POST",
+                        headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                        success: function (response) {
+                            window.location.href = (response && response.redirect) ? response.redirect : loginUrl;
+                        },
+                        error: function () {
+                            window.location.href = loginUrl;
+                        }
+                    });
+                }
             }
         });
     });

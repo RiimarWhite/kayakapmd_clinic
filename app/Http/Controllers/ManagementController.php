@@ -480,7 +480,10 @@ class ManagementController extends Controller
             'statusreason' => $request->statusreason,
         ]);
 
+        $facilityClientCode = config('app.client_code', env('CLIENT_CODE', '122377'));
+
         DoctorModel::create([
+            'dw_clientcode' => $facilityClientCode,
             'docrefno' => $docrefno,
             'docfname' => $request->docfname,
             'docmname' => $request->docmname,
@@ -488,7 +491,7 @@ class ManagementController extends Controller
             'suffix' => $request->suffix,
             'titlename' => $request->titlename,
             'username' => $request->doclname,
-            'pass' => bcrypt($request->pass),
+            'pass' => $request->pass, // Model casts 'pass' => 'hashed'
             'eadd' => $request->emailadd,
             'tin' => $request->tin,
             'address' => $request->adrs,
@@ -504,6 +507,14 @@ class ManagementController extends Controller
         ]);
 
         $profile->where('docrefno', $docrefno)->update(['doccode' => 'PFMD' . str_pad($profile->id, 3, '0', STR_PAD_LEFT)]);
+
+        // Detailed Comment: Structured logging for doctor account registration
+        Log::info('Doctor account registered by admin', [
+            'docrefno' => $docrefno,
+            'username' => $request->doclname,
+            'docname' => $request->docfname . ' ' . $request->doclname,
+            'clientcode' => $facilityClientCode
+        ]);
 
         return response()->json(['success' => true]);
     }
@@ -596,19 +607,35 @@ class ManagementController extends Controller
             'secadrs' => 'nullable|string|max:255'
         ]);
 
+        $secidno = Date::now()->format('Y') . "-" . (SecretaryModel::count() + 1);
+        $facilityClientCode = config('app.client_code', env('CLIENT_CODE', '122377'));
+        $username = strtolower($request->seclname);
+
         SecretaryModel::create([
             'secrefno' => Date::now()->format('mdYHis') . 'TASK',
-            'secidno' => Date::now()->format('Y') . "-" . (SecretaryModel::count() + 1),
+            'secidno' => $secidno,
+            'username' => $username,
             'secfname' => $request->secfname,
             'secmname' => $request->secmname,
             'seclname' => $request->seclname,
             'secsuffix' => $request->secsuffix,
             'secgender' => strtoupper($request->secgender),
-            'secpassword' => bcrypt($request->secpassword),
+            'secpassword' => $request->secpassword, // Model casts 'secpassword' => 'hashed'
             'secbday' => $request->secbday,
             'seccontactno' => $request->seccontactno,
             'secemail' => $request->secemail,
-            'secadrs' => $request->secadrs
+            'secadrs' => $request->secadrs,
+            'clientcode' => $facilityClientCode,
+            'recordeddate' => now(),
+            'verified' => true
+        ]);
+
+        // Detailed Comment: Structured logging for secretary account registration
+        Log::info('Secretary account registered by admin', [
+            'username' => $username,
+            'secidno' => $secidno,
+            'secname' => $request->secfname . ' ' . $request->seclname,
+            'clientcode' => $facilityClientCode
         ]);
 
         return response()->json(['success' => true]);

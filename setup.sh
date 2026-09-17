@@ -296,7 +296,7 @@ chmod -R 777 storage bootstrap/cache 2>/dev/null || true
 # Starts php artisan serve in the background and npm run dev in the foreground.
 # Uses trap to cleanly kill the background server on exit or Ctrl+C.
 # ==============================================================================
-if [ "$NO_SERVE" = true ]; then
+# if [ "$NO_SERVE" = true ]; then
     echo -e "\n${COLOR_BOLD}${COLOR_GREEN}=====================================================${COLOR_RESET}"
     echo -e "${COLOR_BOLD}${COLOR_GREEN}      Setup Complete! (--no-serve flag specified)    ${COLOR_RESET}"
     echo -e "${COLOR_BOLD}${COLOR_GREEN}=====================================================${COLOR_RESET}"
@@ -304,7 +304,7 @@ if [ "$NO_SERVE" = true ]; then
     echo -e "  1. Laravel Server: ${COLOR_YELLOW}php artisan serve${COLOR_RESET}"
     echo -e "  2. Vite Dev Server: ${COLOR_YELLOW}npm run dev${COLOR_RESET}\n"
     exit 0
-fi
+# fi
 
 echo -e "\n${COLOR_BOLD}${COLOR_GREEN}=====================================================${COLOR_RESET}"
 echo -e "${COLOR_BOLD}${COLOR_GREEN}       Setup Complete! Starting Servers...           ${COLOR_RESET}"

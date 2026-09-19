@@ -1133,9 +1133,12 @@ $(function () {
         return age;
     }
 
-    // Save Consultation
+    // Detailed Comment: Save Consultation with null-safe string extraction, correct API endpoint, and doctor validation
     $(document).on("click", ".save_consultation_btn", function () {
-        if ($("#pxfname").val().trim() === "") return;
+        const pxfname = String($("#pxfname").val() || "").trim();
+        if (pxfname === "") {
+            return Swal.fire({ title: "Validation Error", text: "Patient first name is required.", icon: "warning" });
+        }
         if ($("#sched_time").is(":disabled")) {
             return Swal.fire({
                 title: "Error",
@@ -1144,7 +1147,8 @@ $(function () {
             });
         }
 
-        if ($("#doctor_for_consult").val().trim() === "") {
+        const docrefno = String($("#doctor_for_consult").val() || "").trim();
+        if (docrefno === "") {
             return Swal.fire({
                 title: "Error",
                 text: "Please assign a doctor first.",
@@ -1157,16 +1161,16 @@ $(function () {
 
         let formData = new FormData($("#consultation_form")[0]);
         formData.append("type", $(this).val());
-        formData.append("docrefno", $("#doctor_for_consult").val());
+        formData.append("docrefno", docrefno);
 
         const image = document.getElementById("patient_image");
-        if (image.files.length > 0)
+        if (image && image.files.length > 0)
             formData.append("patient_photo", image.files[0]);
 
         $fieldset.prop("disabled", true);
 
         $.ajax({
-            url: "save_patient_consultation",
+            url: "/api/save_patient_consultation",
             type: "POST",
             headers: {
                 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -1198,8 +1202,12 @@ $(function () {
         });
     });
 
+    // Detailed Comment: Update Consultation Details with null-safety and record existence validation
     $(document).on("click", ".update_consultation_btn", function () {
-        if ($("#pxfname").val().trim() === "") return;
+        const pxfname = String($("#pxfname").val() || "").trim();
+        if (pxfname === "") {
+            return Swal.fire({ title: "Validation Error", text: "Patient first name is required.", icon: "warning" });
+        }
         if ($("#sched_time").is(":disabled")) {
             return Swal.fire({
                 title: "Error",
@@ -1208,7 +1216,8 @@ $(function () {
             });
         }
 
-        if ($("#doctor_for_consult").val().trim() === "") {
+        const docrefno = String($("#doctor_for_consult").val() || "").trim();
+        if (docrefno === "") {
             return Swal.fire({
                 title: "Error",
                 text: "Please assign a doctor first.",
@@ -1216,17 +1225,24 @@ $(function () {
             });
         }
 
+        const refno = String($("#pxconsultationrefno").text() || "").trim();
+        if (!refno) {
+            return Swal.fire({
+                title: "Error",
+                text: "No existing consultation record selected for update.",
+                icon: "warning"
+            });
+        }
+
         const fieldset = $("#patient_info_fieldset");
         fieldset.prop("disabled", false);
 
         let formData = new FormData($("#consultation_form")[0]);
-        formData.append("pxconsultationrefno", $("#pxconsultationrefno").text());
-        formData.append("docrefno", $("#doctor_for_consult").val());
-
-        console.log(formData);
+        formData.append("pxconsultationrefno", refno);
+        formData.append("docrefno", docrefno);
 
         const image = document.getElementById("patient_image");
-        if (image.files.length > 0)
+        if (image && image.files.length > 0)
             formData.append("patient_photo", image.files[0]);
 
         fieldset.prop("disabled", true);
@@ -1364,13 +1380,11 @@ $(function () {
             language: {
                 emptyTable: 'No patient charges yet.'
             },
+            // Detailed Comment: In DataTables 2, layout uses standard feature keys to avoid "Unknown feature: div" warning.
+            // Total amount is rendered in the blade view below the table and updated dynamically via dataSrc.
             layout: {
                 bottomStart: 'paging',
-                bottomEnd: {
-                    div: {
-                        html: `<h4 class="fw-bold">Total: <span class="fw-normal ms-2" id="charges_total"></span></h4>`
-                    }
-                }
+                bottomEnd: null
             },
             searching: false,
             lengthChange: false,

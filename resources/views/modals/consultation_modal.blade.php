@@ -301,7 +301,8 @@
                             <div class="table-responsive">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <h6 class="m-0 fw-bold">List of Charges</h6>
-                                    <button class="btn btn-sm btn-warning text-white" id="append_charge_btn" data-bs-target="#append_charge_modal" data-bs-toggle="modal">
+                                    {{-- Detailed Comment: Removed data-bs-toggle="modal" so opening append charges does not dismiss consultation_modal --}}
+                                    <button class="btn btn-sm btn-warning text-white" id="append_charge_btn" type="button">
                                         <i class="fa-solid fa-plus"></i> Append Charges
                                     </button>
                                 </div>
@@ -312,8 +313,8 @@
                                             <th scope="col">Actions</th>
                                             <th scope="col">Description</th>
                                             <th scope="col">Quantity</th>
-                                            <th scope="col">Discount</th>
-                                            <th scope="col">Amount</th>
+                                            <th scope="col">Unit Price</th>
+                                            <th scope="col">Total Amount</th>
                                         </tr>
                                     </thead>
 
@@ -326,7 +327,8 @@
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-sm btn-info fw-bold" data-bs-target="#append_charge_modal" id="append_charge_btn_2" data-bs-toggle="modal">Append Patient Charges</button>
+                {{-- Detailed Comment: Trigger append charge modal without toggling/closing consultation_modal --}}
+                <button type="button" class="btn btn-sm btn-info fw-bold" id="append_charge_btn_2">Append Patient Charges</button>
                 <button type="button" class="btn btn-sm btn-info fw-bold" data-bs-target="#diagnostic_modal" id="diagnostic_btn" data-bs-toggle="modal">Diagnostic Requests</button>
                 <button type="button" class="btn btn-sm btn-info fw-bold" data-bs-target="#rx_modal" id="gen_rx_btn" data-bs-toggle="modal">Generate Rx</button>
                 <button type="button" class="btn btn-sm btn-primary fw-bold" id="save_consul">Save Consultation</button>
@@ -517,13 +519,14 @@
 </div>
 
 <!-- Append Charges Modal -->
+{{-- Detailed Comment: Stacked child modal with z-index 1060 positioned over consultation_modal (z-index 1055) --}}
 <div class="modal fade" data-bs-backdrop="static" id="append_charge_modal" tabindex="-1" aria-labelledby="append_charge_modalModalLabel"
-	aria-hidden="true">
+	aria-hidden="true" style="z-index: 1060;">
 	<div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
 		<form class="modal-content" id="appended_charges_form">
 			<div class="modal-header">
 				<h3 class="modal-title"><i class="fa-solid fa-coins"></i> Append Charges</h3>
-				<button type="button" class="btn-close" data-bs-toggle="modal" data-bs-target="#consultation_modal" aria-label="Close"></button>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 			</div>
 			<div class="modal-body d-flex flex-column gap-3">
                 <div class="">
@@ -579,7 +582,7 @@
 			</div>
 			<div class="modal-footer">
                 <button type="button" class="btn btn-primary" id="save_charges_btn">Save</button>
-                <button type="button" class="btn btn-secondary" data-bs-target="#consultation_modal" data-bs-toggle="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
 			</div>
         </form>
 	</div>

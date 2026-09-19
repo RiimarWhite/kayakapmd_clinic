@@ -1,4 +1,22 @@
 $(function () {
+    /**
+     * Detailed Comment: Helper functions to toggle button loading spinners and disabled state.
+     * Preserves original inner HTML in data-orig-html and restores upon request completion.
+     */
+    function setBtnLoading($btn, text) {
+        if (!$btn || $btn.length === 0) return;
+        const origHtml = $btn.html();
+        $btn.data('orig-html', origHtml).prop('disabled', true);
+        $btn.html(`<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> ${text}`);
+    }
+
+    function resetBtnLoading($btn) {
+        if (!$btn || $btn.length === 0) return;
+        const origHtml = $btn.data('orig-html');
+        if (origHtml) $btn.html(origHtml);
+        $btn.prop('disabled', false);
+    }
+
     $("#consultation_modal").on("shown.bs.modal", function () {
         loadMedicalHistory();
     });
@@ -52,8 +70,11 @@ $(function () {
         });
     }
 
-    // Save chief complaints, impressions, and diagnosis
+    // Detailed Comment: Save chief complaints, impressions, and diagnosis with button loading spinner
     $("#save_impressions_diagnosis").on("click", function () {
+        const $btn = $(this);
+        setBtnLoading($btn, "Saving...");
+
         $.ajax({
             url: "/api/save_impressions_diagnosis",
             type: "POST",
@@ -77,6 +98,9 @@ $(function () {
                         timer: 2000
                     });
                 }
+            },
+            complete: function () {
+                resetBtnLoading($btn);
             }
         });
     });
@@ -105,7 +129,11 @@ $(function () {
         // minimumInputLength: 1
     });
 
+    // Detailed Comment: Add prescription medicine to patient ledger with button loading state
     $("#add_rx").on("click", function () {
+        const $btn = $(this);
+        setBtnLoading($btn, "Adding...");
+
         $.ajax({
             url: "/api/add_medicine",
             type: "POST",
@@ -114,12 +142,20 @@ $(function () {
             success: function (response) {
                 if (response.success) {
                     loadRx();
+                    if ($.fn.DataTable.isDataTable("#charges_table")) {
+                        $("#charges_table").DataTable().ajax.reload();
+                    }
                 }
+            },
+            complete: function () {
+                resetBtnLoading($btn);
             }
         });
     });
 
+    // Detailed Comment: Delete prescription medicine with button loading spinner feedback
     $(document).on("click", ".delete_rx", function () {
+        const $btn = $(this);
         Swal.fire({
             title: "Confirmation",
             text: "Delete this from the list of patient RX?",
@@ -128,12 +164,13 @@ $(function () {
             confirmButtonText: "Confirm"
         }).then((result) => {
             if (result.isConfirmed) {
+                $btn.prop("disabled", true).html('<i class="fa-solid fa-spinner fa-spin"></i>');
                 $.ajax({
                     url: "/api/delete_rx",
                     type: "POST",
                     headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
                     data: {
-                        prodcode: $(this).val(),
+                        prodcode: $btn.val(),
                         consultationrefno: $("#consultationrefno").val()
                     },
                     success: function (response) {
@@ -144,16 +181,21 @@ $(function () {
                                 icon: 'success',
                                 title: 'Medicine Deleted',
                                 showConfirmButton: false,
-                                timer: 2000
+                                timer: 1500
                             });
-
-                            $("#rx_table").DataTable().ajax.reload();
+                            loadRx();
+                            if ($.fn.DataTable.isDataTable("#charges_table")) {
+                                $("#charges_table").DataTable().ajax.reload();
+                            }
                         }
+                    },
+                    complete: function () {
+                        $btn.prop("disabled", false).html('<i class="fa-solid fa-trash"></i>');
                     }
                 });
             }
         });
-    })
+    });
 
     function loadRx() {
         $("#rx_table").DataTable().destroy().clear();
@@ -253,7 +295,11 @@ $(function () {
         });
     }
 
+    // Detailed Comment: Save prescription notes and instructions with button loading state
     $("#save_rx_btn").on("click", function () {
+        const $btn = $(this);
+        setBtnLoading($btn, "Saving...");
+
         $.ajax({
             url: "/api/save_rx",
             type: "POST",
@@ -272,6 +318,9 @@ $(function () {
 
                     $("#patient_instructions").val(response.instructions);
                 }
+            },
+            complete: function () {
+                resetBtnLoading($btn);
             }
         });
     });
@@ -318,7 +367,8 @@ $(function () {
             order: [[1, 'asc']]
         });
 
-        $("#print_diagnostics").attr("href", `print_diagnostics?consultationrefno=${$("#consultationrefno").val()}`);
+        // Detailed Comment: Absolute route path for printing diagnostics across doctor, secretary, or admin views
+        $("#print_diagnostics").attr("href", `/doctor/print_diagnostics?consultationrefno=${$("#consultationrefno").val()}`);
     });
 
     $("#diag_to_consul").on("click", function () { $("#diagnostics_table").DataTable().ajax.reload(); });
@@ -412,8 +462,12 @@ $(function () {
         $(`.diagnostic_check[name='${diagId}']`).prop("checked", false).prop("disabled", false);
     });
 
+    // Detailed Comment: Save diagnostic requests with button loading spinner
     $("#save_requests").on("click", function () {
         if (diagnostics.length === 0) return Swal.fire({title: "No updated changes", text: "No changes were made.", icon: "success"});
+
+        const $btn = $(this);
+        setBtnLoading($btn, "Saving...");
 
         $.ajax({
             url: "/api/save_diagnostics",
@@ -431,17 +485,23 @@ $(function () {
                         icon: "success"
                     });
                 }
+            },
+            complete: function () {
+                resetBtnLoading($btn);
             }
         });
     });
 
+    // Detailed Comment: Remove diagnostic request with button spinner feedback
     $(document).on("click", ".remove_request", function () {
+        const $btn = $(this);
         Swal.fire({
             title: "Confirmation",
             text: "Do you want to remove this request?",
             icon: "warning"
         }).then((result) => {
             if (result.isConfirmed) {
+                $btn.prop("disabled", true).html('<i class="fa-solid fa-spinner fa-spin"></i>');
                 $.ajax({
                     url: "/api/delete_diagnostic",
                     type: "POST",
@@ -450,7 +510,7 @@ $(function () {
                     },
                     data: {
                         consultationrefno: $("#consultationrefno").val(),
-                        requestrefno: $(this).val()
+                        requestrefno: $btn.val()
                     },
                     success: function (response) {
                         if (response.success) {
@@ -465,6 +525,9 @@ $(function () {
                                 $("#diagnostics_table").DataTable().ajax.reload();
                             });
                         }
+                    },
+                    complete: function () {
+                        $btn.prop("disabled", false).html('<i class="fa-solid fa-trash"></i> Remove');
                     }
                 });
             }
@@ -512,7 +575,11 @@ $(function () {
         });
     }
 
+    // Detailed Comment: Upload consultation diagnostic documents with button loading spinner
     $("#update_files_btn").on("click", function () {
+        const $btn = $(this);
+        setBtnLoading($btn, "Uploading...");
+
         let formData = new FormData($("#rad_lab_form")[0]);
         formData.append("consultationrefno", $("#consultationrefno").val());
 
@@ -536,6 +603,9 @@ $(function () {
                         timer: 2000
                     });
                 }
+            },
+            complete: function () {
+                resetBtnLoading($btn);
             }
         });
     });
@@ -632,11 +702,29 @@ $(function () {
 
     $("#append_charge_modal").on("shown.bs.modal", function () {
         $("#charge_amount").val(0);
+        $("#charge_qty").val(1);
     });
 
+    // Detailed Comment: Maintain body.modal-open so parent consultation_modal remains scrollable and interactive
+    $("#append_charge_modal").on("hidden.bs.modal", function () {
+        if ($("#consultation_modal").is(":visible") || $("#consultation_modal").hasClass("show")) {
+            $("body").addClass("modal-open");
+        } else {
+            const consulModal = bootstrap.Modal.getOrCreateInstance(document.getElementById("consultation_modal"));
+            consulModal.show();
+        }
+    });
+
+    // Detailed Comment: Open append charges modal as a stacked child modal, displaying existing charges as reference
+    // while keeping appendedCharges array strictly for newly added items
     $("#append_charge_btn, #append_charge_btn_2").on("click", function () {
-        $("#search_charge").val("");
+        $("#search_charge").val(null).trigger("change");
         $("#appended_charges_table tbody").empty();
+        appendedCharges = [];
+
+        const appendModalEl = document.getElementById("append_charge_modal");
+        const appendModal = bootstrap.Modal.getOrCreateInstance(appendModalEl);
+        appendModal.show();
 
         $.ajax({
             url: "/api/fetch_patient_charges",
@@ -644,21 +732,19 @@ $(function () {
             headers: { 'X-CSRF-TOKEN': $("meta[name='csrf-token']").attr("content") },
             data: { consultationrefno: $("#consultationrefno").val() },
             success: function (response) {
-                if (response.charges.length > 0) {
+                if (response.charges && response.charges.length > 0) {
                     response.charges.forEach(c => {
-                        appendedCharges.push({
-                            prodcode: c.prodcode,
-                            quantity: c.qty,
-                            amount: c.totalamt
-                        });
+                        const lineTotal = parseFloat(c.totalamt || c.amount || 0);
+                        const displayTotal = isNaN(lineTotal) ? '0.00' : lineTotal.toFixed(2);
 
                         const newRow = `
                             <tr data-refno="${c.prodcode}">
                                 <td class="align-middle text-center text-nowrap">
                                     <button type="button"
                                         class="btn btn-sm btn-secondary"
+                                        disabled
                                         data-refno="${c.prodcode}"
-                                        title="Appended charges can only be removed from the patient charges tab."
+                                        title="Existing charges can only be removed from the patient charges tab."
                                     >
                                         <i class="fa-solid fa-floppy-disk"></i>
                                     </button>
@@ -666,7 +752,7 @@ $(function () {
 
                                 <td class="align-middle text-nowrap">${c.item_dscr}</td>
                                 <td class="align-middle text-nowrap">${c.qty}</td>
-                                <td class="align-middle text-nowrap">${c.totalamt}</td>
+                                <td class="align-middle text-nowrap">${displayTotal}</td>
                             </tr>
                         `;
 
@@ -674,7 +760,7 @@ $(function () {
                     });
                 } else {
                     $("#appended_charges_table tbody").append(`
-                        <tr>
+                        <tr class="no-charges-placeholder">
                             <td class="align-middle text-center text-nowrap" colspan="4">No charges yet.</td>
                         </tr>
                     `);
@@ -686,6 +772,7 @@ $(function () {
     $("#charge_category").on("change", function () { cache = null; });
 
     let appendedCharges = [];
+    // Detailed Comment: Dynamically append new charge entry with calculated line total (qty * unit price)
     $("#append_to_charges_btn").on("click", function () {
         const form = document.getElementById("appended_charges_form");
 
@@ -712,23 +799,28 @@ $(function () {
             });
         }
 
-        if (appendedCharges.some(item => item && item.prodcode === search.val())) {
+        if (appendedCharges.some(item => item && item.prodcode === search.val()) || $(`#appended_charges_table tr[data-refno="${search.val()}"]`).length > 0) {
             return Swal.fire({
                 title: "Reminder!",
-                text: "This charge has already been appended.",
+                text: "This charge has already been appended or is already listed.",
                 icon: "error"
             });
         }
 
         let table = $("#appended_charges_table tbody");
-        if (appendedCharges.length == 0) {
+        table.find(".no-charges-placeholder").remove();
+        if (appendedCharges.length == 0 && table.find("tr[data-refno]").length === 0) {
             table.empty();
         }
+
+        const unitPrice = parseFloat(amount || 0);
+        const qty = parseFloat(quantity || 1);
+        const lineTotal = (unitPrice * qty).toFixed(2);
 
         appendedCharges.push({
             prodcode: search.val(),
             quantity: quantity,
-            amount: amount
+            amount: unitPrice
         });
 
         const newRow = `
@@ -740,7 +832,7 @@ $(function () {
                 </td>
                 <td class="align-middle">${description}</td>
                 <td>${quantity}</td>
-                <td>${amount}</td>
+                <td>${lineTotal}</td>
             </tr>
         `;
 
@@ -748,7 +840,7 @@ $(function () {
         search.val(null).trigger("change");
 
         $("#charge_amount").val(0);
-        $("#charge_qty").val(0);
+        $("#charge_qty").val(1);
     });
 
     $(document).on("click", ".charge_entry", function () {
@@ -758,23 +850,28 @@ $(function () {
 
         $(this).closest("tr").remove();
 
-        if (appendedCharges.length === 0) {
+        if (appendedCharges.length === 0 && $("#appended_charges_table tbody tr").length === 0) {
             $("#appended_charges_table tbody").append(`
-                <tr>
+                <tr class="no-charges-placeholder">
                     <td class="align-middle text-center text-nowrap" colspan="4">No charges yet.</td>
                 </tr>
             `);
         }
     });
 
+    // Detailed Comment: Save all appended charges with button loading spinner, restore consultation_modal state,
+    // and reload the patient charges DataTable
     $("#save_charges_btn").on("click", function () {
         if (appendedCharges.length === 0) {
             return Swal.fire({
                 title: "Error",
-                text: "Please append at least one charge before saving.",
+                text: "Please append at least one new charge before saving.",
                 icon: "error"
             });
         }
+
+        const $btn = $(this);
+        setBtnLoading($btn, "Saving...");
 
         $.ajax({
             url: "/api/save_patient_charges",
@@ -793,6 +890,17 @@ $(function () {
                     });
                     appendedCharges = [];
                     $("#appended_charges_list").empty();
+                    $("#charges_table").DataTable().ajax.reload();
+                    loadRx();
+
+                    const appendModal = bootstrap.Modal.getInstance(document.getElementById("append_charge_modal"));
+                    if (appendModal) appendModal.hide();
+
+                    // Maintain consultation_modal visibility and scrolling
+                    $("body").addClass("modal-open");
+                    const consulModal = bootstrap.Modal.getOrCreateInstance(document.getElementById("consultation_modal"));
+                    consulModal.show();
+                    $("#patientChargeTab-tab").trigger("click");
                 } else {
                     Swal.fire({
                         title: "Error",
@@ -800,12 +908,14 @@ $(function () {
                         icon: "error"
                     });
                 }
+            },
+            complete: function () {
+                resetBtnLoading($btn);
             }
         });
-
-        $("#charges_table").DataTable().ajax.reload();
     });
 
+    // Detailed Comment: Load Patient Charges tab with defensive null-safety and NaN prevention on total sums
     $("#patient_charge_tab_btn").on("click", function () {
         $("#charges_table").DataTable().destroy().clear();
         $("#charges_table").DataTable({
@@ -817,13 +927,18 @@ $(function () {
                 dataSrc: function (response) {
                     let total = 0;
 
-                    response.charges.forEach(charge => {
-                        total += parseFloat(charge.totalamt);
-                    });
+                    if (response && response.charges) {
+                        response.charges.forEach(charge => {
+                            const val = parseFloat(charge.totalamt || charge.amount || 0);
+                            if (!isNaN(val)) {
+                                total += val;
+                            }
+                        });
+                    }
 
                     $("#charges_total").text('₱' + total.toFixed(2));
 
-                    return response.charges;
+                    return response.charges || [];
                 }
             },
             columns: [
@@ -840,8 +955,20 @@ $(function () {
                 },
                 { data: 'item_dscr' },
                 { data: 'qty' },
-                { data: 'cost_ave' },
-                { data: 'totalamt' }
+                { 
+                    data: 'cost_ave',
+                    render: function (data) {
+                        const price = parseFloat(data || 0);
+                        return isNaN(price) ? '0.00' : price.toFixed(2);
+                    }
+                },
+                { 
+                    data: 'totalamt',
+                    render: function (data) {
+                        const amt = parseFloat(data || 0);
+                        return isNaN(amt) ? '0.00' : amt.toFixed(2);
+                    }
+                }
             ],
             columnDefs: [
                 {
@@ -849,14 +976,20 @@ $(function () {
                     width: '1%',
                     orderable: false,
                     className: 'text-nowrap text-center align-middle'
+                },
+                {
+                    targets: [1, 2, 3, 4],
+                    className: 'align-middle'
                 }
             ],
+            // Detailed Comment: In DataTables 2, layout uses function callbacks for custom DOM elements to prevent "Unknown feature: div" warning.
             layout: {
                 bottomStart: 'paging',
-                bottomEnd: {
-                    div: {
-                        html: `<h4 class="fw-bold">Total:<span class="fw-normal ms-2" id="charges_total"></span></h4>`
-                    }
+                bottomEnd: function () {
+                    const el = document.createElement('div');
+                    el.className = 'd-flex align-items-center mt-2';
+                    el.innerHTML = '<h4 class="fw-bold m-0">Total: ₱<span class="fw-normal ms-2" id="charges_total">0.00</span></h4>';
+                    return el;
                 }
             },
             lengthChange: false,
@@ -869,7 +1002,9 @@ $(function () {
         });
     });
 
+    // Detailed Comment: Remove charge with button loading state
     $(document).on("click", ".remove_charge_btn", function () {
+        const $btn = $(this);
         Swal.fire({
             title: "Remove Charge?",
             text: "Are you sure you want to remove this charge from the patient's consultation?",
@@ -878,12 +1013,13 @@ $(function () {
             confirmButtonText: "Confirm"
         }).then((result) => {
             if (result.isConfirmed) {
+                $btn.prop("disabled", true).html('<i class="fa-solid fa-spinner fa-spin"></i>');
                 $.ajax({
                     url: "/api/delete_patient_charge",
                     type: "POST",
                     headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
                     data: {
-                        chargeid: $(this).val(),
+                        chargeid: $btn.val(),
                         consultationrefno: $("#consultationrefno").val()
                     },
                     success: function (response) {
@@ -894,8 +1030,12 @@ $(function () {
                                 icon: "success"
                             }).then(() => {
                                 $("#charges_table").DataTable().ajax.reload();
+                                loadRx();
                             });
                         }
+                    },
+                    complete: function () {
+                        $btn.prop("disabled", false).html('<i class="fa-solid fa-trash"></i>');
                     }
                 });
             }

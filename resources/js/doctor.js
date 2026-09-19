@@ -74,31 +74,39 @@ $(function () {
     }
 
     function renderSchedules(schedules) {
-        const grouped = groupByDay(schedules);
         const body = $("#schedules_calendar tbody");
-
         body.empty();
 
-        Object.keys(grouped).forEach(day => {
-            const dayRow = $(`
-                <tr class="table-success">
-                    <td colspan="3"><strong>${day}</strong></td>
-                </tr>
-            `);
+        if (!schedules || schedules.length === 0) {
+            body.html('<tr><td colspan="2" class="text-muted text-center py-3"><i class="fa-solid fa-calendar-xmark me-1"></i> No clinic schedules set yet.</td></tr>');
+            return;
+        }
 
-            body.append(dayRow);
+        const daysOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        const grouped = groupByDay(schedules);
 
-            grouped[day].forEach(sched => {
-                const schedRow = $(`
-                    <tr class="align-middle schedule-row" data-id="${sched.schedrefno}">
-                        <td class="ps-4">
-                            ${convert24To12(sched.start)} - ${convert24To12(sched.end)}
-                        </td>
-                    </tr>
-                `);
-
-                body.append(schedRow);
-            });
+        daysOrder.forEach(day => {
+            if (grouped[day] && grouped[day].length > 0) {
+                body.append(`<tr class="table-success"><td colspan="2"><strong>${day}</strong></td></tr>`);
+                grouped[day].forEach(sched => {
+                    const schedRow = $(`
+                        <tr class="align-middle schedule-row" data-id="${sched.schedrefno}">
+                            <td class="ps-3">
+                                <strong><i class="fa-regular fa-clock me-1 text-success"></i> ${convert24To12(sched.start)} - ${convert24To12(sched.end)}</strong>
+                            </td>
+                            <td style="width: 1%;" class="text-nowrap text-end pe-2">
+                                <button class="btn btn-sm btn-outline-primary edit-doctor-schedule me-1" value="${sched.schedrefno}" title="Edit Schedule">
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger delete-doctor-schedule" value="${sched.schedrefno}" title="Delete Schedule">
+                                    <i class="fa-solid fa-trash"></i> Delete
+                                </button>
+                            </td>
+                        </tr>
+                    `);
+                    body.append(schedRow);
+                });
+            }
         });
     }
 
@@ -115,12 +123,124 @@ $(function () {
     }
 
     function convert24To12(time) {
+        if (!time) return '';
         const [hour, minute] = time.split(":");
         const h = parseInt(hour, 10);
         const suffix = h >= 12 ? 'PM' : 'AM';
         const hour12 = h % 12 || 12;
         return `${hour12}:${minute} ${suffix}`;
     }
+
+    // Detailed Comment: Open Add Schedule modal
+    $(document).on("click", "#add_doctor_schedule_btn", function () {
+        if ($("#doctor_add_schedule_form").length) {
+            $("#doctor_add_schedule_form")[0].reset();
+            new bootstrap.Modal(document.getElementById("doctor_add_schedule_modal")).show();
+        }
+    });
+
+    // Detailed Comment: Save schedule
+    $(document).on("click", "#save_doctor_schedule_btn", function () {
+        const form = document.getElementById("doctor_add_schedule_form");
+        if (!form.checkValidity()) return form.reportValidity();
+
+        const start = $("#add_sched_start").val();
+        const end = $("#add_sched_end").val();
+        if (start >= end) {
+            return Swal.fire({ title: "Invalid Time Range", text: "Start time must be earlier than end time.", icon: "warning" });
+        }
+
+        $.ajax({
+            url: "/api/doctor/create_schedule",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: $("#doctor_add_schedule_form").serialize(),
+            success: function (response) {
+                if (response.success) {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Schedule created successfully!', showConfirmButton: false, timer: 1500 });
+                    bootstrap.Modal.getInstance(document.getElementById("doctor_add_schedule_modal")).hide();
+                    loadDashboard();
+                } else {
+                    Swal.fire({ title: "Error", text: response.message || "Failed to create schedule.", icon: "error" });
+                }
+            }
+        });
+    });
+
+    // Detailed Comment: Edit schedule
+    $(document).on("click", ".edit-doctor-schedule", function () {
+        const schedrefno = $(this).val();
+        $.ajax({
+            url: "/api/doctor/fetch_schedule_refno",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: { schedrefno: schedrefno },
+            success: function (response) {
+                if (response.success && response.sched) {
+                    const s = response.sched;
+                    $("#edit_sched_refno").val(s.schedrefno);
+                    $("#edit_sched_day").val(s.day);
+                    $("#edit_sched_start").val(s.start ? s.start.substring(0, 5) : '');
+                    $("#edit_sched_end").val(s.end ? s.end.substring(0, 5) : '');
+                    new bootstrap.Modal(document.getElementById("doctor_edit_schedule_modal")).show();
+                }
+            }
+        });
+    });
+
+    // Detailed Comment: Update schedule
+    $(document).on("click", "#update_doctor_schedule_btn", function () {
+        const form = document.getElementById("doctor_edit_schedule_form");
+        if (!form.checkValidity()) return form.reportValidity();
+
+        const start = $("#edit_sched_start").val();
+        const end = $("#edit_sched_end").val();
+        if (start >= end) {
+            return Swal.fire({ title: "Invalid Time Range", text: "Start time must be earlier than end time.", icon: "warning" });
+        }
+
+        $.ajax({
+            url: "/api/doctor/edit_schedule",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: $("#doctor_edit_schedule_form").serialize(),
+            success: function (response) {
+                if (response.success) {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Schedule updated successfully!', showConfirmButton: false, timer: 1500 });
+                    bootstrap.Modal.getInstance(document.getElementById("doctor_edit_schedule_modal")).hide();
+                    loadDashboard();
+                }
+            }
+        });
+    });
+
+    // Detailed Comment: Delete schedule
+    $(document).on("click", ".delete-doctor-schedule", function () {
+        const schedrefno = $(this).val();
+        Swal.fire({
+            title: "Delete Schedule?",
+            text: "Are you sure you want to delete this clinic schedule?",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#d33",
+            confirmButtonText: "Yes, Delete"
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: "/api/doctor/delete_schedule",
+                    type: "POST",
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    data: { schedrefno: schedrefno },
+                    success: function (response) {
+                        if (response.success) {
+                            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Schedule deleted successfully.', showConfirmButton: false, timer: 1500 });
+                            loadDashboard();
+                        }
+                    }
+                });
+            }
+        });
+    });
 
     // Consult tab
     $("#consult_tab").on("click", function () {
@@ -332,8 +452,10 @@ $(function () {
                     $("#genpulserate").text(response.patient.pulserate);
                     $("#genbp").text(response.patient.bpnumerator != null && response.patient.bpdenominator != null ? (`${response.patient.bpnumerator}/${response.patient.bpdenominator}`) : '');
 
-                    $("#print_rx_btn").attr("href", `print_pdf?type=rx&consultationrefno=${rowConsultationRefno}`);
-                    $("#print_inst_btn").attr("href", `print_pdf?type=instructions&consultationrefno=${rowConsultationRefno}`);
+                    // Detailed Comment: Fix print button URLs to respect application subfolder base path (/kayakapmd_clinic)
+                    const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
+                    $("#print_rx_btn").attr("href", `${basePath}/print_pdf?type=rx&consultationrefno=${rowConsultationRefno}`);
+                    $("#print_inst_btn").attr("href", `${basePath}/print_pdf?type=instructions&consultationrefno=${rowConsultationRefno}`);
 
                     $("#reasonforconsultation").val(response.patient.reasonforconsultation);
                     $("#impressions").val(response.patient.impression);
@@ -1011,31 +1133,125 @@ $(function () {
         });
     });
 
-    // Profile-related
-    if ($("#doctorPage").length) {
-        const modalEl = document.getElementById("doctor_profile_modal");
-        modalEl.addEventListener("shown.bs.modal", () => {
+    // Detailed Comment: Self-service Doctor Profile modal lifecycle (populate 5 tabs and save updates)
+    const doctorProfileModalEl = document.getElementById("doctor_profile_modal");
+    if (doctorProfileModalEl) {
+        doctorProfileModalEl.addEventListener("show.bs.modal", () => {
             $.ajax({
-                url: "fetch_doctor_data",
+                url: "/api/fetch_doctor_data",
                 type: "POST",
                 headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
                 success: function (response) {
-                    const user = response.user;
-                    const map = {
-                        "#doc_fullname": [user.docfname, user.docmname, user.doclname, user.suffix].filter(Boolean).join(" "),
-                        "#doc_title": user.titlename,
-                        "#doc_contact": user.cellno,
-                        "#doc_email": user.emailadd,
-                        "#doc_lic": user.Licno,
-                        "#doc_lic_expiry": user.licnoexpiry,
-                        "#doc_phic": user.phicno,
-                        "#doc_phic_expiry": user.phicexpiry,
-                        "#doc_s2": user.S2no
-                    };
+                    if (response.success && response.user) {
+                        const u = response.user;
+                        // Tab 1: Personal & Account
+                        $("#prof_docfname").val(u.docfname || '');
+                        $("#prof_docmname").val(u.docmname || '');
+                        $("#prof_doclname").val(u.doclname || '');
+                        $("#prof_suffix").val(u.suffix || '');
+                        $("#prof_titlename").val(u.titlename || 'MD');
+                        $("#prof_username").val(u.username || '');
+                        $("#prof_new_password").val('');
+                        $("#prof_emailadd").val(u.emailadd || '');
+                        $("#prof_cellno").val(u.cellno || '');
+                        $("#prof_adrs").val(u.adrs || '');
 
-                    $.each(map, function (selector, value) {
-                        $(selector).text(value ?? "");
-                    });
+                        // Tab 2: Licenses & Accreditations
+                        $("#prof_licno").val(u.Licno || '');
+                        $("#prof_licnoexpiry").val(u.licnoexpiry || '');
+                        $("#prof_phicno").val(u.phicno || '');
+                        $("#prof_phicexpiry").val(u.phicexpiry || '');
+                        $("#prof_phicname").val(u.phicname || '');
+                        $("#prof_phicrate").val(u.phicrate || 0);
+                        $("#prof_phicenable").prop('checked', !!(u.phicenable == 1 || u.phicenable === true));
+                        $("#prof_s2no").val(u.S2no || '');
+                        $("#prof_ptr").val(u.PTR || '');
+
+                        // Tab 3: Practice & Clinic
+                        $("#prof_expertise").val(u.expertise || '');
+                        $("#prof_proftype").val(u.proftype || 'ATTENDING');
+                        $("#prof_department").val(u.department || '');
+                        $("#prof_profgroup").val(u.profgroup || '');
+                        $("#prof_catg").val(u.catg || '');
+                        $("#prof_station").val(u.station || '');
+                        $("#prof_groupname").val(u.groupname || '');
+                        $("#prof_clinicroom").val(u.clinicroom || '');
+                        $("#prof_clinichours").val(u.clinichours || '');
+                        $("#prof_hospadrs").val(u.hospadrs || '');
+
+                        // Tab 4: Rates, Tax & Billing
+                        $("#prof_consultationfee").val(u.consultationfee || 0);
+                        $("#prof_emergencyfee").val(u.emergencyfee || 0);
+                        $("#prof_admissionfee").val(u.admissionfee || 0);
+                        $("#prof_tin").val(u.tin || '');
+                        $("#prof_taxpercent").val(u.taxpercent || 0);
+                        $("#prof_withholdingtax").val(u.withholdingtax || 0);
+                        $("#prof_bankacct").val(u.bankacct || '');
+                        $("#prof_slcode").val(u.slcode || '');
+                        $("#prof_autoAddVAT").prop('checked', !!(u.autoAddVAT == 1 || u.autoAddVAT === true));
+                        $("#prof_issuehospOR").prop('checked', !!(u.issuehospOR == 1 || u.issuehospOR === true));
+
+                        // Tab 5: System Settings & Notes
+                        $("#prof_quevisible").prop('checked', !!(u.quevisible == 1 || u.quevisible === true || u.quevisible === undefined));
+                        $("#prof_allowtextresult").prop('checked', !!(u.allowtextresult == 1 || u.allowtextresult === true));
+                        $("#prof_allowdocsystem").prop('checked', !!(u.allowdocsystem == 1 || u.allowdocsystem === true));
+                        $("#prof_disabletext").prop('checked', !!(u.disabletext == 1 || u.disabletext === true));
+                        $("#prof_otherinfo").val(u.otherinfo || '');
+                        $("#prof_biodata").val(u.biodata || '');
+
+                        // Legacy view elements
+                        const map = {
+                            "#doc_fullname": [u.docfname, u.docmname, u.doclname, u.suffix].filter(Boolean).join(" "),
+                            "#doc_username": u.username,
+                            "#doc_title": u.titlename,
+                            "#doc_expertise": u.expertise,
+                            "#doc_contact": u.cellno,
+                            "#doc_email": u.emailadd,
+                            "#doc_clinicroom": u.clinicroom,
+                            "#doc_clinichours": u.clinichours,
+                            "#doc_lic": u.Licno,
+                            "#doc_lic_expiry": u.licnoexpiry,
+                            "#doc_phic": u.phicno,
+                            "#doc_phic_expiry": u.phicexpiry,
+                            "#doc_s2": u.S2no,
+                            "#doc_ptr": u.PTR
+                        };
+                        $.each(map, (sel, val) => $(sel).text(val ?? ""));
+                    }
+                }
+            });
+        });
+
+        $("#save_doctor_profile_btn").off("click").on("click", function () {
+            const form = document.getElementById("doctor_profile_form");
+            if (form && !form.checkValidity()) return form.reportValidity();
+
+            const $btn = $(this);
+            const originalHtml = $btn.html();
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status"></span> Saving...');
+
+            $.ajax({
+                url: "/api/doctor/update_profile",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                data: $("#doctor_profile_form").serialize(),
+                success: function (response) {
+                    if (response.success) {
+                        Swal.fire({
+                            title: "Success",
+                            text: "Doctor profile updated successfully.",
+                            icon: "success"
+                        });
+                    } else {
+                        Swal.fire({ title: "Error", text: response.message || "Failed to update profile.", icon: "error" });
+                    }
+                },
+                error: function (xhr) {
+                    const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "Failed to update profile.";
+                    Swal.fire({ title: "Error", text: msg, icon: "error" });
+                },
+                complete: function () {
+                    $btn.prop('disabled', false).html(originalHtml);
                 }
             });
         });
@@ -1307,12 +1523,14 @@ $(function () {
                     className: 'text-nowrap text-center align-middle'
                 }
             ],
+            // Detailed Comment: In DataTables 2, layout uses function callbacks for custom DOM elements to prevent "Unknown feature: div" warning.
             layout: {
                 bottomStart: 'paging',
-                bottomEnd: {
-                    div: {
-                        html: `<h4 class="fw-bold">Total:<span class="fw-normal ms-2" id="charges_total"></span></h4>`
-                    }
+                bottomEnd: function () {
+                    const el = document.createElement('div');
+                    el.className = 'd-flex align-items-center mt-2';
+                    el.innerHTML = '<h4 class="fw-bold m-0">Total: ₱<span class="fw-normal ms-2" id="charges_total">0.00</span></h4>';
+                    return el;
                 }
             },
             lengthChange: false,

@@ -1,5 +1,5 @@
 $(function () {
-    if ($("#management_modal").length > 0) {
+    if ($("#management_modal").length > 0 || $("#secretary_profile_modal").length > 0) {
         loadDetails();
     }
 
@@ -7,9 +7,17 @@ $(function () {
         loadDetails();
     });
 
+    $("#secretary_profile_modal").on("show.bs.modal", function () {
+        loadDetails();
+    });
+
+    // Detailed Comment: Self-service profile save handler from Secretary Management modal
     $("#save_profile_btn").on("click", function () {
+        const form = document.getElementById("account_form");
+        if (form && !form.checkValidity()) return form.reportValidity();
+
         $.ajax({
-            url: "edit_secretary_account",
+            url: "/api/secretary/update_profile",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             data: $("#account_form").serialize(),
@@ -17,32 +25,83 @@ $(function () {
                 if (response.success) {
                     Swal.fire({
                         title: "Success",
-                        text: "Successfully updated contacts.",
+                        text: "Secretary profile updated successfully.",
                         icon: "success"
                     });
-
                     loadDetails();
+                } else {
+                    Swal.fire({ title: "Error", text: response.message || "Failed to update profile.", icon: "error" });
                 }
+            },
+            error: function (xhr) {
+                const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "Failed to update profile.";
+                Swal.fire({ title: "Error", text: msg, icon: "error" });
+            }
+        });
+    });
+
+    // Detailed Comment: Self-service profile save handler from dedicated My Secretary Profile modal
+    $("#save_secretary_profile_btn").on("click", function () {
+        const form = document.getElementById("secretary_profile_form");
+        if (form && !form.checkValidity()) return form.reportValidity();
+
+        $.ajax({
+            url: "/api/secretary/update_profile",
+            type: "POST",
+            headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+            data: $("#secretary_profile_form").serialize(),
+            success: function (response) {
+                if (response.success) {
+                    Swal.fire({
+                        title: "Success",
+                        text: "Secretary profile updated successfully.",
+                        icon: "success"
+                    });
+                    loadDetails();
+                } else {
+                    Swal.fire({ title: "Error", text: response.message || "Failed to update profile.", icon: "error" });
+                }
+            },
+            error: function (xhr) {
+                const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "Failed to update profile.";
+                Swal.fire({ title: "Error", text: msg, icon: "error" });
             }
         });
     });
 
     function loadDetails() {
         $.ajax({
-            url: "fetch_secretary",
+            url: "/api/fetch_secretary",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             success: function (response) {
-                $("#sec_fullname").text([response.user.secfname, response.user.secmname, response.user.seclname, response.user.secfuffix].filter(Boolean).join(' '));
-                $("#sec_sex").text(response.user.secgender);
-                $("#sec_dob").text(new Date(response.user.secbday).toLocaleDateString("en-US", {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                }));
+                if (response.success && response.user) {
+                    const u = response.user;
+                    // Populate Secretary Management modal fields
+                    $("#sec_fullname").text([u.secfname, u.secmname, u.seclname, u.secsuffix].filter(Boolean).join(' '));
+                    $("#sec_fname").val(u.secfname || '');
+                    $("#sec_mname").val(u.secmname || '');
+                    $("#sec_lname").val(u.seclname || '');
+                    $("#sec_suffix").val(u.secsuffix || '');
+                    $("#sec_username_input").val(u.username || '');
+                    $("#sec_gender_input").val(u.secgender ? u.secgender.toUpperCase() : 'MALE');
+                    $("#sec_bday_input").val(u.secbday || '');
+                    $("#sec_contact").val(u.seccontactno || '');
+                    $("#sec_email").val(u.secemail || '');
+                    $("#sec_adrs").val(u.secadrs || '');
 
-                $("#sec_contact").val(response.user.seccontactno);
-                $("#sec_email").val(response.user.secemail);
+                    // Populate dedicated My Secretary Profile modal fields
+                    $("#my_secfname").val(u.secfname || '');
+                    $("#my_secmname").val(u.secmname || '');
+                    $("#my_seclname").val(u.seclname || '');
+                    $("#my_secsuffix").val(u.secsuffix || '');
+                    $("#my_secusername").val(u.username || '');
+                    $("#my_secgender").val(u.secgender ? u.secgender.toUpperCase() : 'MALE');
+                    $("#my_secbday").val(u.secbday || '');
+                    $("#my_seccontactno").val(u.seccontactno || '');
+                    $("#my_secemail").val(u.secemail || '');
+                    $("#my_secadrs").val(u.secadrs || '');
+                }
             }
         });
     }

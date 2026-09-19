@@ -9,6 +9,7 @@ class ScheduleModel extends Model
     protected $table = 'docschedules';
 
     protected $fillable = [
+        'dw_clientcode',
         'schedrefno',
         'docrefno',
         'day',

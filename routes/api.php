@@ -12,7 +12,11 @@ use Illuminate\Support\Facades\Route;
 
 // Secretary API Routes
 Route::middleware(['web', 'auth:secretary,admin'])->group(function () {
+    // Detailed Comment: Dedicated medical history endpoint for secretary queue to prevent collision with doctor route
+    Route::post('fetch_patient_medhistory', [SecretaryController::class, 'fetchPatientMedhistory'])->name('secretary.patient_medhistory');
     Route::post('fetch_patient_history', [SecretaryController::class, 'fetchPatientMedhistory']);
+    // Detailed Comment: Self-service profile update endpoint allowing logged in secretary to update own info, username, and password
+    Route::post('secretary/update_profile', [SecretaryController::class, 'updateSecretaryProfile'])->name('secretary.update_profile');
 
     Route::post('fetchGroupManagement', [SecretaryController::class, 'fetchGroupManagement']);
     Route::post('createGroupManagement', [SecretaryController::class, 'createGroupManagement']);
@@ -75,6 +79,8 @@ Route::middleware(['web', 'auth:secretary,admin'])->group(function () {
 // Doctor API Routes
 Route::middleware(['web', 'auth:doctor,admin'])->group(function () {
     Route::post('fetch_doctor_data', [DoctorController::class, 'fetchDoctorUser']);
+    // Detailed Comment: Self-service profile update route allowing logged in doctor to update own profile and credentials
+    Route::post('doctor/update_profile', [DoctorController::class, 'updateDoctorProfile'])->name('doctor.update_profile');
 
     Route::post('fetch_patient_history', [DoctorController::class, 'fetchPatientHistory']);
 
@@ -84,6 +90,16 @@ Route::middleware(['web', 'auth:doctor,admin'])->group(function () {
 
     Route::post('fetch_todays_patients', [DoctorController::class, 'fetchTodaysPatients'])->name('doctor.todays_patients');
     Route::post('fetch_doctor_schedules_dashboard', [DoctorController::class, 'fetchDoctorSchedules'])->name('doctor.schedules');
+    // Detailed Comment: Doctor clinic schedule management routes (add, edit, delete, single-ref fetch)
+    Route::post('doctor/create_schedule', [DoctorController::class, 'createSchedule'])->name('doctor.create_schedule');
+    Route::post('doctor/fetch_schedule_refno', [DoctorController::class, 'fetchScheduleByRef'])->name('doctor.fetch_schedule_refno');
+    Route::post('doctor/edit_schedule', [DoctorController::class, 'editSchedule'])->name('doctor.edit_schedule');
+    Route::post('doctor/delete_schedule', [DoctorController::class, 'deleteSchedule'])->name('doctor.delete_schedule');
+    // Generic schedule route aliases for doctor guard
+    Route::post('create_doctor_schedules', [DoctorController::class, 'createSchedule']);
+    Route::post('fetch_schedule_refno', [DoctorController::class, 'fetchScheduleByRef']);
+    Route::post('edit_schedule', [DoctorController::class, 'editSchedule']);
+    Route::post('delete_schedule', [DoctorController::class, 'deleteSchedule']);
 
     Route::post('add_question', [DoctorController::class, 'addQuestion'])->name('doctor.add_question');
 
@@ -109,8 +125,8 @@ Route::middleware(['web', 'auth:doctor,admin'])->group(function () {
     Route::post('get_hmo_price', [DoctorController::class, 'getHmoPrice']);
 });
 
-// Utility API Routes for both Secretary & Doctor
-Route::middleware(['web', 'auth:secretary,doctor'])->group(function () {
+// Utility API Routes for Secretary, Doctor, and Admin consoles
+Route::middleware(['web', 'auth:secretary,doctor,admin'])->group(function () {
     Route::post('fetch_charge_categories_dr', [ManagementController::class, 'fetchChargeCategories']);
     Route::post('fetch_charge_categories_sc', [ManagementController::class, 'fetchChargeCategoriesSc']);
 
@@ -150,6 +166,8 @@ Route::middleware(['web', 'auth:admin'])->group(function () {
 
     Route::post('load_profile', [ManagementController::class, 'fetchProfile']);
     Route::post('update_profile', [ManagementController::class, 'updateProfile']);
+    // Detailed Comment: Self-service profile update route allowing logged in administrator to update own account info and credentials
+    Route::post('admin/update_profile', [ManagementController::class, 'updateAdminProfile'])->name('admin.update_own_profile');
 
     Route::post('fetch_address_data', [ManagementController::class, 'fetchAddressData']);
     Route::post('load_company_profile', [ManagementController::class, 'loadCompanyProfile']);
@@ -163,9 +181,17 @@ Route::middleware(['web', 'auth:admin'])->group(function () {
     Route::post('delete_doctor', [ManagementController::class, 'deleteDoctor'])->name('admin.delete_doctor');
 
     Route::post('fetch_secretaries', [ManagementController::class, 'fetchSecretaries'])->name('fetch.secretaries');
+    Route::post('fetch_secretary_details', [ManagementController::class, 'fetchSecretaryDetails'])->name('admin.fetch_secretary_details');
     Route::post('add_secretary', [ManagementController::class, 'addSecretary'])->name('admin.add_secretary');
     Route::post('delete_secretary', [ManagementController::class, 'deleteSecretary'])->name('admin.delete_secretary');
     Route::post('edit_secretary', [ManagementController::class, 'editSecretary']);
+
+    // Detailed Comment: Admin user management endpoints for unified Secretaries/Admin Users module
+    Route::post('fetch_admins', [ManagementController::class, 'fetchAdmins'])->name('admin.fetch_admins');
+    Route::post('fetch_admin_details', [ManagementController::class, 'fetchAdminDetails'])->name('admin.fetch_admin_details');
+    Route::post('add_admin', [ManagementController::class, 'addAdmin'])->name('admin.add_admin');
+    Route::post('edit_admin', [ManagementController::class, 'editAdmin'])->name('admin.edit_admin');
+    Route::post('delete_admin', [ManagementController::class, 'deleteAdmin'])->name('admin.delete_admin');
 
     Route::post('fetch_secretary_doctors', [ManagementController::class, 'fetchSecretaryDoctors'])->name('admin.fetch_secretary_doctors');
     Route::post('save_appended_doctors', [ManagementController::class, 'saveAppendedDoctors'])->name('admin.save_appended_doctors');

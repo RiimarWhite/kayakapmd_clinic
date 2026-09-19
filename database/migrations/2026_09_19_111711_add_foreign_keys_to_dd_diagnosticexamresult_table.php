@@ -1,0 +1,30 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::table('dd_diagnosticexamresult', function (Blueprint $table) {
+            $table->foreign(['pHciCaseNo'])->references(['pHciCaseNo'])->on('dd_enlistment')->onUpdate('restrict')->onDelete('restrict');
+            $table->foreign(['pHciTransNo'])->references(['pHciTransNo'])->on('dd_soap_consultation')->onUpdate('restrict')->onDelete('restrict');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::table('dd_diagnosticexamresult', function (Blueprint $table) {
+            $table->dropForeign('dd_diagnosticexamresult_phcicaseno_foreign');
+            $table->dropForeign('dd_diagnosticexamresult_phcitransno_foreign');
+        });
+    }
+};

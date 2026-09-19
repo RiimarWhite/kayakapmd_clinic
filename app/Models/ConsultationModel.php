@@ -8,6 +8,17 @@ class ConsultationModel extends Model
 {
     protected $table = "pxwalkinconsultation";
 
+    /**
+     * Detailed Comment: Default model attributes to satisfy database integrity constraints (finadiagnosis NOT NULL)
+     */
+    protected $attributes = [
+        'finadiagnosis' => '',
+    ];
+
+    /**
+     * Detailed Comment: Fillable attributes for pxwalkinconsultation matching database data dictionary.
+     * Includes queueno, secrefno, doccode, and caseno for queue and consultation persistence.
+     */
     protected $fillable = [
         'source_data',
         'consultationrefno',
@@ -61,6 +72,8 @@ class ConsultationModel extends Model
         'bpdenominator',
         'consultation_date',
         'status',
+        'queueno',
+        'secrefno',
         'laboratorypath',
         'radiologypath',
         'photo_path',
@@ -70,19 +83,35 @@ class ConsultationModel extends Model
 
     public $timestamps = false;
 
+    /**
+     * Detailed Comment: Model lifecycle hooks to initialize reference codes and track authoring user
+     * across secretary, doctor, and admin authentication guards.
+     */
     public static function booted()
     {
         static::creating(function ($model) {
-            $model->consultationrefno = 'CON' . now()->format('mdYHis');
+            if (empty($model->consultationrefno)) {
+                $model->consultationrefno = 'CON' . now()->format('mdYHis');
+            }
 
             if (auth()->guard('secretary')->check()) {
                 $user = auth()->guard('secretary')->user();
-                $model->source_data = 'SECRETARY';
-                $model->recordedby = trim($user->seclname . ' ' . $user->secfname . ' ' . $user->secmname . ' ' .  $user->secsuffix);
+                $model->source_data = $model->source_data ?: 'SECRETARY';
+                $name = trim(($user->seclname ?? '') . ', ' . ($user->secfname ?? '') . ' ' . ($user->secmname ?? '') . ' ' .  ($user->secsuffix ?? ''));
+                $model->recordedby = $name ?: ($user->username ?? 'SECRETARY');
             } else if (auth()->guard('doctor')->check()) {
                 $user = auth()->guard('doctor')->user();
-                $model->source_data = 'DOCTOR';
-                $model->recordedby = trim($user->doclname . ' ' . $user->docfname . ' ' . $user->docmname . ' ' .  $user->suffix);
+                $model->source_data = $model->source_data ?: 'DOCTOR';
+                $name = trim(($user->doclname ?? '') . ', ' . ($user->docfname ?? '') . ' ' . ($user->docmname ?? '') . ' ' .  ($user->suffix ?? ''));
+                $model->recordedby = $name ?: ($user->username ?? 'DOCTOR');
+            } else if (auth()->guard('admin')->check()) {
+                $user = auth()->guard('admin')->user();
+                // Detailed Comment: Set source_data to 'ADMIN' matching updated ENUM definition on pxwalkinconsultation
+                $model->source_data = $model->source_data ?: 'ADMIN';
+                $model->recordedby = $user->username ?? 'admin';
+            } else {
+                $model->source_data = $model->source_data ?: 'SECRETARY';
+                $model->recordedby = $model->recordedby ?: 'system';
             }
 
             $model->recordeddate = now();
@@ -91,12 +120,15 @@ class ConsultationModel extends Model
         static::updating(function ($model) {
             if (auth()->guard('secretary')->check()) {
                 $user = auth()->guard('secretary')->user();
-                $model->source_data = 'SECRETARY';
-                $model->recordedby = trim($user->seclname . ' ' . $user->secfname . ' ' . $user->secmname . ' ' .  $user->secsuffix);
+                $name = trim(($user->seclname ?? '') . ', ' . ($user->secfname ?? '') . ' ' . ($user->secmname ?? '') . ' ' .  ($user->secsuffix ?? ''));
+                $model->recordedby = $name ?: ($user->username ?? 'SECRETARY');
             } else if (auth()->guard('doctor')->check()) {
                 $user = auth()->guard('doctor')->user();
-                $model->source_data = 'DOCTOR';
-                $model->recordedby = trim($user->doclname . ' ' . $user->docfname . ' ' . $user->docmname . ' ' .  $user->suffix);
+                $name = trim(($user->doclname ?? '') . ', ' . ($user->docfname ?? '') . ' ' . ($user->docmname ?? '') . ' ' .  ($user->suffix ?? ''));
+                $model->recordedby = $name ?: ($user->username ?? 'DOCTOR');
+            } else if (auth()->guard('admin')->check()) {
+                $user = auth()->guard('admin')->user();
+                $model->recordedby = $user->username ?? 'admin';
             }
 
             $model->recordeddate = now();

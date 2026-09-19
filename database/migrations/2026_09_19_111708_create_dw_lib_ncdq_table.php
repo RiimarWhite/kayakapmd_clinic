@@ -1,0 +1,33 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('dw_lib_ncdq', function (Blueprint $table) {
+            $table->integer('QID')->nullable()->comment('QUESTION ID');
+            $table->integer('HID')->nullable()->comment('HEADER ID');
+            $table->string('QUESTION_DESC', 300)->nullable()->comment('QUESTION DESCRIPTION');
+            $table->string('PARENT_QID', 20)->nullable()->comment('PARENT QUESTION ID');
+            $table->dateTime('updated')->nullable()->comment('DATE WHEN THE RECORD WAS ADDED');
+            $table->string('updatedby', 80)->nullable()->comment('USER WHO ADDED THE RECORD');
+            $table->tinyInteger('sys_usertype')->nullable()->comment('1 BOTH 2 INTERNAL 3 PHIC ONLY');
+            $table->string('dw_clientcode', 12)->nullable();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('dw_lib_ncdq');
+    }
+};

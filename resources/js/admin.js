@@ -618,16 +618,19 @@ $(function () {
     $(document).on("click", ".remove_append", function () {
         const available_doctors = $("#availdoctors");
         const assigned_doctors = $("#assigned_doctors_badge");
-        const option = $(this).text();
+        const option = $(this).text().replace('×', '').trim();
+        const value = $(this).find('input[name="doctors[]"]').val() || $(this).attr('id');
 
         $(this).remove();
 
-        available_doctors.append(
-            $("<option>", {
-                value: $(this).val(),
-                text: option.replace('×', '')
-            })
-        );
+        if (value) {
+            available_doctors.append(
+                $("<option>", {
+                    value: value,
+                    text: option
+                })
+            );
+        }
 
         if (assigned_doctors.children().length == 0) {
             assigned_doctors.append(

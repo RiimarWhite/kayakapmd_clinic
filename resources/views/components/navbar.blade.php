@@ -16,6 +16,14 @@
                 <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#doctor_profile_modal">
                     <i class="fa-solid fa-user-doctor"></i> Profile
                 </button>
+            @elseif (auth()->guard('secretary')->check())
+                <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#secretary_profile_modal">
+                    <i class="fa-solid fa-user-nurse"></i> Profile
+                </button>
+            @elseif (auth()->guard('admin')->check())
+                <a class="btn btn-light" href="{{ route('admin.profile') }}">
+                    <i class="fa-solid fa-user-shield"></i> Profile
+                </a>
             @endif
 
             {{-- Detailed Comment: Hidden POST form for native, environment-agnostic logout --}}

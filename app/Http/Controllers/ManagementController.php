@@ -33,6 +33,8 @@ use App\Models\KayakapProfileModel;
 use App\Models\SecretaryDoctorsModel;
 use App\Models\SecretaryModel;
 use App\Models\SettlementsModel;
+use App\Models\AdminModel;
+use Illuminate\Support\Facades\Hash;
 use Log;
 
 class ManagementController extends Controller
@@ -63,6 +65,12 @@ class ManagementController extends Controller
     }
 
     public function secretariesPage()
+    {
+        return view('pages.admin.users.secretaries');
+    }
+
+    // Detailed Comment: Page-serving method for Secretaries/Admin Users management screen
+    public function secretariesAdminsPage()
     {
         return view('pages.admin.users.secretaries');
     }
@@ -190,7 +198,7 @@ class ManagementController extends Controller
         return view('pages.admin.philhealth.reports');
     }
 
-    public function getDashboardData(Request $request = null)
+    public function getDashboardData(?Request $request = null)
     {
         $data = [];
         $data['patient_records'] = PatientMasterlist::all()->count();
@@ -446,6 +454,16 @@ class ManagementController extends Controller
     public function fetchDoctor(Request $request)
     {
         $doctor = DoctorsProfileModel::where('docrefno', $request->docrefno)->first();
+        if ($doctor) {
+            $rights = DoctorModel::where('docrefno', $request->docrefno)->first();
+            if ($rights) {
+                $doctor->username = $rights->username;
+                $doctor->taxpercent = $rights->taxpercent;
+                $doctor->bankacct = $rights->bankacct;
+                $doctor->slcode = $rights->slcode;
+            }
+            $doctor->source_table = 'doctors & doctorsrights';
+        }
 
         return response()->json(['success' => true, 'doctor' => $doctor]);
     }
@@ -453,10 +471,15 @@ class ManagementController extends Controller
     public function addDoctor(Request $request)
     {
         $request->validate([
+            'docfname' => 'required|string',
+            'doclname' => 'required|string',
             'pass' => 'required|string|min:5',
         ]);
 
         $docrefno = Date::now()->format('mdYHis') . 'MD';
+        $username = $request->filled('username') ? strtolower(trim($request->username)) : strtolower(trim($request->doclname));
+
+        // Detailed Comment: Create doctor profile in the primary 'doctors' table with all columns
         $profile = DoctorsProfileModel::create([
             'doccode' => 'PFMD',
             'docrefno' => $docrefno,
@@ -465,23 +488,53 @@ class ManagementController extends Controller
             'doclname' => $request->doclname,
             'suffix' => $request->suffix,
             'titlename' => $request->titlename,
+            'docfirst' => $request->docfirst ?? $request->docfname,
             'docname' => trim($request->docfname . ' ' . ($request->docmname ?? '') . ' ' . $request->doclname . ' ' . ($request->suffix ?? '')),
             'emailadd' => $request->emailadd,
             'cellno' => $request->cellno,
             'adrs' => $request->adrs,
             'proftype' => $request->proftype,
             'expertise' => $request->expertise,
+            'department' => $request->department,
+            'profgroup' => $request->profgroup,
+            'catg' => $request->catg,
+            'station' => $request->station,
+            'groupname' => $request->groupname,
             'tin' => $request->tin,
             'Licno' => $request->licno,
             'licnoexpiry' => $request->licnoexpiry,
             'phicno' => $request->phicno,
             'phicexpiry' => $request->phicexpiry,
-            'status' => ($request->status == 'ACTIVE' ? true : false),
+            'phicname' => $request->phicname,
+            'phicenable' => $request->boolean('phicenable'),
+            'phicrate' => $request->phicrate,
+            'S2no' => $request->s2no,
+            'PTR' => $request->ptr,
+            'clinicroom' => $request->clinicroom,
+            'clinichours' => $request->clinichours,
+            'pfrate' => $request->pfrate,
+            'rodrate' => $request->rodrate,
+            'coacode' => $request->coacode,
+            'accountno' => $request->accountno,
+            'tax' => $request->tax,
+            'vatable' => $request->boolean('vatable'),
+            'vatrate' => $request->vatrate,
+            'VAT' => $request->vatrate ?? $request->VAT,
+            'autoAddVAT' => $request->boolean('autoAddVAT'),
+            'issuehospOR' => $request->boolean('issuehospOR'),
+            'quevisible' => $request->boolean('quevisible', true),
+            'allowtextresult' => $request->boolean('allowtextresult'),
+            'allowdocsystem' => $request->boolean('allowdocsystem'),
+            'disabletext' => $request->boolean('disabletext'),
+            'status' => ($request->status == 'ACTIVE' || $request->status == '1' ? true : false),
             'statusreason' => $request->statusreason,
+            'otherinfo' => $request->otherinfo,
+            'biodata' => $request->biodata
         ]);
 
         $facilityClientCode = config('app.client_code', env('CLIENT_CODE', '122377'));
 
+        // Detailed Comment: Create credentials in 'doctorsrights' table with username defaulting to last name
         DoctorModel::create([
             'dw_clientcode' => $facilityClientCode,
             'docrefno' => $docrefno,
@@ -490,20 +543,21 @@ class ManagementController extends Controller
             'doclname' => $request->doclname,
             'suffix' => $request->suffix,
             'titlename' => $request->titlename,
-            'username' => $request->doclname,
+            'username' => $username,
             'pass' => $request->pass, // Model casts 'pass' => 'hashed'
             'eadd' => $request->emailadd,
+            'mnumber' => $request->cellno,
             'tin' => $request->tin,
             'address' => $request->adrs,
-            'slcode' => 'SLCODE',
+            'slcode' => $request->coacode ?? 'SLCODE',
             'taxpercent' => $request->tax,
-            'bankacct' => 'BANKACCT',
+            'bankacct' => $request->accountno ?? 'BANKACCT',
             'status' => $request->status,
             'expertise' => $request->expertise,
             'proftype' => $request->proftype,
             'doctype' => 0,
             'docmgmt' => 0,
-            'consultationfee' => 0
+            'consultationfee' => $request->pfrate ?? 0
         ]);
 
         $profile->where('docrefno', $docrefno)->update(['doccode' => 'PFMD' . str_pad($profile->id, 3, '0', STR_PAD_LEFT)]);
@@ -511,7 +565,7 @@ class ManagementController extends Controller
         // Detailed Comment: Structured logging for doctor account registration
         Log::info('Doctor account registered by admin', [
             'docrefno' => $docrefno,
-            'username' => $request->doclname,
+            'username' => $username,
             'docname' => $request->docfname . ' ' . $request->doclname,
             'clientcode' => $facilityClientCode
         ]);
@@ -521,6 +575,9 @@ class ManagementController extends Controller
 
     public function editDoctor(Request $request)
     {
+        $username = $request->filled('eusername') ? strtolower(trim($request->eusername)) : strtolower(trim($request->edoclname));
+
+        // Detailed Comment: Update all columns on doctors table
         $doctorprofile = DoctorsProfileModel::where('docrefno', $request->docrefno)
             ->update([
                 'docfname' => $request->edocfname,
@@ -528,22 +585,51 @@ class ManagementController extends Controller
                 'doclname' => $request->edoclname,
                 'suffix' => $request->esuffix,
                 'titlename' => $request->etitlename,
+                'docfirst' => $request->edocfirst ?? $request->edocfname,
                 'docname' => trim($request->edocfname . ' ' . ($request->edocmname ?? '') . ' ' . $request->edoclname . ' ' . ($request->esuffix ?? '')),
                 'emailadd' => $request->eemailadd,
                 'cellno' => $request->ecellno,
                 'adrs' => $request->eadrs,
                 'proftype' => $request->eproftype,
                 'expertise' => $request->eexpertise,
+                'department' => $request->edepartment,
+                'profgroup' => $request->eprofgroup,
+                'catg' => $request->ecatg,
+                'station' => $request->estation,
+                'groupname' => $request->egroupname,
                 'tin' => $request->etin,
                 'Licno' => $request->elicno,
                 'licnoexpiry' => $request->elicnoexpiry,
                 'phicno' => $request->ephicno,
                 'phicexpiry' => $request->ephicexpiry,
-                'status' => ($request->estatus == 'ACTIVE' ? true : false),
+                'phicname' => $request->ephicname,
+                'phicenable' => $request->boolean('ephicenable'),
+                'phicrate' => $request->ephicrate,
+                'S2no' => $request->es2no,
+                'PTR' => $request->eptr,
+                'clinicroom' => $request->eclinicroom,
+                'clinichours' => $request->eclinichours,
+                'pfrate' => $request->epfrate,
+                'rodrate' => $request->erodrate,
+                'coacode' => $request->ecoacode,
+                'accountno' => $request->eaccountno,
+                'tax' => $request->etax,
+                'vatable' => $request->boolean('evatable'),
+                'vatrate' => $request->evatrate,
+                'VAT' => $request->evatrate ?? $request->eVAT,
+                'autoAddVAT' => $request->boolean('eautoAddVAT'),
+                'issuehospOR' => $request->boolean('eissuehospOR'),
+                'quevisible' => $request->boolean('equevisible'),
+                'allowtextresult' => $request->boolean('eallowtextresult'),
+                'allowdocsystem' => $request->boolean('eallowdocsystem'),
+                'disabletext' => $request->boolean('edisabletext'),
+                'status' => ($request->estatus == 'ACTIVE' || $request->estatus == '1' ? true : false),
                 'statusreason' => $request->estatusreason,
+                'otherinfo' => $request->eotherinfo,
+                'biodata' => $request->ebiodata
             ]);
 
-        $existingPass = DoctorModel::where('docrefno', $request->edocrefno)->value('pass');
+        $existingPass = DoctorModel::where('docrefno', $request->edocrefno ?? $request->docrefno)->value('pass');
         $doctor = DoctorModel::where(['docrefno' => $request->docrefno])
             ->update([
                 'docfname' => $request->edocfname,
@@ -551,24 +637,28 @@ class ManagementController extends Controller
                 'doclname' => $request->edoclname,
                 'suffix' => $request->esuffix,
                 'titlename' => $request->etitlename,
-                'username' => $request->edoclname,
-                'pass' => $request->epass != '' ? bcrypt($request->epass) : $existingPass,
+                'username' => $username,
+                'pass' => $request->filled('epass') ? bcrypt($request->epass) : $existingPass,
                 'eadd' => $request->eemailadd,
+                'mnumber' => $request->ecellno,
                 'tin' => $request->etin,
                 'address' => $request->eadrs,
-                'slcode' => 'SLCODE',
+                'slcode' => $request->ecoacode ?? 'SLCODE',
                 'taxpercent' => $request->etax,
-                'bankacct' => 'BANKACCT',
+                'bankacct' => $request->eaccountno ?? 'BANKACCT',
                 'status' => $request->estatus,
                 'expertise' => $request->eexpertise,
                 'proftype' => $request->eproftype,
                 'doctype' => 0,
                 'docmgmt' => 0,
-                'consultationfee' => 0
+                'consultationfee' => $request->epfrate ?? 0
             ]);
 
-        if ($doctor && $doctorprofile)
+        Log::info('Doctor profile updated by admin', ['docrefno' => $request->docrefno, 'username' => $username]);
+
+        if ($doctor !== false && $doctorprofile !== false) {
             return response()->json(['success' => true]);
+        }
 
         return response()->json(['success' => false]);
     }
@@ -585,13 +675,106 @@ class ManagementController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function fetchSecretaries()
+    /**
+     * Fetch secretaries and administrators for the unified Secretaries/Admin Users management table.
+     * Supports server-side filtering via 'account_type' or 'type' parameter ('Secretary', 'Admin', or '' / 'all').
+     * Maps both account types with consistent attributes while preserving backward-compatible field names.
+     */
+    public function fetchSecretaries(Request $request)
     {
-        $secretaries = SecretaryModel::all();
+        $accountType = trim((string) $request->input('account_type', $request->input('type', '')));
 
-        return response()->json(['secretaries' => $secretaries]);
+        $secretaries = collect();
+        $admins = collect();
+
+        // Detailed Comment: Query secretaries if account_type is empty, 'all', or explicitly 'Secretary'
+        if (empty($accountType) || strcasecmp($accountType, 'all') === 0 || strcasecmp($accountType, 'secretary') === 0) {
+            $secretaries = SecretaryModel::all()->map(function ($sec) {
+                return [
+                    'id' => $sec->id,
+                    'refno' => $sec->secrefno,
+                    'secrefno' => $sec->secrefno,
+                    'idno' => $sec->secidno,
+                    'account_type' => 'Secretary',
+                    'username' => $sec->username ?: strtolower($sec->seclname),
+                    'secfname' => $sec->secfname,
+                    'secmname' => $sec->secmname,
+                    'seclname' => $sec->seclname,
+                    'secsuffix' => $sec->secsuffix,
+                    'secgender' => $sec->secgender,
+                    'secbday' => $sec->secbday,
+                    'seccontactno' => $sec->seccontactno,
+                    'secemail' => $sec->secemail,
+                    'secadrs' => $sec->secadrs,
+                    'clientcode' => $sec->clientcode,
+                    'verified' => $sec->verified,
+                    'source_table' => 'secretaryrights',
+                ];
+            });
+        }
+
+        // Detailed Comment: Query administrators if account_type is empty, 'all', or explicitly 'Admin'
+        if (empty($accountType) || strcasecmp($accountType, 'all') === 0 || strcasecmp($accountType, 'admin') === 0) {
+            $admins = AdminModel::all()->map(function ($admin) {
+                $fname = $admin->adminfname ?: 'Admin';
+                $lname = $admin->adminlname ?: ($admin->username ?: 'User');
+                $refno = $admin->adminrefno ?: (string)$admin->id;
+                return [
+                    'id' => $admin->id,
+                    'refno' => $refno,
+                    'secrefno' => $refno, // Fallback for table action button triggers
+                    'adminrefno' => $refno,
+                    'idno' => $admin->adminidno ?: ('ADM-' . $admin->id),
+                    'account_type' => 'Admin',
+                    'username' => $admin->username ?: strtolower($lname),
+                    'secfname' => $fname,
+                    'secmname' => $admin->adminmname ?: '',
+                    'seclname' => $lname,
+                    'secsuffix' => '',
+                    'secgender' => 'N/A',
+                    'secbday' => null,
+                    'seccontactno' => $admin->admincontactno ?: '',
+                    'secemail' => $admin->adminemail ?: $admin->useremail,
+                    'secadrs' => '',
+                    'clientcode' => $admin->clientcode,
+                    'verified' => true,
+                    'source_table' => 'adminrights',
+                ];
+            });
+        }
+
+        $merged = $secretaries->concat($admins)->values();
+
+        return response()->json([
+            'success' => true,
+            'secretaries' => $merged,
+            'data' => $merged
+        ]);
     }
 
+    /**
+     * Fetch secretary details for modal editing.
+     */
+    public function fetchSecretaryDetails(Request $request)
+    {
+        $request->validate([
+            'secrefno' => 'required|string'
+        ]);
+
+        $secretary = SecretaryModel::where('secrefno', $request->secrefno)->first();
+        if (!$secretary) {
+            return response()->json(['success' => false, 'message' => 'Secretary not found'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'secretary' => $secretary
+        ]);
+    }
+
+    /**
+     * Register a new secretary account with custom or default username (defaults to lowercase lastname).
+     */
     public function addSecretary(Request $request)
     {
         $request->validate([
@@ -599,7 +782,8 @@ class ManagementController extends Controller
             'secmname' => 'nullable|string|max:255',
             'seclname' => 'required|string|max:255',
             'secsuffix' => 'nullable|string|max:10',
-            'secgender' => 'required|in:male,female',
+            'username' => 'nullable|string|max:50|unique:secretaryrights,username',
+            'secgender' => 'required|in:male,female,MALE,FEMALE',
             'secpassword' => 'required|string|min:5',
             'secbday' => 'nullable|date',
             'seccontactno' => 'nullable|string|max:11',
@@ -609,9 +793,9 @@ class ManagementController extends Controller
 
         $secidno = Date::now()->format('Y') . "-" . (SecretaryModel::count() + 1);
         $facilityClientCode = config('app.client_code', env('CLIENT_CODE', '122377'));
-        $username = strtolower($request->seclname);
+        $username = $request->filled('username') ? strtolower(trim($request->username)) : strtolower(trim($request->seclname));
 
-        SecretaryModel::create([
+        $secretary = SecretaryModel::create([
             'secrefno' => Date::now()->format('mdYHis') . 'TASK',
             'secidno' => $secidno,
             'username' => $username,
@@ -638,24 +822,72 @@ class ManagementController extends Controller
             'clientcode' => $facilityClientCode
         ]);
 
-        return response()->json(['success' => true]);
+        return response()->json(['success' => true, 'secretary' => $secretary]);
     }
 
+    /**
+     * Update secretary profile or credentials.
+     * Supports both admin updating any secretary by secrefno and secretary self-service update.
+     */
     public function editSecretary(Request $request)
     {
-        $user = SecretaryModel::where('secrefno', auth()->guard('secretary')->user()->secrefno)
-            ->update([
-                'seccontactno' => $request->sec_contact,
-                'secemail' => $request->sec_email
+        $secrefno = $request->input('secrefno');
+
+        // Admin-driven update by secrefno
+        if ($secrefno) {
+            $secretary = SecretaryModel::where('secrefno', $secrefno)->first();
+            if (!$secretary) {
+                return response()->json(['success' => false, 'message' => 'Secretary not found'], 404);
+            }
+
+            $updateData = [];
+            if ($request->has('secfname')) $updateData['secfname'] = $request->secfname;
+            if ($request->has('secmname')) $updateData['secmname'] = $request->secmname;
+            if ($request->has('seclname')) $updateData['seclname'] = $request->seclname;
+            if ($request->has('secsuffix')) $updateData['secsuffix'] = $request->secsuffix;
+            if ($request->has('secgender')) $updateData['secgender'] = strtoupper($request->secgender);
+            if ($request->has('secbday')) $updateData['secbday'] = $request->secbday;
+            if ($request->has('seccontactno')) $updateData['seccontactno'] = $request->seccontactno;
+            if ($request->has('secemail')) $updateData['secemail'] = $request->secemail;
+            if ($request->has('secadrs')) $updateData['secadrs'] = $request->secadrs;
+
+            if ($request->filled('username')) {
+                $updateData['username'] = strtolower(trim($request->username));
+            } elseif ($request->has('seclname') && empty($secretary->username)) {
+                $updateData['username'] = strtolower(trim($request->seclname));
+            }
+
+            if ($request->filled('secpassword')) {
+                $updateData['secpassword'] = $request->secpassword;
+            }
+
+            $secretary->update($updateData);
+
+            Log::info('Secretary profile updated by admin', [
+                'secrefno' => $secrefno,
+                'username' => $secretary->username
             ]);
 
-        if ($user) {
             return response()->json(['success' => true]);
         }
 
-        return response()->json(['success' => false]);
+        // Secretary self-service profile update
+        if (auth()->guard('secretary')->check()) {
+            $user = SecretaryModel::where('secrefno', auth()->guard('secretary')->user()->secrefno)
+                ->update([
+                    'seccontactno' => $request->sec_contact ?? $request->seccontactno,
+                    'secemail' => $request->sec_email ?? $request->secemail
+                ]);
+
+            return response()->json(['success' => (bool)$user]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Unauthorized or missing secrefno'], 400);
     }
 
+    /**
+     * Delete a secretary account.
+     */
     public function deleteSecretary(Request $request)
     {
         $request->validate([
@@ -664,50 +896,329 @@ class ManagementController extends Controller
 
         $secretary = SecretaryModel::where('secrefno', $request->secrefno)->first();
         if ($secretary) {
+            SecretaryDoctorsModel::where('secrefno', $request->secrefno)->delete();
             $secretary->delete();
+
+            Log::info('Secretary account deleted by admin', ['secrefno' => $request->secrefno]);
 
             return response()->json([
                 'success' => true
             ]);
         }
+
+        return response()->json(['success' => false, 'message' => 'Secretary not found'], 404);
     }
 
-    public function fetchSecretaryDoctors(Request $request)
+    /**
+     * Fetch all administrators for admin users management.
+     */
+    public function fetchAdmins()
     {
-        $secretary = SecretaryModel::where('secrefno', $request->secrefno)->first();
+        $admins = AdminModel::all();
+        return response()->json(['admins' => $admins]);
+    }
 
-        $assigned = SecretaryDoctorsModel::where('secrefno', $request->secrefno)->get();
-        $assigned_doctors = [];
-        foreach ($assigned as $assign) {
-            $assigned_doctors[] = DoctorsProfileModel::select(['docrefno', 'docname'])->where('docrefno', $assign->docrefno)->first();
+    /**
+     * Fetch details of a specific admin user for modal editing.
+     */
+    public function fetchAdminDetails(Request $request)
+    {
+        $request->validate([
+            'id' => 'nullable|integer',
+            'adminrefno' => 'nullable|string'
+        ]);
+
+        $query = AdminModel::query();
+        if ($request->filled('adminrefno')) {
+            $query->where('adminrefno', $request->adminrefno);
+        } elseif ($request->filled('id')) {
+            $query->where('id', $request->id);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Admin identifier required'], 400);
         }
 
-        $available = SecretaryDoctorsModel::where('secrefno', $request->secrefno)->pluck('docrefno');
-        $avail_doctors = DoctorsProfileModel::whereNotIn('docrefno', $available)->get();
+        $admin = $query->first();
+        if (!$admin) {
+            return response()->json(['success' => false, 'message' => 'Admin not found'], 404);
+        }
+
+        return response()->json(['success' => true, 'admin' => $admin]);
+    }
+
+    /**
+     * Register a new admin user with username defaulting to lowercase lastname.
+     */
+    public function addAdmin(Request $request)
+    {
+        $request->validate([
+            'adminfname' => 'required|string|max:255',
+            'adminmname' => 'nullable|string|max:255',
+            'adminlname' => 'required|string|max:255',
+            'username' => 'nullable|string|max:50|unique:adminrights,username',
+            'password' => 'required|string|min:5',
+            'admincontactno' => 'nullable|string|max:20',
+            'adminemail' => 'nullable|email|max:255|unique:adminrights,adminemail'
+        ]);
+
+        $username = $request->filled('username') ? strtolower(trim($request->username)) : strtolower(trim($request->adminlname));
+        $facilityClientCode = config('app.client_code', env('CLIENT_CODE', '122377'));
+        $adminrefno = Date::now()->format('mdYHis') . 'ADM';
+        $adminidno = Date::now()->format('Y') . "-ADM-" . (AdminModel::count() + 1);
+
+        $admin = AdminModel::create([
+            'adminrefno' => $adminrefno,
+            'adminidno' => $adminidno,
+            'username' => $username,
+            'password' => Hash::make($request->password),
+            'adminfname' => $request->adminfname,
+            'adminmname' => $request->adminmname,
+            'adminlname' => $request->adminlname,
+            'admincontactno' => $request->admincontactno,
+            'adminemail' => $request->adminemail,
+            'useremail' => $request->adminemail,
+            'clientcode' => $facilityClientCode,
+            'active' => true
+        ]);
+
+        Log::info('Admin account registered by admin', [
+            'username' => $username,
+            'adminrefno' => $adminrefno,
+            'clientcode' => $facilityClientCode
+        ]);
+
+        return response()->json(['success' => true, 'admin' => $admin]);
+    }
+
+    /**
+     * Update an admin user profile and credentials.
+     */
+    public function editAdmin(Request $request)
+    {
+        $request->validate([
+            'id' => 'nullable|integer',
+            'adminrefno' => 'nullable|string',
+            'adminfname' => 'required|string|max:255',
+            'adminmname' => 'nullable|string|max:255',
+            'adminlname' => 'required|string|max:255',
+            'password' => 'nullable|string|min:5',
+            'admincontactno' => 'nullable|string|max:20',
+            'adminemail' => 'nullable|email|max:255'
+        ]);
+
+        $query = AdminModel::query();
+        if ($request->filled('adminrefno')) {
+            $query->where('adminrefno', $request->adminrefno);
+        } elseif ($request->filled('id')) {
+            $query->where('id', $request->id);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Admin identifier required'], 400);
+        }
+
+        $admin = $query->first();
+        if (!$admin) {
+            return response()->json(['success' => false, 'message' => 'Admin not found'], 404);
+        }
+
+        $username = $request->filled('username') ? strtolower(trim($request->username)) : ($admin->username ?: strtolower(trim($request->adminlname)));
+
+        $admin->adminfname = $request->adminfname;
+        $admin->adminmname = $request->adminmname;
+        $admin->adminlname = $request->adminlname;
+        $admin->admincontactno = $request->admincontactno;
+        $admin->adminemail = $request->adminemail;
+        $admin->useremail = $request->adminemail;
+        $admin->username = $username;
+
+        if ($request->filled('password')) {
+            $admin->password = Hash::make($request->password);
+        }
+
+        $admin->save();
+
+        Log::info('Admin account updated by admin', [
+            'admin_id' => $admin->id,
+            'username' => $username
+        ]);
+
+        return response()->json(['success' => true, 'admin' => $admin]);
+    }
+
+    /**
+     * Delete an admin user account (guards against deleting self).
+     */
+    public function deleteAdmin(Request $request)
+    {
+        $request->validate([
+            'id' => 'nullable|integer',
+            'adminrefno' => 'nullable|string'
+        ]);
+
+        $query = AdminModel::query();
+        if ($request->filled('adminrefno')) {
+            $query->where('adminrefno', $request->adminrefno);
+        } elseif ($request->filled('id')) {
+            $query->where('id', $request->id);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Admin identifier required'], 400);
+        }
+
+        $admin = $query->first();
+        if (!$admin) {
+            return response()->json(['success' => false, 'message' => 'Admin not found'], 404);
+        }
+
+        // Prevent admin from deleting their own active logged in account
+        if (auth()->guard('admin')->check() && auth()->guard('admin')->id() == $admin->id) {
+            return response()->json(['success' => false, 'message' => 'You cannot delete your own active administrator account.'], 403);
+        }
+
+        $admin->delete();
+
+        Log::info('Admin account deleted by admin', ['deleted_admin_id' => $admin->id]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Detailed Comment: Self-service profile update for authenticated administrator.
+     * Allows admin to edit their own profile and credentials in 'adminrights',
+     * strictly bound to the authenticated admin's ID to prevent cross-user tampering.
+     */
+    public function updateAdminProfile(Request $request)
+    {
+        $adminAuth = auth()->guard('admin')->user();
+        if (!$adminAuth) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated admin'], 401);
+        }
+
+        $request->validate([
+            'adminfname' => 'required|string|max:100',
+            'adminlname' => 'required|string|max:100',
+            'username' => 'required|string|max:50|unique:adminrights,username,' . $adminAuth->id,
+            'password' => 'nullable|string|min:5',
+            'admincontactno' => 'nullable|string|max:25',
+            'adminemail' => 'nullable|email|max:100'
+        ]);
+
+        $updateData = [
+            'adminfname' => $request->adminfname,
+            'adminmname' => $request->adminmname,
+            'adminlname' => $request->adminlname,
+            'admincontactno' => $request->admincontactno,
+            'adminemail' => $request->adminemail,
+            'username' => strtolower(trim($request->username))
+        ];
+
+        if ($request->filled('password')) {
+            $updateData['password'] = Hash::make($request->password);
+        }
+
+        AdminModel::where('id', $adminAuth->id)->update($updateData);
+
+        Log::info('Admin self-service profile updated', [
+            'admin_id' => $adminAuth->id,
+            'username' => $request->username
+        ]);
 
         return response()->json([
             'success' => true,
-            'name' => ($secretary->seclname . ', ' . $secretary->secfname . ' ' . $secretary->secmname . ' ' . $secretary->secsuffix),
+            'message' => 'Profile updated successfully.'
+        ]);
+    }
+
+    /**
+     * Fetch assigned and available doctors for a secretary.
+     * Excludes NULL docrefno values to prevent MySQL NOT IN evaluating to empty set.
+     */
+    public function fetchSecretaryDoctors(Request $request)
+    {
+        $request->validate([
+            'secrefno' => 'required|string'
+        ]);
+
+        $secretary = SecretaryModel::where('secrefno', $request->secrefno)->first();
+        if (!$secretary) {
+            return response()->json(['success' => false, 'message' => 'Secretary not found'], 404);
+        }
+
+        // Ensure we only fetch assigned doctors with valid docrefno
+        $assigned = SecretaryDoctorsModel::where('secrefno', $request->secrefno)
+            ->whereNotNull('docrefno')
+            ->get();
+
+        $assigned_doctors = [];
+        foreach ($assigned as $assign) {
+            $doc = DoctorsProfileModel::select(['docrefno', 'docname'])
+                ->where('docrefno', $assign->docrefno)
+                ->first();
+            if ($doc) {
+                $assigned_doctors[] = $doc;
+            }
+        }
+
+        $availableDocRefNos = SecretaryDoctorsModel::where('secrefno', $request->secrefno)
+            ->whereNotNull('docrefno')
+            ->pluck('docrefno')
+            ->filter()
+            ->all();
+
+        // Available doctors query filtering out assigned ones and NULL docrefno
+        $availQuery = DoctorsProfileModel::select(['docrefno', 'docname'])
+            ->whereNotNull('docrefno');
+
+        if (!empty($availableDocRefNos)) {
+            $availQuery->whereNotIn('docrefno', $availableDocRefNos);
+        }
+
+        $avail_doctors = $availQuery->get();
+
+        return response()->json([
+            'success' => true,
+            'name' => trim(($secretary->seclname . ', ' . $secretary->secfname . ' ' . $secretary->secmname . ' ' . $secretary->secsuffix)),
             'assigned_doctors' => $assigned_doctors,
             'avail_doctors' => $avail_doctors
         ]);
     }
 
+    /**
+     * Synchronize assigned doctors for a secretary.
+     * Adds newly assigned doctors and removes unassigned doctors.
+     */
     public function saveAppendedDoctors(Request $request)
     {
-        foreach ($request->doctors as $doctor) {
-            if (SecretaryDoctorsModel::where(['docrefno' => $doctor, 'secrefno' => $request->secrefno])->first() == null) {
-                SecretaryDoctorsModel::create([
-                    'docrefno' => $doctor,
-                    'secrefno' => $request->secrefno,
-                    'recordedby' => '',
-                    'recordeddate' => Date::now(),
-                    'active' => true
-                ]);
+        $request->validate([
+            'secrefno' => 'required|string',
+            'doctors' => 'nullable|array'
+        ]);
+
+        $secrefno = $request->secrefno;
+        $submittedDoctors = array_values(array_filter($request->input('doctors', []) ?: []));
+
+        // Synchronize: Delete doctors no longer in the assigned list
+        SecretaryDoctorsModel::where('secrefno', $secrefno)
+            ->whereNotIn('docrefno', $submittedDoctors)
+            ->delete();
+
+        // Ensure submitted doctors are created if they do not already exist
+        foreach ($submittedDoctors as $doctor) {
+            if (!empty($doctor)) {
+                SecretaryDoctorsModel::firstOrCreate(
+                    ['docrefno' => $doctor, 'secrefno' => $secrefno],
+                    [
+                        'recordedby' => auth()->user() ? (auth()->user()->username ?? 'admin') : 'admin',
+                        'recordeddate' => Date::now(),
+                        'active' => true
+                    ]
+                );
             }
         }
 
-        return response()->json(['success' => true, 'doctors' => $request->doctors]);
+        Log::info('Secretary doctors synchronized', [
+            'secrefno' => $secrefno,
+            'assigned_count' => count($submittedDoctors)
+        ]);
+
+        return response()->json(['success' => true, 'doctors' => $submittedDoctors]);
     }
 
     public function fetchProfile(Request $request)

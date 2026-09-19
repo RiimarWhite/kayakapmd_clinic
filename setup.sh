@@ -103,6 +103,20 @@ if command -v php >/dev/null 2>&1; then
         fi
         PREREQ_FAILED=1
     fi
+
+    # Detailed Comment: Check for PHP GD extension required by Dompdf for image rendering
+    if php -r 'exit(extension_loaded("gd") ? 0 : 1);' 2>/dev/null; then
+        echo -e "  [✓] PHP GD extension is installed and active."
+    else
+        echo -e "  [!] ${COLOR_YELLOW}Notice: PHP GD extension is missing.${COLOR_RESET}"
+        echo -e "      ${COLOR_YELLOW}Requirement: The GD extension is required for PDF printing (Dompdf).${COLOR_RESET}"
+        if [ -f /.dockerenv ] && command -v docker-php-ext-install >/dev/null 2>&1; then
+            echo -e "      ${COLOR_CYAN}Attempting to install GD extension in Docker container...${COLOR_RESET}"
+            apt-get update && apt-get install -y libfreetype-dev libjpeg62-turbo-dev libpng-dev libwebp-dev 2>/dev/null || true
+            docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp 2>/dev/null || true
+            docker-php-ext-install -j$(nproc) gd 2>/dev/null || true
+        fi
+    fi
 else
     echo -e "  [✗] ${COLOR_RED}PHP is NOT installed or not found in PATH.${COLOR_RESET}"
     PREREQ_FAILED=1

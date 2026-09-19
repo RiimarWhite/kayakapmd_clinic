@@ -21,13 +21,16 @@ class UserSeeder extends Seeder
     {
         $facilityClientCode = config('app.client_code', env('CLIENT_CODE', '122377'));
 
-        // Detailed Comment: Seed or update default secretary account with documented credentials
+        // Detailed Comment: Seed or update default secretary account with documented credentials and guaranteed non-null secrefno
         $secretary = SecretaryModel::where('username', 'secretary')
             ->orWhere('secemail', 'secretary.dummy@gmail.com')
             ->first();
 
+        $defaultSecRef = '051519900001TASK';
+
         if (!$secretary) {
             SecretaryModel::create([
+                'secrefno' => $defaultSecRef,
                 'username' => 'secretary',
                 'secpassword' => Hash::make('12345'),
                 'secfname' => 'Jane',
@@ -44,11 +47,23 @@ class UserSeeder extends Seeder
                 'verified' => true
             ]);
         } else {
-            $secretary->update([
+            $updateData = [
                 'username' => 'secretary',
                 'secpassword' => Hash::make('12345'),
                 'clientcode' => $facilityClientCode,
                 'verified' => true
+            ];
+            if (empty($secretary->secrefno)) {
+                $updateData['secrefno'] = $defaultSecRef;
+            }
+            $secretary->update($updateData);
+        }
+
+        // Repair any secretary records with empty secrefno
+        $legacySecs = SecretaryModel::whereNull('secrefno')->orWhere('secrefno', '')->get();
+        foreach ($legacySecs as $idx => $legacySec) {
+            $legacySec->update([
+                'secrefno' => now()->format('mdYHis') . ($idx + 1) . 'TASK'
             ]);
         }
 

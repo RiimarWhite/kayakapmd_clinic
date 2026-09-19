@@ -101,5 +101,61 @@
             </div>
         </div>
     </form>
+
+    <!-- Detailed Comment: Administrator Account section allowing logged in admin to manage credentials and username from adminrights -->
+    <div class="d-flex justify-content-between align-items-center mt-5">
+        <h1 class="m-0">Administrator Account</h1>
+        <span class="badge bg-secondary font-monospace fs-6"><i class="fa-solid fa-table me-1"></i> Source Table: adminrights</span>
+    </div>
+    <hr>
+
+    @php
+        $adminUser = auth()->guard('admin')->user();
+    @endphp
+    <form id="admin_account_form" class="d-flex flex-column w-50 gap-3 mb-4">
+        @csrf
+        <input type="hidden" name="id" value="{{ $adminUser ? $adminUser->id : '' }}">
+        <input type="hidden" name="adminrefno" value="{{ $adminUser ? $adminUser->adminrefno : '' }}">
+
+        <div class="d-flex gap-2">
+            <div class="flex-grow-1">
+                <label class="form-label fw-bold" for="adm_fname">First Name <span class="text-danger">*</span></label>
+                <input class="form-control form-control-sm" type="text" name="adminfname" id="adm_fname" value="{{ $adminUser ? $adminUser->adminfname : '' }}" required>
+            </div>
+            <div class="flex-grow-1">
+                <label class="form-label fw-bold" for="adm_mname">Middle Name</label>
+                <input class="form-control form-control-sm" type="text" name="adminmname" id="adm_mname" value="{{ $adminUser ? $adminUser->adminmname : '' }}">
+            </div>
+            <div class="flex-grow-1">
+                <label class="form-label fw-bold" for="adm_lname">Last Name <span class="text-danger">*</span></label>
+                <input class="form-control form-control-sm" type="text" name="adminlname" id="adm_lname" value="{{ $adminUser ? $adminUser->adminlname : '' }}" required>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <div class="flex-grow-1">
+                <label class="form-label fw-bold" for="adm_username">Username <span class="text-danger">*</span></label>
+                <input class="form-control form-control-sm" type="text" name="username" id="adm_username" value="{{ $adminUser ? $adminUser->username : '' }}" required>
+            </div>
+            <div class="flex-grow-1">
+                <label class="form-label fw-bold" for="adm_contact">Contact #</label>
+                <input class="form-control form-control-sm" type="tel" name="admincontactno" id="adm_contact" value="{{ $adminUser ? $adminUser->admincontactno : '' }}">
+            </div>
+        </div>
+
+        <div>
+            <label class="form-label fw-bold" for="adm_email">Email Address</label>
+            <input class="form-control form-control-sm" type="email" name="adminemail" id="adm_email" value="{{ $adminUser ? ($adminUser->adminemail ?: $adminUser->useremail) : '' }}">
+        </div>
+
+        <div>
+            <label class="form-label fw-bold" for="adm_password">New Password <span class="text-secondary fw-normal">(Leave blank to keep current)</span></label>
+            <input class="form-control form-control-sm" type="password" name="password" id="adm_password" placeholder="Leave blank to keep unchanged">
+        </div>
+
+        <div>
+            <button type="button" class="btn btn-sm btn-primary fw-bold" id="save_admin_account">Update Administrator Account</button>
+        </div>
+    </form>
 </div>
 @endsection

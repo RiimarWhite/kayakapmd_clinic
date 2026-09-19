@@ -19,11 +19,11 @@
                 Swal.fire({
                     title: "Choose Secretary",
                     html: `
-                        <select class="form-select" id="secretary_select">
-                            <option value="" disabled selected>-- Select --</option>
-                            ${opt}
-                        </select>
-                    `,
+                                <select class="form-select" id="secretary_select">
+                                    <option value="" disabled selected>-- Select --</option>
+                                    ${opt}
+                                </select>
+                            `,
                     confirmButtonText: "Confirm",
                     allowOutsideClick: false,
                     preConfirm: () => {
@@ -176,8 +176,7 @@
                                 <i class="fa-solid fa-bars"></i> Patient Masterlist
                             </button>
 
-                            <button type="button" class="btn btn-sm btn-danger fw-bold text-nowrap ms-auto"
-                                id="clear_form">
+                            <button type="button" class="btn btn-sm btn-danger fw-bold text-nowrap ms-auto" id="clear_form">
                                 <i class="fa-solid fa-trash-can"></i> Clear Consultation Form
                             </button>
                         </div>
@@ -240,21 +239,20 @@
 
                                         <div class="p-1" style="max-width: 5rem;">
                                             <label class="form-label fw-bold m-0" for="pxage">Age</label>
-                                            <input type="text" class="form-control form-control-sm" name="pxage"
-                                                id="pxage">
+                                            <input type="text" class="form-control form-control-sm" name="pxage" id="pxage">
                                         </div>
 
                                         <div class="p-1">
                                             <label class="form-label fw-bold m-0" for="pxcellnumber">Mobile No.</label>
-                                            <input type="tel" class="form-control form-control-sm"
-                                                name="pxcellnumber" id="pxcellnumber">
+                                            <input type="tel" class="form-control form-control-sm" name="pxcellnumber"
+                                                id="pxcellnumber">
                                         </div>
 
                                         <div class="p-1">
                                             <label class="form-label fw-bold m-0" for="pxlandlinenumber">Landline
                                                 No.</label>
-                                            <input type="tel" class="form-control form-control-sm"
-                                                name="pxlandlinenumber" id="pxlandlinenumber">
+                                            <input type="tel" class="form-control form-control-sm" name="pxlandlinenumber"
+                                                id="pxlandlinenumber">
                                         </div>
                                     </div>
 
@@ -291,8 +289,7 @@
                                     </button>
                                 </div>
 
-                                <input class="d-none" type="file" accept="image/*" name="patient_image"
-                                    id="patient_image">
+                                <input class="d-none" type="file" accept="image/*" name="patient_image" id="patient_image">
                             </div>
                         </div>
 
@@ -333,8 +330,8 @@
 
                                         <div class="d-flex flex-column ms-auto">
                                             <div class="input-group">
-                                                <input type="date" class="form-control form-control-sm"
-                                                    name="sched_date" id="sched_date">
+                                                <input type="date" class="form-control form-control-sm" name="sched_date"
+                                                    id="sched_date">
                                                 <select class="form-select form-select-sm" name="sched_time"
                                                     id="sched_time"></select>
                                             </div>
@@ -352,8 +349,8 @@
                                             <div class="w-100">
                                                 <label class="form-label fw-bold m-0" for="reason_for_consultation">Chief
                                                     Complaints</label>
-                                                <textarea class="form-control form-control-sm" rows="4" name="reason_for_consultation"
-                                                    id="pxreasonforconsultation"></textarea>
+                                                <textarea class="form-control form-control-sm" rows="4"
+                                                    name="reason_for_consultation" id="pxreasonforconsultation"></textarea>
                                             </div>
 
                                             <div class="d-flex flex-column gap-2" style="min-width: 12.5rem;">
@@ -361,10 +358,10 @@
                                                     <label class="form-label fw-bold m-0" for="weight">Weight</label>
                                                     <div class="input-group">
                                                         <input type="number" class="form-control form-control-sm"
-                                                            style="max-width: 7.5rem;" min="0.00" value="0.00"
-                                                            name="weight" id="pxweight">
-                                                        <select class="form-select form-select-sm"
-                                                            style="max-width: 5rem;" name="w_unit" id="pxweight_unit">
+                                                            style="max-width: 7.5rem;" min="0.00" value="0.00" name="weight"
+                                                            id="pxweight">
+                                                        <select class="form-select form-select-sm" style="max-width: 5rem;"
+                                                            name="w_unit" id="pxweight_unit">
                                                             <option value="kg">kg</option>
                                                             <option value="lbs">lbs</option>
                                                         </select>
@@ -375,10 +372,10 @@
                                                     <label class="form-label fw-bold m-0" for="height">Height</label>
                                                     <div class="input-group">
                                                         <input type="number" class="form-control form-control-sm"
-                                                            style="max-width: 7.5rem;" min="0.00" value="0.00"
-                                                            name="height" id="pxheight">
-                                                        <select class="form-select form-select-sm"
-                                                            style="max-width: 5rem;" name="h_unit" id="pxheight_unit">
+                                                            style="max-width: 7.5rem;" min="0.00" value="0.00" name="height"
+                                                            id="pxheight">
+                                                        <select class="form-select form-select-sm" style="max-width: 5rem;"
+                                                            name="h_unit" id="pxheight_unit">
                                                             <option value="cm">cm</option>
                                                             <option value="m">m</option>
                                                             <option value="ft">ft</option>
@@ -390,8 +387,7 @@
 
                                         <div class="d-flex gap-2">
                                             <div>
-                                                <label class="form-label fw-bold m-0"
-                                                    for="temperature">Temperature</label>
+                                                <label class="form-label fw-bold m-0" for="temperature">Temperature</label>
                                                 <div class="input-group">
                                                     <input type="number" class="form-control form-control-sm"
                                                         style="max-width: 7.5rem;" min="0.00" value="0.00"
@@ -421,12 +417,10 @@
                                                 <label class="form-label fw-bold m-0" for="pulse_rate">Blood
                                                     Pressure</label>
                                                 <div class="input-group">
-                                                    <input type="number" class="form-control form-control-sm"
-                                                        min="0.00" placeholder="Systolic" name="bp_numerator"
-                                                        id="pxbpnumerator">
-                                                    <input type="number" class="form-control form-control-sm"
-                                                        min="0.00" placeholder="Diastolic" name="bp_denominator"
-                                                        id="pxbpdenominator">
+                                                    <input type="number" class="form-control form-control-sm" min="0.00"
+                                                        placeholder="Systolic" name="bp_numerator" id="pxbpnumerator">
+                                                    <input type="number" class="form-control form-control-sm" min="0.00"
+                                                        placeholder="Diastolic" name="bp_denominator" id="pxbpdenominator">
                                                 </div>
                                             </div>
                                         </div>
@@ -472,6 +466,7 @@
                                             </div>
                                         </div>
 
+                                        <!-- Detailed Comment: Consultation action buttons for saving a new record or updating the current consultation details. Redundant Mark as Complete button removed per requirements since queue status is managed in the queue table. -->
                                         <div class="d-flex gap-2">
                                             <button type="button"
                                                 class="btn btn-sm btn-success fw-bold save_consultation_btn">
@@ -520,63 +515,24 @@
                                                 </table>
                                             </div>
 
-                                            <div class="d-flex justify-content-end">
-                                                <button type="button" class="btn btn-primary"
-                                                    data-bs-toggle="modal" data-bs-target="#settlementModal"
-                                                    id="settlement_btn">
+                                            <!-- Detailed Comment: Position charges total element cleanly below table beside Settlements button -->
+                                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                                <h4 class="fw-bold m-0">Total: ₱<span class="fw-normal ms-1" id="charges_total">0.00</span></h4>
+                                                <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                                    data-bs-target="#settlementModal" id="settlement_btn">
                                                     <i class="fa-solid fa-credit-card"></i> Settlements
                                                 </button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-
-                                <!-- <form class="d-flex flex-column">
-                                            @csrf
-
-                                            <div class="justify-content-end d-flex w-100">
-                                                <button class="btn btn-sm btn-warning text-white" type="button"
-                                                    id="append_pxcharges_btn"><i class="fa-solid fa-plus"></i> Append
-                                                    charges</button>
-                                            </div>
-
-                                            <div class="table-responsive">
-                                                <table class="table table-sm table-bordered caption-top" id="pxcharges_table">
-                                                    <caption>List of charges</caption>
-                                                    <thead class="table-warning">
-                                                        <tr>
-                                                            <th scope="col">Actions</th>
-                                                            <th scope="col">Charge Name</th>
-                                                            <th scope="col">Discount</th>
-                                                            <th scope="col">Amount</th>
-                                                        </tr>
-                                                    </thead>
-
-                                                    <tbody>
-                                                        <tr>
-                                                            <td></td>
-                                                            <td></td>
-                                                            <td></td>
-                                                            <td></td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-
-                                            <div class="mt-2 d-flex justify-content-end">
-                                                <button type="button" class="btn btn-primary text-white" data-bs-toggle="modal"
-                                                    data-bs-target="#settlementModal" id="settlement_btn">
-                                                    <i class="fa-solid fa-credit-card"></i> Settlement
-                                                </button>
-                                            </div>
-                                        </form> -->
                             </div>
                         </div>
                     </div>
 
                     <div class="card-footer">
                         <div class="my-1">
-                            <button class="btn btn-sm btn-primary fw-bold">
+                            <button type="button" class="btn btn-sm btn-primary fw-bold" id="mark_as_complete_btn">
                                 <i class="fa-solid fa-square-check"></i> Mark as Complete
                             </button>
                             <div class="form-text">This will mark this patient's consultation as COMPLETED.</div>
@@ -589,6 +545,7 @@
 @endsection
 
 @push('modals')
+    @include('modals.secretary_profile')
     @include('modals.secretary_management')
     @include('modals.reschedule_modal')
     @include('modals.add_patient')
@@ -605,7 +562,7 @@
 
 @if (session('success'))
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             Swal.fire({
                 icon: 'success',
                 title: 'Success',

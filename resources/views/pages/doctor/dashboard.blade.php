@@ -39,14 +39,20 @@
             </div>
 
             <div class="card shadow-sm w-50">
-                <div class="card-header text-bg-success">
-                    <h5 class="card-title m-0">Schedules</h5>
+                <!-- Detailed Comment: Doctor schedules card header with Add Schedule trigger -->
+                <div class="card-header text-bg-success d-flex justify-content-between align-items-center py-2">
+                    <h5 class="card-title m-0 fw-bold"><i class="fa-solid fa-calendar-days me-1"></i> Clinic Schedules</h5>
+                    <button type="button" class="btn btn-sm btn-light text-success fw-bold" id="add_doctor_schedule_btn">
+                        <i class="fa-solid fa-plus"></i> Add Schedule
+                    </button>
                 </div>
 
                 <div class="card-body">
-                    <table class="table table-sm table-bordered" id="schedules_calendar">
-                        <tbody></tbody>
-                    </table>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered mb-0" id="schedules_calendar">
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -55,4 +61,5 @@
 
 @push('modals')
     @include('modals.doctor_info')
+    @include('modals.doctor_schedule')
 @endpush

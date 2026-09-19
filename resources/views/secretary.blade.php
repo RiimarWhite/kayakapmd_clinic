@@ -398,6 +398,7 @@
                                             </div>
                                         </div>
 
+                                        <!-- Detailed Comment: Consultation action buttons for saving a new record or updating consultation details. Redundant Mark as Complete button removed per requirements. -->
                                         <div class="d-flex gap-2">
                                             <button type="button" class="btn btn-sm btn-success fw-bold save_consultation_btn">
                                                 <i class="fa-solid fa-square-check"></i> Save as New Record
@@ -442,7 +443,9 @@
                                                 </table>
                                             </div>
 
-                                            <div class="d-flex justify-content-end">
+                                            <!-- Detailed Comment: Position charges total element cleanly below table beside Settlements button -->
+                                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                                <h4 class="fw-bold m-0">Total: ₱<span class="fw-normal ms-1" id="charges_total">0.00</span></h4>
                                                 <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#settlementModal" id="settlement_btn">
                                                     <i class="fa-solid fa-credit-card"></i> Settlements
                                                 </button>
@@ -466,6 +469,7 @@
 </body>
 
 
+@include("modals.secretary_profile")
 @include("modals.secretary_management")
 @include("modals.reschedule_modal")
 @include("modals.add_patient")

@@ -72,41 +72,37 @@
                         </form>
                     </div>
 
+                    {{-- Detailed Comment: View Settlements tab with text inputs to safely render formatted currency and string names (CTA card types, HMO labels) --}}
                     <div class="tab-pane" id="view_sett">
                         <div class="d-flex flex-column gap-2">
                             <div class="input-group">
                                 <span class="input-group-text fw-bold" style="width: 10rem;">TOTAL</span>
-                                <input class="form-control" type="number" id="info_total" readonly>
+                                <input class="form-control" type="text" id="info_total" readonly>
                             </div>
 
                             <div class="input-group">
                                 <span class="input-group-text fw-bold" style="width: 10rem;">CASH</span>
-                                <input class="form-control" type="number" id="info_cash" readonly>
+                                <input class="form-control" type="text" id="info_cash" readonly>
                             </div>
 
                             <div class="input-group">
                                 <span class="input-group-text fw-bold" style="width: 10rem;">CTA</span>
-                                <input class="form-control" type="number" id="info_cta" readonly>
+                                <input class="form-control" type="text" id="info_cta" readonly>
                             </div>
 
                             <div class="input-group">
                                 <span class="input-group-text fw-bold" style="width: 10rem;">CTA Type</span>
-                                <input class="form-control" type="number" id="info_cta_type" readonly>
-                            </div>
-
-                            <div class="input-group">
-                                <span class="input-group-text fw-bold" style="width: 10rem;">Something</span>
-                                <input class="form-control" type="number" id="" readonly>
+                                <input class="form-control" type="text" id="info_cta_type" readonly>
                             </div>
 
                             <div class="input-group">
                                 <span class="input-group-text fw-bold" style="width: 10rem;">HMO</span>
-                                <input class="form-control" type="number" id="info_hmo" readonly>
+                                <input class="form-control" type="text" id="info_hmo" readonly>
                             </div>
 
                             <div class="input-group">
                                 <span class="input-group-text fw-bold" style="width: 10rem;">HMO Type</span>
-                                <input class="form-control" type="number" id="info_hmo_type" readonly>
+                                <input class="form-control" type="text" id="info_hmo_type" readonly>
                             </div>
                         </div>
                     </div>

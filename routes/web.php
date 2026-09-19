@@ -45,14 +45,15 @@ Route::middleware('auth:doctor,admin')->group(function () {
     Route::get('doctor/dashboard', [DoctorController::class, 'dashboardPage'])->name('doctor.dashboard');
     Route::get('doctor/consultation', [DoctorController::class, 'consultationPage'])->name('doctor.consultation');
     Route::get('doctor/patients', [DoctorController::class, 'patientsPage'])->name('doctor.patients');
-
-    Route::get('print_pdf', [DoctorController::class, 'printPDF'])->name('print.pdf');
-    Route::get('doctor/print_diagnostics', [DoctorController::class, 'printDiagnostics']);
 });
 
-// Utility routes — non-JSON
+// Utility & Print routes — non-JSON / document streams accessible across roles
 Route::middleware('auth:secretary,doctor,admin')->group(function () {
     Route::get('/patient/photo/{filename}', [ConsultationController::class, 'fetchPatientPhoto']);
+    // Detailed Comment: Prescription, instructions, and diagnostics print views accessible across doctor, secretary, and admin roles
+    Route::get('print_pdf', [DoctorController::class, 'printPDF'])->name('print.pdf');
+    Route::get('doctor/print_diagnostics', [DoctorController::class, 'printDiagnostics'])->name('doctor.print_diagnostics');
+    Route::get('print_diagnostics', [DoctorController::class, 'printDiagnostics'])->name('print_diagnostics');
 });
 
 // Admin Routes — page views only
@@ -67,8 +68,17 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('admin/consultations/billing', [ManagementController::class, 'billingsPage'])->name('admin.consultations.billing');
     Route::get('admin/consultations/settlements', [ManagementController::class, 'settlementsPage'])->name('admin.consultations.settlements');
 
-    Route::get('admin/users/secretaries', [ManagementController::class, 'secretariesPage'])->name('admin.users.secretaries');
+    // Detailed Comment: Staff management page updated to Secretaries/Admin Users with alias
+    Route::get('admin/users/secretaries-admins', [ManagementController::class, 'secretariesAdminsPage'])->name('admin.users.secretaries_admin');
+    Route::get('admin/users/secretaries', [ManagementController::class, 'secretariesAdminsPage'])->name('admin.users.secretaries');
     Route::get('admin/users/doctors', [ManagementController::class, 'doctorsPage'])->name('admin.users.doctors');
+
+    // Detailed Comment: Route aliases for doctor schedule operations initiated from admin doctor management modals
+    Route::post('admin/users/create_doctor_schedules', [SecretaryController::class, 'createSchedule'])->name('admin.users.create_doctor_schedules');
+    Route::post('admin/users/fetch_doctor_schedules', [SecretaryController::class, 'fetchSchedules'])->name('admin.users.fetch_doctor_schedules');
+    Route::post('admin/users/delete_schedule', [SecretaryController::class, 'deleteSchedule'])->name('admin.users.delete_schedule');
+    Route::post('admin/users/edit_schedule', [SecretaryController::class, 'editSchedule'])->name('admin.users.edit_schedule');
+    Route::post('admin/users/fetch_schedule_refno', [SecretaryController::class, 'fetchScheduleByRef'])->name('admin.users.fetch_schedule_refno');
 
     Route::get('admin/stocks/management', [ManagementController::class, 'stocksManagementPage'])->name('admin.stocks.management');
     Route::get('admin/stocks/ledger', [ManagementController::class, 'stocksLedgerPage'])->name('admin.stocks.ledger');

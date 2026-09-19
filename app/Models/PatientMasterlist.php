@@ -15,7 +15,6 @@ class PatientMasterlist extends Model
         'pxrecno',
         'en_transo',
         'pincode',
-        'casecode',
         'ipd_pincode',
         'ipc_casecode',
         'patientname',

@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use App\Models\ConsultationAnswerModel;
 use App\Models\DoctorsProfileModel;
 use App\Models\ConsultationModel;
+use Illuminate\Support\Facades\Log;
 
 class ConsultationController extends Controller
 {
@@ -103,15 +104,33 @@ class ConsultationController extends Controller
         ]);
     }
 
+    /**
+     * Detailed Comment: Fetches unscheduled patient consultations for the secretary queue.
+     * Excludes patients who already possess a valid scheduled consultation in pxwalkinconsultation
+     * (defined as a non-null, non-dummy consultation_date), prevents duplicate patient rows
+     * via unique patient reference grouping, and accurately reflects total and filtered pagination counts.
+     */
     public function fetchConsultationPatientsUnsched(Request $request)
     {
         $start = $request->input('start', 0);
         $length = $request->input('length', 10);
         $search = $request->input('search.value');
 
-        $baseQuery = ConsultationModel::where('status', 'UNSCHEDULED');
+        // Identify all patient reference numbers who currently have a scheduled consultation
+        $scheduledPxrefnos = ConsultationModel::whereNotNull('consultation_date')
+            ->whereNotIn('consultation_date', ['1901-01-01 00:00:00', '0000-00-00 00:00:00', ''])
+            ->pluck('pxrefno')
+            ->filter()
+            ->unique();
 
-        $totalRecords = $baseQuery->count();
+        $baseQuery = ConsultationModel::where('status', 'UNSCHEDULED')
+            ->where(function ($q) {
+                $q->whereNull('consultation_date')
+                  ->orWhereIn('consultation_date', ['1901-01-01 00:00:00', '0000-00-00 00:00:00', '']);
+            })
+            ->whereNotIn('pxrefno', $scheduledPxrefnos);
+
+        $totalRecords = (clone $baseQuery)->distinct('pxrefno')->count('pxrefno');
 
         $query = clone $baseQuery;
 
@@ -119,9 +138,10 @@ class ConsultationController extends Controller
             $query->where('patientname', 'LIKE', "%{$search}%");
         }
 
-        $filteredRecords = $query->count();
+        $filteredRecords = (clone $query)->distinct('pxrefno')->count('pxrefno');
 
-        $data = $query->offset($start)
+        $data = $query->groupBy('pxrefno', 'patientname', 'status')
+            ->offset($start)
             ->limit($length)
             ->get([
                 'patientname',
@@ -254,26 +274,38 @@ class ConsultationController extends Controller
         $length = $request->input('length', 10);
         $search = $request->input('search.value');
 
+        // Detailed Comment: Build query joining pxmasterlist with walk-in consultations (c).
+        // Apply doctor filter directly to base query to guarantee accurate pagination counters.
         $baseQuery = DB::table('pxmasterlist')
-            ->join('pxwalkinconsultation as c', 'pxmasterlist.pxrefno', '=', 'c.pxrefno');
+            ->join('pxwalkinconsultation as c', 'pxmasterlist.pxrefno', '=', 'c.pxrefno')
+            ->when($request->filled('docrefno'), function ($q) use ($request) {
+                return $q->where('c.docrefno', $request->docrefno);
+            });
 
-        $recordsTotal = $baseQuery->count();
+        $recordsTotal = (clone $baseQuery)->count();
 
         if (!empty($search)) {
             $baseQuery->where(function ($q) use ($search) {
                 $q->where('pxmasterlist.patientname', 'like', "%{$search}%")
-                ->orWhere('pxmasterlist.pxfirstname', 'like', "%{$search}%")
-                ->orWhere('pxmasterlist.pxmidname', 'like', "%{$search}%")
-                ->orWhere('pxmasterlist.pxlastname', 'like', "%{$search}%")
-                ->orWhere('pxmasterlist.pincode', 'like', "%{$search}%");
+                    ->orWhere('pxmasterlist.pxfirstname', 'like', "%{$search}%")
+                    ->orWhere('pxmasterlist.pxmidname', 'like', "%{$search}%")
+                    ->orWhere('pxmasterlist.pxlastname', 'like', "%{$search}%")
+                    ->orWhere('pxmasterlist.pincode', 'like', "%{$search}%")
+                    ->orWhere('c.caseno', 'like', "%{$search}%")
+                    ->orWhere('c.consultationrefno', 'like', "%{$search}%");
             });
         }
 
-        $recordsFiltered = $baseQuery->count();
+        $recordsFiltered = (clone $baseQuery)->count();
 
+        // Detailed Comment: Fix SQLSTATE[42S22] 1054 'Unknown column pxmasterlist.casecode'.
+        // The pxmasterlist table has no casecode column. The case/consultation transaction code
+        // is stored in c.caseno / c.consultationrefno, aliased as casecode for UI compatibility.
         $data = $baseQuery
             ->select([
                 'pxmasterlist.pxrefno',
+                DB::raw("COALESCE(NULLIF(c.caseno, ''), NULLIF(c.consultationrefno, ''), pxmasterlist.pxrefno) as casecode"),
+                'c.caseno',
                 'pxmasterlist.pincode',
                 'pxmasterlist.patientname',
                 'pxmasterlist.pxfirstname',
@@ -288,12 +320,11 @@ class ConsultationController extends Controller
                 'c.docrefno',
                 'c.photo_path'
             ])
-            ->where([
-                'docrefno' => $request->docrefno
-            ])
+            ->orderByDesc('c.consultation_date')
             ->skip($start)
             ->take($length)
             ->get();
+
         $data->transform(function ($patient) {
             if ($patient->photo_path) {
                 $filename = basename($patient->photo_path);
@@ -327,16 +358,17 @@ class ConsultationController extends Controller
                     ->on('consultations.recordeddate', '=', 'latest.latest_date');
             })
             ->where('consultations.docrefno', $request->docrefno)
+            // Detailed Comment: Select attributes with aliases for nonexistent columns (doccode, casecode, pinno, isMember, memPin, address)
             ->select([
                 'consultations.docrefno',
                 'consultations.doccoaOPD',
-                'consultations.doccode',
+                'consultations.docrefno as doccode',
                 'consultations.pincode',
-                'consultations.casecode',
-                'consultations.pinno',
+                DB::raw("COALESCE(NULLIF(consultations.caseno, ''), NULLIF(consultations.consultationrefno, ''), consultations.pxrefno) as casecode"),
+                'consultations.phic_pin as pinno',
                 'consultations.caseno',
-                'consultations.isMember',
-                'consultations.memPin',
+                DB::raw("0 as isMember"),
+                DB::raw("'' as memPin"),
                 'consultations.patientname',
                 'consultations.pxmidname',
                 'consultations.pxlastname',
@@ -346,7 +378,7 @@ class ConsultationController extends Controller
                 'consultations.age',
                 'consultations.mobilenumber',
                 'consultations.emailaddress',
-                'consultations.address',
+                DB::raw("'' as address"),
                 'consultations.photo_path',
                 'consultations.recordeddate'
             ]);
@@ -384,35 +416,84 @@ class ConsultationController extends Controller
 
     public function fetchConsultation(Request $request)
     {
-        // Find the most recent record for this patient by sorting by ID descending
-        $consultation = ConsultationModel::where(['pxrefno' => $request->pxrefno])
-            ->orderBy('id', 'desc')
-            ->first();
+        try {
+            // Detailed Comment: Support multi-key patient consultation lookup with graceful fallback to prevent 500/404 on import
+            $consultationrefno = $request->input('consultationrefno');
+            $pxrefno = $request->input('pxrefno');
+            $casecode = $request->input('casecode');
 
-        if (!$consultation) {
-            return response()->json(['success' => false, 'message' => 'No record found'], 404);
-        }
+            $query = ConsultationModel::query();
 
-        if ($consultation->photo_path) {
-            $filename = basename($consultation->photo_path);
-            $consultation->photo_path = url('/patient/photo/' . $filename);
-        }
+            if (!empty($consultationrefno) && $consultationrefno !== 'undefined') {
+                $query->where('consultationrefno', $consultationrefno);
+            } elseif (!empty($pxrefno) && $pxrefno !== 'undefined') {
+                $query->where('pxrefno', $pxrefno)->orderBy('id', 'desc');
+            } elseif (!empty($casecode) && $casecode !== 'undefined') {
+                $query->where(function ($q) use ($casecode) {
+                    $q->where('consultationrefno', $casecode)
+                      ->orWhere('caseno', $casecode)
+                      ->orWhere('pxrefno', $casecode);
+                })->orderBy('id', 'desc');
+            }
 
-        $answers = ConsultationAnswerModel::where(['pxconsultationrefno' => $consultation->consultationrefno])->get();
+            $consultation = $query->first();
 
-        if ($answers) {
+            // Detailed Comment: If no walk-in consultation exists, fallback to pxmasterlist to allow pre-filling import form
+            if (!$consultation && (!empty($pxrefno) || !empty($casecode))) {
+                $lookupKey = (!empty($pxrefno) && $pxrefno !== 'undefined') ? $pxrefno : $casecode;
+                // Detailed Comment: pxmasterlist does not have a casecode column; match on pxrefno or pincode
+                $pxMaster = PatientMasterlist::where('pxrefno', $lookupKey)
+                    ->orWhere('pincode', $lookupKey)
+                    ->first();
+
+                if ($pxMaster) {
+                    $consultation = new ConsultationModel([
+                        'pxrefno' => $pxMaster->pxrefno,
+                        'patientname' => $pxMaster->patientname ?: trim($pxMaster->pxfirstname . ' ' . $pxMaster->pxlastname),
+                        'pxfirstname' => $pxMaster->pxfirstname,
+                        'pxmidname' => $pxMaster->pxmidname,
+                        'pxlastname' => $pxMaster->pxlastname,
+                        'pxsuffix' => $pxMaster->pxsuffix,
+                        'pincode' => $pxMaster->pincode,
+                        'bday' => $pxMaster->bday,
+                        'sex' => $pxMaster->gender ?: $pxMaster->sex,
+                        'adrs' => $pxMaster->adrs,
+                        'cellno' => $pxMaster->mobilenumber ?: $pxMaster->cellno,
+                        'emailadd' => $pxMaster->emailaddress ?: $pxMaster->emailadd,
+                        'status' => 'UNSCHEDULED',
+                        'consultation_date' => null
+                    ]);
+                }
+            }
+
+            if (!$consultation) {
+                return response()->json(['success' => false, 'message' => 'No record found'], 404);
+            }
+
+            if ($consultation->photo_path) {
+                $filename = basename($consultation->photo_path);
+                $consultation->photo_path = url('/patient/photo/' . $filename);
+            }
+
+            $answers = !empty($consultation->consultationrefno)
+                ? ConsultationAnswerModel::where(['pxconsultationrefno' => $consultation->consultationrefno])->get()
+                : collect();
+
             return response()->json([
                 'success' => true,
                 'patient' => $consultation,
                 'answers' => $answers
             ]);
-        }
+        } catch (\Throwable $e) {
+            Log::error('Error in fetchConsultation: ' . $e->getMessage(), [
+                'request' => $request->all()
+            ]);
 
-        return response()->json([
-            'success' => false,
-            'patient' => null,
-            'answers' => null
-        ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve consultation details.'
+            ], 500);
+        }
     }
 
     public function fetchPatientPhoto($filename)
@@ -429,14 +510,27 @@ class ConsultationController extends Controller
         return response()->file($path);
     }
 
+    /**
+     * Save a walk-in consultation record.
+     * Correctly handles secretary and admin authentication guards, populates required caseno,
+     * default finadiagnosis, and matches database data dictionary.
+     */
     public function saveConsultation(Request $request)
     {
-        $doctor = DoctorsProfileModel::where(['docrefno' => $request->docrefno])->first(); // Get assigned doctor
-        $secretary = auth()->guard('secretary')->user(); // Get authenticated secretary
+        $doctor = DoctorsProfileModel::where(['docrefno' => $request->docrefno])->first();
+        $secretary = auth()->guard('secretary')->user();
+        $admin = auth()->guard('admin')->user();
+        $currentUser = $secretary ?: ($admin ?: auth()->user());
+        $secrefno = $secretary ? $secretary->secrefno : ($admin ? ($admin->adminrefno ?: 'ADM-' . $admin->id) : null);
+        $recordedby = $currentUser ? ($currentUser->username ?: 'system') : 'system';
+
+        $schedDate = $request->filled('sched_date') ? $request->sched_date : now()->toDateString();
+        $rawSchedTime = $request->input('sched_time');
+        $schedTime = ($rawSchedTime && strtotime($rawSchedTime) !== false) ? $rawSchedTime : now()->format('H:i:s');
 
         $queueCount = ConsultationModel::where(['docrefno' => $request->docrefno])
-            ->whereDate('consultation_date', Carbon::parse($request->sched_date))
-            ->whereTime('consultation_date', Carbon::parse($request->sched_time))
+            ->whereDate('consultation_date', Carbon::parse($schedDate))
+            ->whereTime('consultation_date', Carbon::parse($schedTime))
             ->count();
 
         $queueno = str_pad($queueCount + 1, 3, '0', STR_PAD_LEFT);
@@ -449,16 +543,17 @@ class ConsultationController extends Controller
         ]);
 
         $patientName = implode(' ', $fullName);
+        $caseNo = $this->generateCaseCode();
 
-        // Prepare base data
-        // Merge the array below with the $memberData to be passed as one
+        // Prepare base data matching pxwalkinconsultation schema and data dictionary
         $consultationData = [
             'pxrefno' => $request->pxrefno ?? $this->generatePatientCode(),
             'docrefno' => $request->docrefno,
+            'docname' => $doctor ? $doctor->docname : '',
             'pincode' => $request->pincode,
-            'casecode' => $this->generateCaseCode(),
-            'doccoaOPD' => $doctor->coaOPD ?? '',
-            'doccode' => $doctor->doccode ?? '',
+            'caseno' => $caseNo,
+            'casecode' => $caseNo,
+            'doccoaopd' => $doctor->coaOPD ?? '',
             'patientname' => $patientName,
             'pxfirstname' => $request->pxfname,
             'pxmidname' => $request->pxmname,
@@ -471,7 +566,8 @@ class ConsultationController extends Controller
             'emailaddress' => $request->pxemail,
             'address' => $request->pxaddress,
 
-            'reasonforconsultation' => $request->reason_for_consultation,
+            'reasonforconsultation' => $request->reason_for_consultation ?? '',
+            'finadiagnosis' => '',
             'weight' => $request->weight,
             'wunit' => $request->w_unit,
             'height' => $request->height,
@@ -486,12 +582,12 @@ class ConsultationController extends Controller
             'hmocode' => $request->hmo_input,
             'hmoname' => $request->hmo_name,
 
-            'secrefno' => $secretary->secrefno ?? auth()->user()->adminrefno,
-            'consultation_date' => Carbon::parse($request->sched_date . ' ' . $request->sched_time),
-            'recordedby' => $secretary->secusername ?? auth()->user()->username,
-            'recordeddate' => now(),
+            'secrefno' => $secrefno,
+            'consultation_date' => Carbon::parse($schedDate . ' ' . $schedTime),
+            'requestedby' => $recordedby,
+            'requesteddate' => now(),
 
-            'photo_path' => $request->hasFile('patient_photo') ? $request->file('patient_photo')->store('patient_photo', 'private') : public_path('images/blank_photo.png'),
+            'photo_path' => $request->hasFile('patient_photo') ? $request->file('patient_photo')->store('patient_photo', 'private') : (file_exists(public_path('images/blank_photo.png')) ? public_path('images/blank_photo.png') : ''),
             'radiologypath' => $request->hasFile('radiology_file') ? $request->file('radiology_file')->store('radiology_results', 'private') : null,
             'laboratorypath' => $request->hasFile('laboratory_file') ? $request->file('laboratory_file')->store('laboratory_results', 'private') : null,
 
@@ -499,40 +595,70 @@ class ConsultationController extends Controller
             'queueno' => $queueno
         ];
 
-        $consultation = ConsultationModel::create($consultationData);
+        try {
+            $consultation = ConsultationModel::create($consultationData);
 
-        $answers = $request->input('answer', []);
-        foreach ($answers as $questionRef => $answer) {
-            ConsultationAnswerModel::create([
-                'pxconsultationrefno' => $consultation->consultationrefno,
-                'questionrefno' => $questionRef,
-                'answer' => $answer,
-                'transactedby' => $secretary->secusername ?? auth()->user()->adminrefno,
-                'transacteddate' => now(),
-                'walkinconsuanswerrefno' => now()->format('mdYHis') . 'QA'
+            $answers = $request->input('answer', []);
+            foreach ($answers as $questionRef => $answer) {
+                ConsultationAnswerModel::create([
+                    'pxconsultationrefno' => $consultation->consultationrefno,
+                    'questionrefno' => $questionRef,
+                    'answer' => $answer,
+                    'transactedby' => $recordedby,
+                    'transacteddate' => now(),
+                    'walkinconsuanswerrefno' => now()->format('mdYHis') . 'QA'
+                ]);
+            }
+
+            Log::info('Consultation record created', [
+                'consultationrefno' => $consultation->consultationrefno,
+                'docrefno' => $request->docrefno,
+                'patientname' => $patientName,
+                'recordedby' => $recordedby
             ]);
-        }
 
-        if ($consultation) {
-            return response()->json(['success' => true]);
-        } else {
-            return response()->json(['success' => false]);
+            return response()->json(['success' => true, 'consultationrefno' => $consultation->consultationrefno]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to create consultation record', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json(['success' => false, 'message' => 'Failed to save consultation: ' . $e->getMessage()], 500);
         }
     }
 
-    // Update consultation details
+    /**
+     * Update consultation record details with safety guards against non-existent records.
+     */
     public function updateConsultation(Request $request)
     {
         $doctor = DoctorsProfileModel::where(['docrefno' => $request->docrefno])->first();
         $secretary = auth()->guard('secretary')->user();
+        $admin = auth()->guard('admin')->user();
+        $currentUser = $secretary ?: ($admin ?: auth()->user());
+        $secrefno = $secretary ? $secretary->secrefno : ($admin ? ($admin->adminrefno ?: 'ADM-' . $admin->id) : null);
+        $recordedby = $currentUser ? ($currentUser->username ?: 'system') : 'system';
 
-        $record = ConsultationModel::where(['consultationrefno' => $request->pxconsultationrefno])->first();
+        $record = ConsultationModel::where('consultationrefno', $request->pxconsultationrefno)
+            ->orWhere('id', $request->pxconsultationrefno)
+            ->first();
+
+        if (!$record) {
+            return response()->json(['success' => false, 'message' => 'Consultation record not found.'], 404);
+        }
+
+        $schedDate = $request->filled('sched_date') ? $request->sched_date : ($record->consultation_date ? Carbon::parse($record->consultation_date)->toDateString() : now()->toDateString());
+        $rawSchedTime = $request->input('sched_time');
+        $schedTime = ($rawSchedTime && strtotime($rawSchedTime) !== false) ? $rawSchedTime : ($record->consultation_date ? Carbon::parse($record->consultation_date)->format('H:i:s') : now()->format('H:i:s'));
 
         $queueCount = ConsultationModel::where(['docrefno' => $request->docrefno])
-            ->whereDate('consultation_date', Carbon::parse($request->sched_date)->startOfDay())
-            ->whereTime('consultation_date', Carbon::parse($request->sched_time)->endOfDay())
+            ->whereDate('consultation_date', Carbon::parse($schedDate)->startOfDay())
+            ->whereTime('consultation_date', Carbon::parse($schedTime)->endOfDay())
             ->count();
-        $queueno = str_pad($queueCount + 1, 3, '0', STR_PAD_LEFT);
+        $queueno = $record->queueno ?: str_pad($queueCount + 1, 3, '0', STR_PAD_LEFT);
 
         $fullName = array_filter([
             $request->pxfname,
@@ -545,10 +671,9 @@ class ConsultationController extends Controller
 
         $consultationData = [
             'docrefno' => $request->docrefno,
+            'docname' => $doctor ? $doctor->docname : ($record->docname ?? ''),
             'pincode' => $request->pincode,
-            'casecode' => $this->generateCaseCode(),
-            'doccoaOPD' => $doctor->coaOPD ?? '',
-            'doccode' => $doctor->doccode ?? '',
+            'doccoaopd' => $doctor->coaOPD ?? ($record->doccoaopd ?? ''),
             'patientname' => $patientName,
             'pxmidname' => $request->pxmname,
             'pxlastname' => $request->pxlname,
@@ -560,7 +685,7 @@ class ConsultationController extends Controller
             'emailaddress' => $request->pxemail,
             'address' => $request->pxaddress,
 
-            'reasonforconsultation' => $request->reason_for_consultation ?? '',
+            'reasonforconsultation' => $request->reason_for_consultation ?? ($record->reasonforconsultation ?? ''),
             'weight' => $request->weight,
             'wunit' => $request->w_unit,
             'height' => $request->height,
@@ -575,62 +700,101 @@ class ConsultationController extends Controller
             'hmocode' => $request->hmo_input,
             'hmoname' => $request->hmo_name,
 
-            'secrefno' => $secretary->secrefno ?? auth()->user()->adminrefno,
-            'consultation_date' => Carbon::parse($request->sched_date . ' ' . $request->sched_time),
-            'recordedby' => $secretary->secusername ?? auth()->user()->username,
-            'recordeddate' => now(),
+            'secrefno' => $secrefno,
+            'consultation_date' => Carbon::parse($schedDate . ' ' . $schedTime),
 
             'photo_path' => $request->hasFile('patient_photo') ? $request->file('patient_photo')->store('patient_photo', 'private') : $record->photo_path,
             'radiologypath' => $request->hasFile('radiologypath') ? $request->file('radiologypath')->store('radiology_results', 'private') : $record->radiologypath,
             'laboratorypath' => $request->hasFile('laboratorypath') ? $request->file('laboratorypath')->store('laboratory_results', 'private') : $record->laboratorypath,
 
-            'status' => 'PENDING',
+            'status' => $record->status ?: 'PENDING',
             'queueno' => $queueno
         ];
 
-        $update = $record->update($consultationData); // Update record
+        try {
+            $update = $record->update($consultationData);
 
-        $answers = $request->input('answer', []);
-        foreach ($answers as $questionRef => $answer) {
-            $answerModel = ConsultationAnswerModel::updateOrCreate([
-                'pxconsultationrefno' => $record->consultationrefno,
-                'questionrefno' => $questionRef
-            ], [
-                'answer' => $answer,
-                'transactedby' => $secretary->secusername ?? auth()->user()->username,
-                'transacteddate' => now(),
+            $answers = $request->input('answer', []);
+            foreach ($answers as $questionRef => $answer) {
+                $answerModel = ConsultationAnswerModel::updateOrCreate([
+                    'pxconsultationrefno' => $record->consultationrefno,
+                    'questionrefno' => $questionRef
+                ], [
+                    'answer' => $answer,
+                    'transactedby' => $recordedby,
+                    'transacteddate' => now(),
+                ]);
+
+                if ($answerModel->wasRecentlyCreated) {
+                    $answerModel->update([
+                        'walkinconsuanswerrefno' => now()->format('mdYHis') . 'QA'
+                    ]);
+                }
+            }
+
+            Log::info('Consultation record updated', [
+                'consultationrefno' => $record->consultationrefno,
+                'updated_by' => $recordedby
             ]);
 
-            if ($answerModel->wasRecentlyCreated) {
-                $answerModel->update([
-                    'walkinconsuanswerrefno' => now()->format('mdYHis') . 'QA'
-                ]);
-            }
-        }
-
-        if ($update) {
             return response()->json(['success' => true]);
-        }
+        } catch (\Throwable $e) {
+            Log::error('Failed to update consultation record', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
-        return response()->json(['success' => false]);
+            return response()->json(['success' => false, 'message' => 'Failed to update consultation: ' . $e->getMessage()], 500);
+        }
     }
 
+    /**
+     * Update consultation queue status (WAITING, IN_CONSULTATION, COMPLETED, CANCELLED, NO_SHOW, ON_HOLD, SCHEDULED).
+     * Flexible lookup matching by consultationrefno, casecode, caseno, or ID.
+     */
     public function updateQueueStatus(Request $request)
     {
         $request->validate([
-            'casecode' => 'required',
-            'status' => 'required|in:WAITING,IN_CONSULTATION,COMPLETED,CANCELLED,NO_SHOW,ON_HOLD',
+            'status' => 'required|in:WAITING,IN_CONSULTATION,COMPLETED,CANCELLED,NO_SHOW,ON_HOLD,SCHEDULED',
         ]);
 
-        $updated = ConsultationModel::where('casecode', $request->casecode)->update([
-            'status' => $request->status,
-        ]);
-
-        if ($updated) {
-            return response()->json(['success' => true]);
+        $code = $request->input('casecode') ?: ($request->input('consultationrefno') ?: $request->input('caseno'));
+        if (!$code) {
+            return response()->json(['success' => false, 'message' => 'Consultation identifier is required.'], 400);
         }
 
-        return response()->json(['success' => false, 'message' => 'Record not found.'], 404);
+        $record = ConsultationModel::where('consultationrefno', $code)
+            ->orWhere('caseno', $code)
+            ->first();
+
+        if (!$record && \Illuminate\Support\Facades\Schema::hasColumn('pxwalkinconsultation', 'casecode')) {
+            $record = ConsultationModel::where('casecode', $code)->first();
+        }
+
+        if (!$record && is_numeric($code)) {
+            $record = ConsultationModel::where('id', $code)->first();
+        }
+
+        if (!$record) {
+            return response()->json(['success' => false, 'message' => 'Record not found.'], 404);
+        }
+
+        $record->status = $request->status;
+        if ($request->status === 'COMPLETED') {
+            $record->consulted = true;
+            $record->consulteddate = now();
+        }
+        $record->save();
+
+        Log::info('Queue status updated', [
+            'consultationrefno' => $record->consultationrefno,
+            'status' => $request->status,
+            'updated_by' => auth()->user() ? auth()->user()->username : 'system'
+        ]);
+
+        return response()->json(['success' => true]);
     }
 
     public function fetchLatestPatientDetails(Request $request)
@@ -723,26 +887,77 @@ class ConsultationController extends Controller
         return 'CN' . Carbon::now()->year . '-' . str_pad(PatientMasterlist::count(), 5, '0', STR_PAD_LEFT);
     }
 
+    /**
+     * Detailed Comment: Reschedules a patient consultation record.
+     * Looks up the record by consultationrefno or caseno (resolving legacy SQL 1054 error on nonexistent 'casecode' column).
+     * Calculates the new queueno based on the target doctor and date/time, resets status to WAITING, and updates the timestamp.
+     */
     public function reschedulePatient(Request $request)
     {
-        $queueCount = ConsultationModel::where(['docrefno' => $request->docrefno])
-            ->whereDate('consultation_date', $request->date)
-            ->whereTime('consultation_date', $request->time)
-            ->count();
+        try {
+            $consultation = ConsultationModel::where('consultationrefno', $request->consultationrefno)
+                ->orWhere('caseno', $request->consultationrefno)
+                ->first();
 
-        // dd($queueCount);
+            if (!$consultation) {
+                Log::warning('Reschedule patient failed: consultation record not found', [
+                    'consultationrefno' => $request->consultationrefno
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Consultation record not found.'
+                ], 404);
+            }
 
-        $resched = ConsultationModel::where(['casecode' => $request->consultationrefno])
-            ->update([
-                'consultation_date' => Carbon::parse($request->date . ' ' . $request->time),
-                'queueno' => str_pad($queueCount + 1, 3, '0', STR_PAD_LEFT)
+            $docrefno = $request->docrefno ?: $consultation->docrefno;
+            $targetDate = $request->date ?: now()->toDateString();
+            $targetTime = !empty($request->time) ? $request->time : '00:00:00';
+
+            // Detailed Comment: Parse combined datetime safely using Carbon
+            $newConsultDate = Carbon::parse($targetDate . ' ' . $targetTime);
+
+            // Detailed Comment: Compute next queue number for the target doctor and consultation date/time
+            $queueQuery = ConsultationModel::where('docrefno', $docrefno)
+                ->whereDate('consultation_date', $newConsultDate->toDateString());
+
+            if (!empty($request->time)) {
+                $queueQuery->whereTime('consultation_date', $newConsultDate->format('H:i:s'));
+            }
+
+            $queueCount = $queueQuery->count();
+            $newQueueNo = str_pad($queueCount + 1, 3, '0', STR_PAD_LEFT);
+
+            $consultation->consultation_date = $newConsultDate;
+            $consultation->queueno = $newQueueNo;
+            $consultation->status = 'WAITING';
+            if ($docrefno) {
+                $consultation->docrefno = $docrefno;
+            }
+            $consultation->save();
+
+            Log::info('Patient consultation rescheduled successfully', [
+                'consultationrefno' => $consultation->consultationrefno,
+                'new_date' => $newConsultDate->toDateTimeString(),
+                'new_queueno' => $newQueueNo
             ]);
 
-        if ($resched) {
-            return response()->json(['success' => true]);
-        }
+            return response()->json([
+                'success' => true,
+                'queueno' => $newQueueNo,
+                'consultation_date' => $newConsultDate->toDateTimeString()
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Reschedule patient failed with exception', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
 
-        return response()->json(['success' => false]);
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while rescheduling the patient: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function refreshQueue(Request $request)
@@ -764,14 +979,27 @@ class ConsultationController extends Controller
         return response()->json(['success' => true]);
     }
 
+    /**
+     * Detailed Comment: Fetches available HMO entities for consultations and settlements.
+     * Queries by clientcode with defensive fallbacks to application configuration and all active
+     * non-empty HMO records so the HMO dropdown is never empty.
+     */
     public function fetchHMO()
     {
-        $orgs = HMOModel::where(['dw_clientcode' => session()->get('clientcode')])->get();
+        $clientCode = session()->get('clientcode') ?? config('app.clientcode') ?? env('CLIENT_CODE', '122377');
 
-        if ($orgs) {
-            return response()->json(['success' => true, 'hmo' => $orgs]);
+        $query = HMOModel::select(['hmocode', 'hmoname'])
+            ->whereNotNull('hmoname')
+            ->where('hmoname', '!=', '');
+
+        if ($clientCode) {
+            $hmo = (clone $query)->where('dw_clientcode', $clientCode)->get();
+            if ($hmo->isNotEmpty()) {
+                return response()->json(['success' => true, 'hmo' => $hmo]);
+            }
         }
 
-        return response()->json(['success' => false, 'hmo' => $orgs]);
+        $hmo = $query->get();
+        return response()->json(['success' => true, 'hmo' => $hmo]);
     }
 }

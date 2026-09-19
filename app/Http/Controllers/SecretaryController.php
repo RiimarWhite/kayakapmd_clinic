@@ -16,6 +16,7 @@ use App\Models\SecretaryDoctorsModel;
 use App\Models\SettlementsModel;
 use App\Models\ServicesGroupManagementModel;
 use App\Models\ServicesManagementModel;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 
 class SecretaryController extends Controller
@@ -123,23 +124,43 @@ class SecretaryController extends Controller
         return response()->json(['success' => true]);
     }
 
-    // Schedule-related
+    // Detailed Comment: Schedule-related operations for physicians
     public function fetchSchedules(Request $request)
     {
-        $schedules = ScheduleModel::where('docrefno', $request->docrefno)->orderBy('day', 'ASC')->get();
+        $request->validate([
+            'docrefno' => 'required|string'
+        ]);
+
+        // Detailed Comment: Order by natural day of the week (Sunday through Saturday), then by start time using ANSI SQL CASE
+        $dayOrderSql = "CASE day
+            WHEN 'Sunday' THEN 1
+            WHEN 'Monday' THEN 2
+            WHEN 'Tuesday' THEN 3
+            WHEN 'Wednesday' THEN 4
+            WHEN 'Thursday' THEN 5
+            WHEN 'Friday' THEN 6
+            WHEN 'Saturday' THEN 7
+            ELSE 8
+        END ASC, start ASC";
+
+        $schedules = ScheduleModel::where('docrefno', $request->docrefno)
+            ->orderByRaw($dayOrderSql)
+            ->get();
 
         return response()->json(['success' => true, 'schedules' => $schedules]);
     }
 
     public function fetchSchedulesSpecific(Request $request)
     {
-        $weekday = (new DateTime($request->consuldate))->format('l');
+        $consulDate = $request->consuldate ? new DateTime($request->consuldate) : new DateTime();
+        $weekday = $consulDate->format('l');
+
         $schedules = ScheduleModel::where([
             'docrefno' => $request->docrefno,
             'day' => $weekday
-        ])->get();
+        ])->orderBy('start', 'ASC')->get();
 
-        return response()->json(['schedules' => $schedules]);
+        return response()->json(['success' => true, 'schedules' => $schedules]);
     }
 
     // To get specific schedule by schedrefno
@@ -150,33 +171,82 @@ class SecretaryController extends Controller
     }
 
     public function editSchedule(Request $request) {
+        $request->validate([
+            'schedrefno' => 'required|string',
+            'day' => 'required|in:Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
+            'start' => 'required',
+            'end' => 'required'
+        ]);
+
         ScheduleModel::where(['schedrefno' => $request->schedrefno])
             ->update([
                 'day' => $request->day,
                 'start' => $request->start,
                 'end' => $request->end,
-                'notes' => $request->notes
             ]);
+
+        Log::info('Doctor schedule updated', [
+            'schedrefno' => $request->schedrefno,
+            'day' => $request->day,
+            'start' => $request->start,
+            'end' => $request->end
+        ]);
 
         return response()->json(['success' => true]);
     }
 
     public function createSchedule(Request $request)
     {
-        ScheduleModel::create([
-            'schedrefno' => Date::now()->format('mdYHis') . 'SCHED',
+        // Detailed Comment: Support both frontend modal parameter keys (day, stime, etime) and API keys (schedule_day, sched_from, sched_to)
+        $day = $request->input('schedule_day') ?: $request->input('day');
+        $from = $request->input('sched_from') ?: $request->input('stime');
+        $to = $request->input('sched_to') ?: $request->input('etime');
+
+        $request->merge([
+            'schedule_day' => $day,
+            'sched_from' => $from,
+            'sched_to' => $to
+        ]);
+
+        $request->validate([
+            'docrefno' => 'required|string',
+            'schedule_day' => 'required|in:Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
+            'sched_from' => 'required',
+            'sched_to' => 'required',
+        ]);
+
+        $facilityClientCode = config('app.client_code', env('CLIENT_CODE', '122377'));
+        $schedrefno = Date::now()->format('mdYHis') . 'SCHED' . rand(10, 99);
+
+        $schedule = ScheduleModel::create([
+            'dw_clientcode' => $facilityClientCode,
+            'schedrefno' => $schedrefno,
             'docrefno' => $request->docrefno,
             'day' => $request->schedule_day,
             'start' => $request->sched_from,
             'end' => $request->sched_to,
-            // 'notes' => $request->notes
         ]);
 
-        return response()->json(['success' => true]);
+        // Detailed Comment: Structured logging for schedule creation
+        Log::info('Doctor schedule created', [
+            'schedrefno' => $schedrefno,
+            'docrefno' => $request->docrefno,
+            'day' => $request->schedule_day,
+            'start' => $request->sched_from,
+            'end' => $request->sched_to
+        ]);
+
+        return response()->json(['success' => true, 'schedule' => $schedule]);
     }
 
     public function deleteSchedule(Request $request) {
+        $request->validate([
+            'schedrefno' => 'required|string'
+        ]);
+
         ScheduleModel::where('schedrefno', $request->schedrefno)->delete();
+
+        Log::info('Doctor schedule deleted', ['schedrefno' => $request->schedrefno]);
 
         return response()->json(['success' => true]);
     }
@@ -510,13 +580,93 @@ class SecretaryController extends Controller
 
     public function fetchSecretary(Request $request) {
         $user = auth()->guard('secretary')->user();
+        if ($user) {
+            $user->source_table = 'secretaryrights';
+        }
 
         return response()->json(['success' => true, 'user' => $user]);
     }
 
+    /**
+     * Detailed Comment: Self-service profile update for authenticated secretary.
+     * Allows secretary to edit their own profile in 'secretaryrights' including username and password,
+     * strictly bound to the authenticated secretary's secrefno to prevent cross-user tampering.
+     */
+    public function updateSecretaryProfile(Request $request) {
+        $secAuth = auth()->guard('secretary')->user();
+        if (!$secAuth) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated secretary'], 401);
+        }
+
+        $request->validate([
+            'secfname' => 'required|string|max:100',
+            'seclname' => 'required|string|max:100',
+            'username' => 'required|string|max:50|unique:secretaryrights,username,' . $secAuth->id,
+            'secpassword' => 'nullable|string|min:5',
+            'secemail' => 'nullable|email|max:100',
+            'seccontactno' => 'nullable|string|max:20',
+            'secgender' => 'nullable|string|in:male,female,MALE,FEMALE',
+            'secbday' => 'nullable|date'
+        ]);
+
+        $updateData = [
+            'secfname' => $request->secfname,
+            'secmname' => $request->secmname,
+            'seclname' => $request->seclname,
+            'secsuffix' => $request->secsuffix,
+            'secgender' => strtoupper($request->secgender ?? $secAuth->secgender ?? 'MALE'),
+            'secbday' => $request->secbday,
+            'seccontactno' => $request->seccontactno,
+            'secemail' => $request->secemail,
+            'secadrs' => $request->secadrs,
+            'username' => strtolower(trim($request->username))
+        ];
+
+        if ($request->filled('secpassword')) {
+            $updateData['secpassword'] = Hash::make($request->secpassword);
+        }
+
+        SecretaryModel::where('secrefno', $secAuth->secrefno)->update($updateData);
+
+        Log::info('Secretary self-service profile updated', [
+            'secrefno' => $secAuth->secrefno,
+            'username' => $request->username
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile updated successfully.'
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Fetches medical history for a patient in secretary queue.
+     * Supports multi-key lookup (pincode, pxrefno, or consultationrefno) to guarantee
+     * reliable history loading when launched from the Patient Masterlist modal.
+     */
     public function fetchPatientMedhistory(Request $request) {
-        $history = ConsultationModel::where(['pincode' => $request->pincode])
-            ->select([
+        $pincode = $request->input('pincode');
+        $pxrefno = $request->input('pxrefno');
+        $consultationrefno = $request->input('consultationrefno');
+
+        $query = ConsultationModel::query();
+        if (!empty($pincode) && $pincode !== 'undefined') {
+            $query->where('pincode', $pincode);
+        } elseif (!empty($pxrefno) && $pxrefno !== 'undefined') {
+            $query->where('pxrefno', $pxrefno);
+        } elseif (!empty($consultationrefno) && $consultationrefno !== 'undefined') {
+            $px = ConsultationModel::where('consultationrefno', $consultationrefno)->value('pxrefno');
+            if ($px) {
+                $query->where('pxrefno', $px);
+            } else {
+                $query->where('consultationrefno', $consultationrefno);
+            }
+        }
+
+        $history = $query->select([
+                'consultationrefno',
+                'pxrefno',
+                'pincode',
                 'photo_path',
                 'consultation_date',
                 'reasonforconsultation',
@@ -524,7 +674,9 @@ class SecretaryController extends Controller
                 'recordedby',
                 'recordeddate'
             ])
+            ->orderBy('id', 'desc')
             ->get();
+
         $history->transform(function ($record) {
             if ($record->photo_path) {
                 $filename = basename($record->photo_path);
@@ -534,11 +686,11 @@ class SecretaryController extends Controller
             return $record;
         });
 
-        if ($history) {
-            return response()->json(['history' => $history]);
-        }
-
-        return response()->json(['history' => null]);
+        return response()->json([
+            'success' => true,
+            'history' => $history,
+            'data' => $history
+        ]);
     }
 
     // Settlements-related
@@ -552,20 +704,34 @@ class SecretaryController extends Controller
         return response()->json(['success' => false]);
     }
 
+    /**
+     * Detailed Comment: Saves or updates consultation billing settlements across Cash, Card (CTA),
+     * and HMO channels into the pxsettlements table. Synchronizes consultation patient and doctor metadata,
+     * generates a unique transaction reference number (TRX...), and records audit logs.
+     */
     public function saveSettlements(Request $request) {
+        $consultation = ConsultationModel::where('consultationrefno', $request->sett_consultationrefno)->first();
+
         $record = SettlementsModel::updateOrCreate([
             'consultationrefno' => $request->sett_consultationrefno
         ], [
-            'transactionrefno' => '',
-            'net_total' => $request->total,
-            'cash' => $request->cash,
-            'cta' => $request->cta,
-            'cta_type' => $request->cta_type,
-            'hmo' => $request->hmo,
-            'hmo_type' => $request->hmo_type
+            'pincode' => $consultation->pincode ?? $request->pincode ?? null,
+            'docrefno' => $consultation->docrefno ?? null,
+            'docname' => $consultation->docname ?? null,
+            'total_gross' => (float) ($request->total ?? 0),
+            'net_payable' => (float) ($request->total ?? 0),
+            'payment_cash' => (float) ($request->cash ?: 0),
+            'payment_card' => (float) ($request->cta ?: 0),
+            'cta_type' => $request->cta_type ?? $request->card_type,
+            'less_hmo' => (float) ($request->hmo ?: 0),
+            'hmo_type' => $request->hmo_type,
+            'created' => Date::now(),
+            'createdby' => auth()->guard('secretary')->check()
+                ? auth()->guard('secretary')->user()->seclname
+                : (auth()->guard('admin')->check() ? auth()->guard('admin')->user()->name : 'System'),
         ]);
 
-        if ($record->wasRecentlyCreated) {
+        if ($record->wasRecentlyCreated || empty($record->transactionrefno)) {
             $record->transactionrefno = 'TRX' . Date::now()->format('mdYHis');
             $record->save();
         }
@@ -576,7 +742,9 @@ class SecretaryController extends Controller
                 'consultationrefno' => $request->sett_consultationrefno,
                 'total' => $request->total,
                 'transactionrefno' => $record->transactionrefno,
-                'recorded_by' => auth()->guard('secretary')->check() ? auth()->guard('secretary')->user()->seclname : null,
+                'recorded_by' => auth()->guard('secretary')->check()
+                    ? auth()->guard('secretary')->user()->seclname
+                    : (auth()->guard('admin')->check() ? auth()->guard('admin')->user()->name : 'System'),
             ]);
 
             return response()->json(['success' => true]);
@@ -585,10 +753,27 @@ class SecretaryController extends Controller
         return response()->json(['success' => false]);
     }
 
+    /**
+     * Detailed Comment: Fetches available HMO entities for the queue settlement modal.
+     * Queries by dw_clientcode with fallback to application configuration and all active
+     * HMO records with non-empty names, ensuring the HMO selection dropdown is always populated.
+     */
     public function fetchHmo()
     {
-        $hmo = HMOModel::select(['hmocode', 'hmoname'])->where(['dw_clientcode' => session()->get('clientcode')])->get();
+        $clientCode = session()->get('clientcode') ?? config('app.clientcode') ?? env('CLIENT_CODE', '122377');
 
+        $query = HMOModel::select(['hmocode', 'hmoname'])
+            ->whereNotNull('hmoname')
+            ->where('hmoname', '!=', '');
+
+        if ($clientCode) {
+            $hmo = (clone $query)->where('dw_clientcode', $clientCode)->get();
+            if ($hmo->isNotEmpty()) {
+                return response()->json(['hmo' => $hmo]);
+            }
+        }
+
+        $hmo = $query->get();
         return response()->json(['hmo' => $hmo]);
     }
 }

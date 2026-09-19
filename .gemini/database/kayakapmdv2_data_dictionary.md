@@ -238,6 +238,11 @@ Tenant/facility-level configuration for a single clinic ('client') using this sy
 | `id` | bigint UNSIGNED | NULL | NULL |  |
 | `adminrefno` | varchar(191) | NULL | NULL |  |
 | `username` | varchar(191) | NULL | NULL |  |
+| `adminfname` | varchar(100) | NULL | NULL | Admin first name |
+| `adminmname` | varchar(100) | NULL | NULL | Admin middle name |
+| `adminlname` | varchar(100) | NULL | NULL | Admin last name |
+| `admincontactno` | varchar(25) | NULL | NULL | Contact mobile number |
+| `adminemail` | varchar(100) | NULL | NULL | Administrative email address |
 | `password` | varchar(191) | NULL | NULL |  |
 | `created_at` | datetime | NULL | NULL |  |
 | `updated_at` | datetime | NULL | NULL |  |
@@ -560,7 +565,7 @@ The front-desk / EMR core: the patient master list, the walk-in consultation que
 | Column | Type | Null? | Default | Notes |
 |---|---|---|---|---|
 | `id` | int | NULL | NULL |  |
-| `source_data` | enum('ONLINE','QUELINE','SECRETARY','DOCTOR') | NULL | NULL |  |
+| `source_data` | enum('ONLINE','QUELINE','SECRETARY','DOCTOR','ADMIN') | NULL | NULL | Channel through which the consultation originated (ONLINE portal, QUELINE kiosk, SECRETARY desk, DOCTOR console, or ADMIN console) |
 | `consultationrefno` | varchar(50) | NULL | NULL |  |
 | `pxrefno` | varchar(50) | NULL | NULL |  |
 | `pincode` | varchar(21) | NULL | NULL |  |
@@ -746,6 +751,7 @@ Point-of-care billing: charge line items posted against a doctor/consultation, p
 | `net_payable` | double(11, 2) | NULL | NULL |  |
 | `payment_cash` | double(11, 2) | NULL | NULL |  |
 | `payment_card` | double(11, 2) | NULL | NULL |  |
+| `cta_type` | varchar(50) | NULL | NULL | Card transaction subtype (cc for Credit Card, dc for Debit Card) |
 | `payment_wallet` | double(11, 2) | NULL | NULL |  |
 | `payment_pn` | double(11, 2) | NULL | NULL |  |
 | `hmocode` | varchar(50) | NULL | NULL |  |

@@ -73,29 +73,86 @@
                     <!-- Account -->
                     <div class="tab-pane active w-100" id="profile" role="tabpanel" aria-labelledby="profile-tab"
                         tabindex="0">
-                        <h4>Account</h4>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h4 class="fw-bold m-0"><i class="fa-solid fa-user-pen me-2"></i> My Account Details</h4>
+                        </div>
                         <hr class="m-0 mb-4">
 
-                        <div class="d-flex mb-1">
-                            <p class="fw-bold m-0 w-50">Fullname: <span class="fw-normal" id="sec_fullname"></span></p>
-                            <p class="fw-bold m-0 w-50">Sex: <span class="fw-normal" id="sec_sex"></span></p>
-                        </div>
-                        <p class="fw-bold mb-3">Birthday: <span class="fw-normal" id="sec_dob"></span></p>
-
-                        <form class="d-flex flex-column gap-2" id="account_form">
+                        <form class="d-flex flex-column gap-3" id="account_form">
                             @csrf
 
-                            <div class="">
-                                <label class="form-label fw-bold" for="sec_contact">Contact No.</label>
-                                <input class="form-control w-50" type="tel" name="sec_contact" id="sec_contact">
+                            <div class="row g-2">
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold" for="sec_fname">First Name <span
+                                            class="text-danger">*</span></label>
+                                    <input class="form-control" type="text" name="secfname" id="sec_fname" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold" for="sec_mname">Middle Name</label>
+                                    <input class="form-control" type="text" name="secmname" id="sec_mname">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold" for="sec_lname">Last Name <span
+                                            class="text-danger">*</span></label>
+                                    <input class="form-control" type="text" name="seclname" id="sec_lname" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold" for="sec_suffix">Suffix</label>
+                                    <input class="form-control" type="text" name="secsuffix" id="sec_suffix"
+                                        maxlength="10">
+                                </div>
                             </div>
 
-                            <div class="">
-                                <label class="form-label fw-bold" for="sec_email">Email address</label>
-                                <input class="form-control w-50" type="tel" name="sec_email" id="sec_email">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold" for="sec_username_input">Username <span
+                                            class="text-danger">*</span></label>
+                                    <input class="form-control font-monospace" type="text" name="username"
+                                        id="sec_username_input" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold" for="sec_password_input">New Password</label>
+                                    <input class="form-control" type="password" name="secpassword"
+                                        id="sec_password_input" placeholder="Leave blank to keep current password">
+                                </div>
                             </div>
 
-                            <button type="button" class="btn btn-primary w-25" id="save_profile_btn">Save Updates</button>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold" for="sec_gender_input">Sex</label>
+                                    <select class="form-select" name="secgender" id="sec_gender_input">
+                                        <option value="MALE">MALE</option>
+                                        <option value="FEMALE">FEMALE</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold" for="sec_bday_input">Birthdate</label>
+                                    <input class="form-control" type="date" name="secbday" id="sec_bday_input">
+                                </div>
+                            </div>
+
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold" for="sec_contact">Contact No.</label>
+                                    <input class="form-control" type="tel" name="seccontactno" id="sec_contact"
+                                        placeholder="(+63)">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold" for="sec_email">Email Address</label>
+                                    <input class="form-control" type="email" name="secemail" id="sec_email">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="form-label fw-bold" for="sec_adrs_input">Home Address</label>
+                                <input class="form-control" type="text" name="secadrs" id="sec_adrs_input">
+                            </div>
+
+                            <div>
+                                <button type="button" class="btn btn-primary fw-bold" id="save_profile_btn">
+                                    <i class="fa-solid fa-floppy-disk me-1"></i> Save Updates
+                                </button>
+                            </div>
                         </form>
                     </div>
 
@@ -137,8 +194,8 @@
                             @csrf
 
                             <div class="input-group">
-                                <input class="form-control rounded-start-2" type="text" name="dquestion"
-                                    id="dquestion" required>
+                                <input class="form-control rounded-start-2" type="text" name="dquestion" id="dquestion"
+                                    required>
                                 <button type="button" class="btn btn-warning" id="create_question_btn"><i
                                         class="fa-solid fa-plus"></i> Add Question</button>
                             </div>
@@ -195,7 +252,8 @@
                                 <button type="button" class="btn btn-success" id="add_schedule_btn"><i
                                         class="fa-solid fa-plus"></i> Add Schedule</button>
                             </div>
-                            <div class="form-text">Create a schedule by choosing a weekday, the starting time, and an ending time.</div>
+                            <div class="form-text">Create a schedule by choosing a weekday, the starting time, and an
+                                ending time.</div>
                         </form>
 
                         <h4 class="fw-bold">Schedules</h4>
@@ -204,7 +262,7 @@
                         <div class="mt-4 table-responsive">
                             <table class="table table-bordered" id="schedules_calendar">
                                 <tbody>
-                                    
+
                                 </tbody>
                             </table>
                         </div>
@@ -229,8 +287,8 @@
                             <!-- Description -->
                             <div class="mb-3">
                                 <label for="servicegroup_dscr" class="form-label">Description</label>
-                                <textarea class="form-control rounded-2" name="servicegroup_dscr" id="servicegroup_dscr" rows="3"
-                                    placeholder="Enter group description" required></textarea>
+                                <textarea class="form-control rounded-2" name="servicegroup_dscr" id="servicegroup_dscr"
+                                    rows="3" placeholder="Enter group description" required></textarea>
                             </div>
 
                             <!-- Submit Button -->
@@ -273,12 +331,13 @@
 
                         <form class="mb-5" id="create_services_form">
                             @csrf
-                            
+
                             <div class="d-flex gap-2">
                                 <!-- Service Name -->
                                 <div class="mb-3 w-100">
                                     <label class="form-label" for="service_name">Service</label>
-                                    <input type="text" class="form-control rounded-2" name="service_name" id="service_name" required>
+                                    <input type="text" class="form-control rounded-2" name="service_name"
+                                        id="service_name" required>
                                     <div class="form-text">Enter service name.</div>
                                 </div>
 
@@ -304,7 +363,8 @@
                             <!-- Description -->
                             <div class="mb-3">
                                 <label for="service_dscr" class="form-label">Description</label>
-                                <textarea class="form-control rounded-2" name="service_dscr" id="service_dscr" rows="3" required></textarea>
+                                <textarea class="form-control rounded-2" name="service_dscr" id="service_dscr" rows="3"
+                                    required></textarea>
                                 <div class="form-text">Enter description.</div>
                             </div>
 

@@ -16,11 +16,13 @@ use App\Models\DiagnosticsModel;
 use App\Models\DocChargesModel;
 use App\Models\DocRequestsModel;
 use App\Models\DoctorMedicinesModel;
+use App\Models\DoctorModel;
 use App\Models\DoctorsProfileModel;
 use App\Models\MedicineModel;
 use App\Models\ScheduleModel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 
 class DoctorController extends Controller
@@ -64,11 +66,130 @@ class DoctorController extends Controller
         ]);
     }
 
+    /**
+     * Fetch authenticated doctor user profile including login username for profile modal.
+     */
     public function fetchDoctorUser()
     {
-        $user = DoctorsProfileModel::where('docrefno', auth()->guard('doctor')->user()->docrefno)->first();
+        $doctorAuth = auth()->guard('doctor')->user();
+        if (!$doctorAuth) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated doctor'], 401);
+        }
+
+        $user = DoctorsProfileModel::where('docrefno', $doctorAuth->docrefno)->first();
+        if ($user) {
+            $user->username = $doctorAuth->username ?: DoctorModel::where('docrefno', $doctorAuth->docrefno)->value('username');
+            $user->source_table = 'doctors & doctorsrights';
+        }
 
         return response()->json(['success' => true, 'user' => $user]);
+    }
+
+    /**
+     * Detailed Comment: Self-service profile update for authenticated doctor.
+     * Allows doctor to edit their own profile in 'doctors' and credentials in 'doctorsrights',
+     * strictly bound to the authenticated doctor's docrefno to prevent cross-user tampering.
+     */
+    public function updateDoctorProfile(Request $request)
+    {
+        $doctorAuth = auth()->guard('doctor')->user();
+        if (!$doctorAuth) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated doctor'], 401);
+        }
+
+        $request->validate([
+            'docfname' => 'required|string|max:100',
+            'doclname' => 'required|string|max:100',
+            'username' => 'required|string|max:50|unique:doctorsrights,username,' . $doctorAuth->id,
+            'new_password' => 'nullable|string|min:5',
+            'emailadd' => 'nullable|email|max:100',
+            'cellno' => 'nullable|string|max:20'
+        ]);
+
+        $docrefno = $doctorAuth->docrefno;
+
+        // Detailed Comment: Update 'doctors' table with all clinical and profile fields
+        DoctorsProfileModel::where('docrefno', $docrefno)->update([
+            'docfname' => $request->docfname,
+            'docmname' => $request->docmname,
+            'doclname' => $request->doclname,
+            'suffix' => $request->suffix,
+            'titlename' => $request->titlename,
+            'docfirst' => $request->docfirst ?? $request->docfname,
+            'docname' => trim($request->docfname . ' ' . ($request->docmname ?? '') . ' ' . $request->doclname . ' ' . ($request->suffix ?? '')),
+            'emailadd' => $request->emailadd,
+            'cellno' => $request->cellno,
+            'adrs' => $request->adrs,
+            'proftype' => $request->proftype,
+            'expertise' => $request->expertise,
+            'department' => $request->department,
+            'profgroup' => $request->profgroup,
+            'catg' => $request->catg,
+            'station' => $request->station,
+            'groupname' => $request->groupname,
+            'tin' => $request->tin,
+            'Licno' => $request->licno,
+            'licnoexpiry' => $request->licnoexpiry,
+            'phicno' => $request->phicno,
+            'phicexpiry' => $request->phicexpiry,
+            'phicname' => $request->phicname,
+            'phicenable' => $request->boolean('phicenable'),
+            'phicrate' => $request->phicrate,
+            'S2no' => $request->s2no,
+            'PTR' => $request->ptr,
+            'clinicroom' => $request->clinicroom,
+            'clinichours' => $request->clinichours,
+            'pfrate' => $request->pfrate ?? $request->consultationfee ?? 0,
+            'rodrate' => $request->rodrate,
+            'coacode' => $request->coacode,
+            'accountno' => $request->accountno,
+            'tax' => $request->tax,
+            'vatable' => $request->boolean('vatable'),
+            'vatrate' => $request->vatrate,
+            'VAT' => $request->vatrate ?? $request->VAT,
+            'autoAddVAT' => $request->boolean('autoAddVAT'),
+            'issuehospOR' => $request->boolean('issuehospOR'),
+            'quevisible' => $request->boolean('quevisible'),
+            'allowtextresult' => $request->boolean('allowtextresult'),
+            'allowdocsystem' => $request->boolean('allowdocsystem'),
+            'disabletext' => $request->boolean('disabletext'),
+            'otherinfo' => $request->otherinfo,
+            'biodata' => $request->biodata
+        ]);
+
+        // Detailed Comment: Synchronize 'doctorsrights' table credentials and profile rights
+        $rightsData = [
+            'docfname' => $request->docfname,
+            'docmname' => $request->docmname,
+            'doclname' => $request->doclname,
+            'suffix' => $request->suffix,
+            'titlename' => $request->titlename,
+            'username' => strtolower(trim($request->username)),
+            'eadd' => $request->emailadd,
+            'mnumber' => $request->cellno,
+            'tin' => $request->tin,
+            'address' => $request->adrs,
+            'expertise' => $request->expertise,
+            'proftype' => $request->proftype,
+            'taxpercent' => $request->tax,
+            'consultationfee' => $request->consultationfee ?? $request->pfrate ?? 0
+        ];
+
+        if ($request->filled('new_password')) {
+            $rightsData['pass'] = Hash::make($request->new_password);
+        }
+
+        DoctorModel::where('docrefno', $docrefno)->update($rightsData);
+
+        Log::info('Doctor self-service profile updated', [
+            'docrefno' => $docrefno,
+            'username' => $request->username
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile updated successfully.'
+        ]);
     }
 
     public function fetchPatientHistory(Request $request)
@@ -171,16 +292,17 @@ class DoctorController extends Controller
                     ->on('consultations.recordeddate', '=', 'latest.latest_date');
             })
             ->where('consultations.docrefno', $request->docrefno)
+            // Detailed Comment: Select attributes with aliases for nonexistent columns (doccode, casecode, pinno, isMember, memPin, address)
             ->select([
                 'consultations.docrefno',
                 'consultations.doccoaOPD',
-                'consultations.doccode',
+                'consultations.docrefno as doccode',
                 'consultations.pincode',
-                'consultations.casecode',
-                'consultations.pinno',
+                DB::raw("COALESCE(NULLIF(consultations.caseno, ''), NULLIF(consultations.consultationrefno, ''), consultations.pxrefno) as casecode"),
+                'consultations.phic_pin as pinno',
                 'consultations.caseno',
-                'consultations.isMember',
-                'consultations.memPin',
+                DB::raw("0 as isMember"),
+                DB::raw("'' as memPin"),
                 'consultations.patientname',
                 'consultations.pxmidname',
                 'consultations.pxlastname',
@@ -190,7 +312,7 @@ class DoctorController extends Controller
                 'consultations.age',
                 'consultations.mobilenumber',
                 'consultations.emailaddress',
-                'consultations.address',
+                DB::raw("'' as address"),
                 'consultations.photo_path',
                 'consultations.recordeddate'
             ]);
@@ -245,11 +367,164 @@ class DoctorController extends Controller
         return response()->json(['patients' => $patients, 'count' => $patients->count()]);
     }
 
+    /**
+     * Detailed Comment: Fetch clinic schedules for the authenticated doctor.
+     * Orders schedules by day of week and start time for consistent calendar display.
+     */
     public function fetchDoctorSchedules()
     {
-        $schedules = ScheduleModel::where(['docrefno' => auth()->guard('doctor')->user()->docrefno])->orderBy('day', 'ASC')->get();
+        $doctor = auth()->guard('doctor')->user();
+        if (!$doctor) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
 
-        return response()->json(['schedules' => $schedules]);
+        $schedules = ScheduleModel::where('docrefno', $doctor->docrefno)
+            ->orderBy('day', 'ASC')
+            ->orderBy('start', 'ASC')
+            ->get();
+
+        return response()->json(['success' => true, 'schedules' => $schedules]);
+    }
+
+    /**
+     * Detailed Comment: Create a new clinic schedule for the authenticated doctor.
+     * Generates a unique schedrefno and strictly scopes persistence to the doctor's docrefno.
+     */
+    public function createSchedule(Request $request)
+    {
+        $doctor = auth()->guard('doctor')->user();
+        if (!$doctor) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $day = $request->input('day') ?: $request->input('schedule_day');
+        $start = $request->input('start') ?: $request->input('stime') ?: $request->input('sched_from');
+        $end = $request->input('end') ?: $request->input('etime') ?: $request->input('sched_to');
+
+        $request->merge([
+            'day' => $day,
+            'start' => $start,
+            'end' => $end,
+        ]);
+
+        $request->validate([
+            'day' => 'required|in:Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
+            'start' => 'required',
+            'end' => 'required',
+        ]);
+
+        $facilityClientCode = config('app.client_code', env('CLIENT_CODE', '122377'));
+        $schedrefno = now()->format('mdYHis') . 'SCHED' . rand(10, 99);
+
+        $schedule = ScheduleModel::create([
+            'dw_clientcode' => $facilityClientCode,
+            'schedrefno' => $schedrefno,
+            'docrefno' => $doctor->docrefno,
+            'day' => $day,
+            'start' => $start,
+            'end' => $end,
+        ]);
+
+        Log::info('Doctor created clinic schedule', [
+            'docrefno' => $doctor->docrefno,
+            'schedrefno' => $schedrefno,
+            'day' => $day,
+            'start' => $start,
+            'end' => $end,
+        ]);
+
+        return response()->json(['success' => true, 'schedule' => $schedule]);
+    }
+
+    /**
+     * Detailed Comment: Fetch a single schedule by reference number verifying ownership by the authenticated doctor.
+     */
+    public function fetchScheduleByRef(Request $request)
+    {
+        $doctor = auth()->guard('doctor')->user();
+        if (!$doctor) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $schedule = ScheduleModel::where('schedrefno', $request->schedrefno)
+            ->where('docrefno', $doctor->docrefno)
+            ->first();
+
+        if (!$schedule) {
+            return response()->json(['success' => false, 'message' => 'Schedule not found or unauthorized'], 404);
+        }
+
+        return response()->json(['success' => true, 'sched' => $schedule]);
+    }
+
+    /**
+     * Detailed Comment: Update an existing clinic schedule ensuring doctor can only edit their own schedule.
+     */
+    public function editSchedule(Request $request)
+    {
+        $doctor = auth()->guard('doctor')->user();
+        if (!$doctor) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'schedrefno' => 'required|string',
+            'day' => 'required|in:Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday',
+            'start' => 'required',
+            'end' => 'required',
+        ]);
+
+        $schedule = ScheduleModel::where('schedrefno', $request->schedrefno)
+            ->where('docrefno', $doctor->docrefno)
+            ->first();
+
+        if (!$schedule) {
+            return response()->json(['success' => false, 'message' => 'Schedule not found or unauthorized'], 404);
+        }
+
+        $schedule->update([
+            'day' => $request->day,
+            'start' => $request->start,
+            'end' => $request->end,
+        ]);
+
+        Log::info('Doctor updated clinic schedule', [
+            'docrefno' => $doctor->docrefno,
+            'schedrefno' => $request->schedrefno,
+            'day' => $request->day,
+            'start' => $request->start,
+            'end' => $request->end,
+        ]);
+
+        return response()->json(['success' => true, 'schedule' => $schedule]);
+    }
+
+    /**
+     * Detailed Comment: Delete a clinic schedule ensuring doctor can only delete their own schedule.
+     */
+    public function deleteSchedule(Request $request)
+    {
+        $doctor = auth()->guard('doctor')->user();
+        if (!$doctor) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $schedule = ScheduleModel::where('schedrefno', $request->schedrefno)
+            ->where('docrefno', $doctor->docrefno)
+            ->first();
+
+        if (!$schedule) {
+            return response()->json(['success' => false, 'message' => 'Schedule not found or unauthorized'], 404);
+        }
+
+        $schedule->delete();
+
+        Log::info('Doctor deleted clinic schedule', [
+            'docrefno' => $doctor->docrefno,
+            'schedrefno' => $request->schedrefno,
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Schedule deleted successfully.']);
     }
 
     public function fetchPatientData(Request $request)
@@ -284,19 +559,40 @@ class DoctorController extends Controller
         return response()->json(['rx' => $rx, 'instructions' => $instructions]);
     }
 
+    /**
+     * Detailed Comment: Adds prescription medicine into stocks_ledger.
+     * Looks up price and PHIC reference from stocks_listing, computes unit price and total amount,
+     * and sets transactiontype = 'CHARGES' so that prescription medicines seamlessly reflect
+     * with valid prices and line totals in Patient Charges and Billing.
+     */
     public function addMedicine(Request $request)
     {
         $consultation = ConsultationModel::where(['consultationrefno' => $request->consultationrefno])->first();
+        if (!$consultation) {
+            return response()->json(['success' => false, 'message' => 'Consultation not found.'], 404);
+        }
+
         $medicine = StocksListingModel::where(['item_grouping' => 'DRUGS AND MEDS', 'prodcode' => $request->prodcode])->first();
+        if (!$medicine) {
+            return response()->json(['success' => false, 'message' => 'Medicine not found in inventory listing.'], 404);
+        }
+
+        $qty = (float)($request->qty ?: 1);
+        $unitPrice = (float)($medicine->price_regular ?? $medicine->cost_ave ?? 0);
+        $totalAmt = $unitPrice * $qty;
 
         $record = StocksLedgerModel::create([
+            'transactiontype' => 'CHARGES',
             'px_pin' => $consultation->pxrefno,
             'px_consultcode_cn' => $request->consultationrefno,
             'patient_name' => $consultation->patientname,
             'prodcode' => $request->prodcode,
-            'phic_reference_code' => $medicine->phic_reference_code,
-            'item_dscr' => $medicine->prod_itemdscr,
-            'qty' => $request->qty,
+            'phic_reference_code' => $medicine->phic_reference_code ?? '',
+            'item_dscr' => $medicine->prod_itemdscr ?? '',
+            'qty' => $qty,
+            'cost_ave' => $unitPrice,
+            'retails' => $unitPrice,
+            'totalamt' => $totalAmt,
             'item_grouping' => 'DRUGS AND MEDS'
         ]);
 
@@ -307,10 +603,16 @@ class DoctorController extends Controller
         return response()->json(['success' => false]);
     }
 
+    /**
+     * Detailed Comment: Deletes prescribed medicine from stocks_ledger by consultationrefno and prodcode,
+     * maintaining synchronization with patient charges.
+     */
     public function deleteMedicine(Request $request)
     {
         $med = StocksLedgerModel::where(['px_consultcode_cn' => $request->consultationrefno, 'prodcode' => $request->prodcode])->first();
-        $med->delete();
+        if ($med) {
+            $med->delete();
+        }
 
         return response()->json(['success' => true]);
     }
@@ -324,15 +626,112 @@ class DoctorController extends Controller
         return response()->json(['success' => true, 'instructions' => $request->pxinstructions]);
     }
 
+    /**
+     * Detailed Comment: Streams PDF printable document for Rx (prescription) or Instructions.
+     * Safely resolves patient by consultationrefno or caseno, populates missing address from patient masterlist,
+     * resolves attending physician across doctor, secretary, and admin authentication guards, and retrieves
+     * prescription medicines from both stocks_ledger (DRUGS AND MEDS) and pxrxdocuments.
+     */
     public function printPDF(Request $request)
     {
-        $doctor = DoctorsProfileModel::where('docrefno', auth()->guard('doctor')->user()->docrefno)->first();
-        $patient = ConsultationModel::where('consultationrefno', $request->consultationrefno)->first();
-        $medicines = DoctorMedicinesModel::where('consultationrefno', $request->consultationrefno)->get();
-        $profile = KayakapProfileModel::first();
-        $type = $request->type;
+        $refno = $request->consultationrefno ?: $request->query('consultationrefno');
+        $patient = ConsultationModel::with('patient')
+            ->where('consultationrefno', $refno)
+            ->orWhere('caseno', $refno)
+            ->first();
 
-        return Pdf::loadView('printables.rx_print', compact('doctor', 'type', 'patient', 'profile', 'medicines'))->setPaper('A4', 'portrait')->stream('test.pdf');
+        // Detailed Comment: Fallback patient object to avoid null reference exceptions in Blade view
+        if (!$patient) {
+            $patient = (object)[
+                'patientname' => 'Patient',
+                'age' => '',
+                'gender' => '',
+                'address' => '',
+                'instructions' => '',
+                'docrefno' => null,
+            ];
+        } else {
+            // Detailed Comment: Resolve address from related PatientMasterlist if not directly on consultation record
+            if (empty($patient->address) && $patient->patient) {
+                $pMaster = $patient->patient;
+                $addrParts = array_filter([$pMaster->streetadrs, $pMaster->brgy, $pMaster->muncity, $pMaster->province]);
+                $patient->address = !empty($addrParts) ? implode(', ', $addrParts) : ($pMaster->address ?? '');
+            }
+        }
+
+        // Detailed Comment: Safely resolve attending physician across doctor, secretary, or admin guards
+        $docrefno = null;
+        if (auth()->guard('doctor')->check() && auth()->guard('doctor')->user()) {
+            $docrefno = auth()->guard('doctor')->user()->docrefno;
+        }
+        if (!$docrefno && !empty($patient->docrefno)) {
+            $docrefno = $patient->docrefno;
+        }
+
+        $doctor = $docrefno ? DoctorsProfileModel::where('docrefno', $docrefno)->first() : null;
+        if (!$doctor) {
+            $doctor = (object)[
+                'docname' => $patient->docname ?? 'Attending Physician',
+                'Licno' => '',
+                'PTR' => '',
+                'S2no' => '',
+            ];
+        }
+
+        // Detailed Comment: Retrieve prescription medicines from active StocksLedgerModel and legacy DoctorMedicinesModel
+        $medicines = collect();
+        if ($refno) {
+            $ledgerMeds = StocksLedgerModel::where('px_consultcode_cn', $refno)
+                ->where(function ($q) {
+                    $q->where('item_grouping', 'DRUGS AND MEDS')
+                      ->orWhereNull('item_grouping');
+                })
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'medicinename' => $item->item_dscr,
+                        'medicinedosage' => '',
+                        'medicineduration' => '',
+                        'medicinequantity' => $item->qty ?: 1,
+                    ];
+                });
+
+            $rxDocs = DoctorMedicinesModel::where('consultationrefno', $refno)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'medicinename' => $item->medicinename,
+                        'medicinedosage' => $item->medicinedosage ?? '',
+                        'medicineduration' => $item->medicineduration ?? '',
+                        'medicinequantity' => $item->medicinequantity ?? 1,
+                    ];
+                });
+
+            $medicines = $ledgerMeds->concat($rxDocs);
+        }
+
+        $profile = KayakapProfileModel::first() ?? (object)[
+            'HOSP_NAME' => config('app.name', 'KayakapMD Clinic'),
+            'HOSP_ADDBRGY' => ''
+        ];
+
+        $type = $request->type ?: $request->query('type', 'rx');
+
+        try {
+            return Pdf::loadView('printables.rx_print', compact('doctor', 'type', 'patient', 'profile', 'medicines'))
+                ->setPaper('A4', 'portrait')
+                ->stream('prescription_' . ($refno ?: 'document') . '.pdf');
+        } catch (\Throwable $e) {
+            // Detailed Comment: Structured error logging if PDF rendering fails
+            Log::error('Failed to generate printable PDF document', [
+                'consultationrefno' => $refno,
+                'type' => $type,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response('Error generating PDF document: ' . $e->getMessage(), 500)
+                ->header('Content-Type', 'text/plain');
+        }
     }
 
     // Diagnostics
@@ -436,41 +835,169 @@ class DoctorController extends Controller
         return response()->json(['success' => false]);
     }
 
+    /**
+     * Detailed Comment: Streams PDF printable document for Diagnostics Requests.
+     * Resolves patient and doctor safely across guards, and retrieves diagnostic requests from both
+     * stocks_ledger (active DIAGNOSTIC grouping) and legacy docrequests/diagnosticsmasterlist.
+     */
     public function printDiagnostics(Request $request)
     {
-        $doctor = DoctorsProfileModel::where('docrefno', auth()->guard('doctor')->user()->docrefno)->first();
-        $patient = ConsultationModel::where('consultationrefno', $request->consultationrefno)->first();
-        $pxreq = DocRequestsModel::where(['consultationrefno' => $request->consultationrefno])->get();
-        $requests = DiagnosticsMasterlistModel::whereIn('diagnosticrefno', $pxreq->pluck('requestrefno')->toArray())->get();
-        $profile = KayakapProfileModel::first();
+        $refno = $request->consultationrefno ?: $request->query('consultationrefno');
+        $patient = ConsultationModel::with('patient')
+            ->where('consultationrefno', $refno)
+            ->orWhere('caseno', $refno)
+            ->first();
+
+        if (!$patient) {
+            $patient = (object)[
+                'patientname' => 'Patient',
+                'age' => '',
+                'gender' => '',
+                'address' => '',
+                'docrefno' => null,
+            ];
+        } else {
+            if (empty($patient->address) && $patient->patient) {
+                $pMaster = $patient->patient;
+                $addrParts = array_filter([$pMaster->streetadrs, $pMaster->brgy, $pMaster->muncity, $pMaster->province]);
+                $patient->address = !empty($addrParts) ? implode(', ', $addrParts) : ($pMaster->address ?? '');
+            }
+        }
+
+        $docrefno = null;
+        if (auth()->guard('doctor')->check() && auth()->guard('doctor')->user()) {
+            $docrefno = auth()->guard('doctor')->user()->docrefno;
+        }
+        if (!$docrefno && !empty($patient->docrefno)) {
+            $docrefno = $patient->docrefno;
+        }
+
+        $doctor = $docrefno ? DoctorsProfileModel::where('docrefno', $docrefno)->first() : null;
+        if (!$doctor) {
+            $doctor = (object)[
+                'docname' => $patient->docname ?? 'Attending Physician',
+                'Licno' => '',
+                'PTR' => '',
+                'S2no' => '',
+            ];
+        }
+
+        // Detailed Comment: Retrieve requested diagnostics from stocks_ledger and legacy docrequests
+        $requests = collect();
+        if ($refno) {
+            $ledgerDiags = StocksLedgerModel::where('px_consultcode_cn', $refno)
+                ->where('item_grouping', 'DIAGNOSTIC')
+                ->get()
+                ->map(function ($item) {
+                    return (object)[
+                        'diagnostic_name' => $item->item_dscr,
+                    ];
+                });
+
+            $pxreq = DocRequestsModel::where(['consultationrefno' => $refno])->get();
+            $masterDiags = DiagnosticsMasterlistModel::whereIn('diagnosticrefno', $pxreq->pluck('requestrefno')->toArray())->get()
+                ->map(function ($item) {
+                    return (object)[
+                        'diagnostic_name' => $item->diagnostic_name,
+                    ];
+                });
+
+            $requests = $ledgerDiags->concat($masterDiags);
+        }
+
+        $profile = KayakapProfileModel::first() ?? (object)[
+            'HOSP_NAME' => config('app.name', 'KayakapMD Clinic'),
+            'HOSP_ADDBRGY' => ''
+        ];
+
         $type = "diagnostics";
 
-        return Pdf::loadView('printables.rx_print', compact('doctor', 'type', 'patient', 'profile', 'requests'))->setPaper('A4', 'portrait')->stream('test.pdf');
+        try {
+            return Pdf::loadView('printables.rx_print', compact('doctor', 'type', 'patient', 'profile', 'requests'))
+                ->setPaper('A4', 'portrait')
+                ->stream('diagnostics_' . ($refno ?: 'request') . '.pdf');
+        } catch (\Throwable $e) {
+            // Detailed Comment: Structured error logging if diagnostic PDF rendering fails
+            Log::error('Failed to generate diagnostic PDF document', [
+                'consultationrefno' => $refno,
+                'type' => $type,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response('Error generating diagnostic PDF document: ' . $e->getMessage(), 500)
+                ->header('Content-Type', 'text/plain');
+        }
     }
 
     // Charges
+    /**
+     * Detailed Comment: Fetches patient charges for the given consultation reference number.
+     * Looks up existing records from stocks_ledger. If totalamt or cost_ave is missing/null,
+     * looks up the current price from stocks_listing and formats the values to 2 decimal places,
+     * ensuring no null or NaN appears in the client DataTable or total sums.
+     */
     public function fetchPatientCharges(Request $request)
     {
-        // $charges = DocChargesModel::where(['consultationrefno' => $request->consultationrefno])->get();
-        $charges = StocksLedgerModel::select(['id', 'prodcode', 'item_dscr', 'qty', 'cost_ave', 'totalamt'])->where(['px_consultcode_cn' => $request->consultationrefno])->get();
+        // Detailed Comment: Fetches all patient charges for this consultation, including
+        // supplies, procedures, diagnostics, imaging, professional fees, and prescribed medicines (DRUGS AND MEDS).
+        $charges = StocksLedgerModel::where('px_consultcode_cn', $request->consultationrefno)->get();
+
+        $charges->transform(function ($item) {
+            $qty = (float)($item->qty ?: 1);
+            $total = ($item->totalamt !== null && $item->totalamt !== '') ? (float)$item->totalamt : null;
+            $unitPrice = ($item->cost_ave !== null && $item->cost_ave !== '') ? (float)$item->cost_ave : null;
+
+            // If unit price or total is missing or zero, defensively look up catalog price from stocks_listing
+            if ($unitPrice === null || $total === null || $unitPrice <= 0 || $total <= 0) {
+                $listing = StocksListingModel::where('prodcode', $item->prodcode)->first();
+                if ($listing) {
+                    $lookupPrice = (float)($listing->price_regular ?? $listing->cost_ave ?? 0);
+                    if ($unitPrice === null || $unitPrice <= 0) {
+                        $unitPrice = $lookupPrice;
+                    }
+                    if ($total === null || $total <= 0) {
+                        $total = $unitPrice * $qty;
+                    }
+                } else {
+                    $unitPrice = $unitPrice ?: 0;
+                    $total = $total ?: 0;
+                }
+            }
+
+            $item->cost_ave = number_format($unitPrice, 2, '.', '');
+            $item->totalamt = number_format($total, 2, '.', '');
+
+            return $item;
+        });
 
         return response()->json(['charges' => $charges]);
     }
 
+    /**
+     * Detailed Comment: Saves appended patient charges to stocks_ledger.
+     * Calculates the unit price and total amount from the supplied amount/quantity or stocks_listing,
+     * populates px_pin and transactiontype, and persists cost_ave, retails, and totalamt.
+     */
     public function saveAppendedCharges(Request $request)
     {
         $consultation = ConsultationModel::where(['consultationrefno' => $request->consultationrefno])->first();
-        $doctor = DoctorsProfileModel::where(['docrefno' => $consultation->docrefno])->first();
+        if (!$consultation) {
+            return response()->json(['success' => false, 'message' => 'Consultation not found.'], 404);
+        }
+
+        if (empty($request->chargerefnos) || !is_array($request->chargerefnos)) {
+            return response()->json(['success' => false, 'message' => 'No charges provided.'], 422);
+        }
 
         foreach ($request->chargerefnos as $chargeData) {
-            // $chargeData is now an object with refno, discount, amount
             $chargeRefno = $chargeData['prodcode'] ?? null;
-            $quantity = $chargeData['quantity'] ?? 0;
+            $quantity = isset($chargeData['quantity']) && $chargeData['quantity'] !== '' ? (float)$chargeData['quantity'] : 1;
+            $inputAmount = isset($chargeData['amount']) && $chargeData['amount'] !== '' ? (float)$chargeData['amount'] : null;
 
-            $charge = StocksListingModel::select(['prod_itemdscr', 'item_grouping', 'qty'])->where(['prodcode' => $chargeRefno])->first();
-
-            if (!$charge)
+            $charge = StocksListingModel::where(['prodcode' => $chargeRefno])->first();
+            if (!$charge) {
                 continue;
+            }
 
             if (
                 StocksLedgerModel::where([
@@ -483,7 +1010,7 @@ class DoctorController extends Controller
 
             if ($charge->is_inventory == true) {
                 if ($charge->qty >= intval($quantity)) {
-                    $charge->decrement('qty', $quantity);
+                    $charge->decrement('qty', (int)$quantity);
                 } else {
                     return response()->json([
                         'success' => false,
@@ -492,12 +1019,24 @@ class DoctorController extends Controller
                 }
             }
 
+            // Detailed Comment: Compute unit price and total amount defensively
+            $unitPrice = ($inputAmount !== null && $inputAmount > 0)
+                ? $inputAmount
+                : (float)($charge->price_regular ?? $charge->cost_ave ?? 0);
+
+            $totalAmt = $unitPrice * $quantity;
+
             StocksLedgerModel::create([
-                'patient_name' => $consultation->patientname,
+                'transactiontype' => 'CHARGES',
+                'px_pin' => $consultation->pxrefno ?? '',
+                'patient_name' => $consultation->patientname ?? '',
                 'prodcode' => $chargeRefno,
                 'px_consultcode_cn' => $request->consultationrefno,
                 'item_dscr' => $charge->prod_itemdscr,
                 'qty' => $quantity,
+                'cost_ave' => $unitPrice,
+                'retails' => $unitPrice,
+                'totalamt' => $totalAmt,
                 'item_grouping' => $charge->item_grouping
             ]);
         }
@@ -613,18 +1152,24 @@ class DoctorController extends Controller
         return response()->json(['success' => false]);
     }
 
+    /**
+     * Detailed Comment: Retrieves HMO price or regular price for a product based on whether
+     * the consultation record is linked to an active HMO code.
+     */
     public function getHmoPrice(Request $request)
     {
-        $patient = ConsultationModel::where(['consultationrefno' => $request->consultationrefno])->first()->value('hmocode');
-        $price_type = ($patient != null) ? 'price_regular' : 'price_hmo';
+        $consultation = ConsultationModel::where('consultationrefno', $request->consultationrefno)
+            ->orWhere('caseno', $request->consultationrefno)
+            ->first();
 
-        $price = StocksListingModel::where(['prodcode' => $request->prodcode])
-            ->value($price_type);
+        $hasHmo = $consultation && !empty($consultation->hmocode);
+        $priceType = $hasHmo ? 'price_hmo' : 'price_regular';
 
-        if ($price != null) {
-            return response()->json(['success' => true, 'price' => $price]);
+        $price = StocksListingModel::where('prodcode', $request->prodcode)->value($priceType);
+        if ($price === null || $price === '') {
+            $price = StocksListingModel::where('prodcode', $request->prodcode)->value('price_regular') ?? 0;
         }
 
-        return response()->json(['success' => false]);
+        return response()->json(['success' => true, 'price' => number_format((float)$price, 2, '.', '')]);
     }
 }

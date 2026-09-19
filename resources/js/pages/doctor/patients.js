@@ -56,17 +56,124 @@ $(function () {
         });
     });
 
-    // Doctor profile modal
+    // Detailed Comment: Self-service Doctor Profile modal lifecycle (populate 5 tabs and save updates)
     const modalEl = document.getElementById("doctor_profile_modal");
     if (modalEl) {
-        modalEl.addEventListener("shown.bs.modal", () => {
+        modalEl.addEventListener("show.bs.modal", () => {
             $.ajax({
                 url: "/api/fetch_doctor_data", type: "POST",
                 headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
                 success: function (response) {
-                    const u = response.user;
-                    const map = { "#doc_fullname": [u.docfname, u.docmname, u.doclname, u.suffix].filter(Boolean).join(" "), "#doc_title": u.titlename, "#doc_contact": u.cellno, "#doc_email": u.emailadd, "#doc_lic": u.Licno, "#doc_lic_expiry": u.licnoexpiry, "#doc_phic": u.phicno, "#doc_phic_expiry": u.phicexpiry, "#doc_s2": u.S2no };
-                    $.each(map, (sel, val) => $(sel).text(val ?? ""));
+                    if (response.success && response.user) {
+                        const u = response.user;
+                        // Tab 1: Personal & Account
+                        $("#prof_docfname").val(u.docfname || '');
+                        $("#prof_docmname").val(u.docmname || '');
+                        $("#prof_doclname").val(u.doclname || '');
+                        $("#prof_suffix").val(u.suffix || '');
+                        $("#prof_titlename").val(u.titlename || 'MD');
+                        $("#prof_username").val(u.username || '');
+                        $("#prof_new_password").val('');
+                        $("#prof_emailadd").val(u.emailadd || '');
+                        $("#prof_cellno").val(u.cellno || '');
+                        $("#prof_adrs").val(u.adrs || '');
+
+                        // Tab 2: Licenses & Accreditations
+                        $("#prof_licno").val(u.Licno || '');
+                        $("#prof_licnoexpiry").val(u.licnoexpiry || '');
+                        $("#prof_phicno").val(u.phicno || '');
+                        $("#prof_phicexpiry").val(u.phicexpiry || '');
+                        $("#prof_phicname").val(u.phicname || '');
+                        $("#prof_phicrate").val(u.phicrate || 0);
+                        $("#prof_phicenable").prop('checked', !!(u.phicenable == 1 || u.phicenable === true));
+                        $("#prof_s2no").val(u.S2no || '');
+                        $("#prof_ptr").val(u.PTR || '');
+
+                        // Tab 3: Practice & Clinic
+                        $("#prof_expertise").val(u.expertise || '');
+                        $("#prof_proftype").val(u.proftype || 'ATTENDING');
+                        $("#prof_department").val(u.department || '');
+                        $("#prof_profgroup").val(u.profgroup || '');
+                        $("#prof_catg").val(u.catg || '');
+                        $("#prof_station").val(u.station || '');
+                        $("#prof_groupname").val(u.groupname || '');
+                        $("#prof_clinicroom").val(u.clinicroom || '');
+                        $("#prof_clinichours").val(u.clinichours || '');
+                        $("#prof_hospadrs").val(u.hospadrs || '');
+
+                        // Tab 4: Rates, Tax & Billing
+                        $("#prof_consultationfee").val(u.consultationfee || 0);
+                        $("#prof_emergencyfee").val(u.emergencyfee || 0);
+                        $("#prof_admissionfee").val(u.admissionfee || 0);
+                        $("#prof_tin").val(u.tin || '');
+                        $("#prof_taxpercent").val(u.taxpercent || 0);
+                        $("#prof_withholdingtax").val(u.withholdingtax || 0);
+                        $("#prof_bankacct").val(u.bankacct || '');
+                        $("#prof_slcode").val(u.slcode || '');
+                        $("#prof_autoAddVAT").prop('checked', !!(u.autoAddVAT == 1 || u.autoAddVAT === true));
+                        $("#prof_issuehospOR").prop('checked', !!(u.issuehospOR == 1 || u.issuehospOR === true));
+
+                        // Tab 5: System Settings & Notes
+                        $("#prof_quevisible").prop('checked', !!(u.quevisible == 1 || u.quevisible === true || u.quevisible === undefined));
+                        $("#prof_allowtextresult").prop('checked', !!(u.allowtextresult == 1 || u.allowtextresult === true));
+                        $("#prof_allowdocsystem").prop('checked', !!(u.allowdocsystem == 1 || u.allowdocsystem === true));
+                        $("#prof_disabletext").prop('checked', !!(u.disabletext == 1 || u.disabletext === true));
+                        $("#prof_otherinfo").val(u.otherinfo || '');
+                        $("#prof_biodata").val(u.biodata || '');
+
+                        // Legacy view elements
+                        const map = {
+                            "#doc_fullname": [u.docfname, u.docmname, u.doclname, u.suffix].filter(Boolean).join(" "),
+                            "#doc_username": u.username,
+                            "#doc_title": u.titlename,
+                            "#doc_expertise": u.expertise,
+                            "#doc_contact": u.cellno,
+                            "#doc_email": u.emailadd,
+                            "#doc_clinicroom": u.clinicroom,
+                            "#doc_clinichours": u.clinichours,
+                            "#doc_lic": u.Licno,
+                            "#doc_lic_expiry": u.licnoexpiry,
+                            "#doc_phic": u.phicno,
+                            "#doc_phic_expiry": u.phicexpiry,
+                            "#doc_s2": u.S2no,
+                            "#doc_ptr": u.PTR
+                        };
+                        $.each(map, (sel, val) => $(sel).text(val ?? ""));
+                    }
+                }
+            });
+        });
+
+        $("#save_doctor_profile_btn").off("click").on("click", function () {
+            const form = document.getElementById("doctor_profile_form");
+            if (form && !form.checkValidity()) return form.reportValidity();
+
+            const $btn = $(this);
+            const originalHtml = $btn.html();
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status"></span> Saving...');
+
+            $.ajax({
+                url: "/api/doctor/update_profile",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                data: $("#doctor_profile_form").serialize(),
+                success: function (response) {
+                    if (response.success) {
+                        Swal.fire({
+                            title: "Success",
+                            text: "Doctor profile updated successfully.",
+                            icon: "success"
+                        });
+                    } else {
+                        Swal.fire({ title: "Error", text: response.message || "Failed to update profile.", icon: "error" });
+                    }
+                },
+                error: function (xhr) {
+                    const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "Failed to update profile.";
+                    Swal.fire({ title: "Error", text: msg, icon: "error" });
+                },
+                complete: function () {
+                    $btn.prop('disabled', false).html(originalHtml);
                 }
             });
         });

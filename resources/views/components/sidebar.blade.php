@@ -124,9 +124,10 @@
         </button>
         <div class="collapse {{ request()->routeIs('admin.users.*') ? 'show' : '' }}" id="usersBtn">
             <div class="card card-body bg-transparent border-0 p-0 gap-1 flex-column">
-                <a class="nav-link text-dark {{ request()->routeIs('admin.users.secretaries') ? 'active' : '' }}"
-                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.users.secretaries') }}">
-                    Secretaries
+                <!-- Detailed Comment: Sub-menu item rebranded to Secretaries/Admin Users referencing new route -->
+                <a class="nav-link text-dark {{ (request()->routeIs('admin.users.secretaries_admin') || request()->routeIs('admin.users.secretaries')) ? 'active' : '' }}"
+                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.users.secretaries_admin') }}">
+                    Secretaries/Admin Users
                 </a>
                 <a class="nav-link text-dark {{ request()->routeIs('admin.users.doctors') ? 'active' : '' }}"
                     style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.users.doctors') }}">
@@ -142,6 +143,11 @@
         <a class="nav-link text-dark {{ request()->routeIs('secretary.queue') ? 'active' : '' }}"
             href="{{ route('secretary.queue') }}">
             <i class="fa-solid fa-list-ul"></i> Patient Queue
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link text-dark" href="javascript:void(0)" data-bs-toggle="modal" data-bs-target="#secretary_profile_modal">
+            <i class="fa-solid fa-user-nurse"></i> My Profile
         </a>
     </li>
     @endif
@@ -163,6 +169,11 @@
         <a class="nav-link text-dark {{ request()->routeIs('doctor.patients') ? 'active' : '' }}"
             href="{{ route('doctor.patients') }}">
             <i class="fa-solid fa-users"></i> Patients Masterlist
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link text-dark" href="javascript:void(0)" data-bs-toggle="modal" data-bs-target="#doctor_profile_modal">
+            <i class="fa-solid fa-user-doctor"></i> My Profile
         </a>
     </li>
     @endif

@@ -129,4 +129,31 @@ $(function () {
             }
         });
     });
+
+    // Detailed Comment: Handler to update logged in administrator account details and credentials
+    $("#save_admin_account").on("click", function () {
+        const form = document.getElementById("admin_account_form");
+        if (!form.checkValidity()) return form.reportValidity();
+
+        $.ajax({
+            url: "/api/admin/update_profile",
+            type: "POST",
+            headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+            data: $("#admin_account_form").serialize(),
+            success: function (response) {
+                if (response.success) {
+                    Swal.fire({
+                        title: "Success",
+                        text: "Administrator account updated successfully.",
+                        icon: "success",
+                        confirmButtonText: "Okay"
+                    });
+                }
+            },
+            error: function (xhr) {
+                const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "Failed to update administrator account.";
+                Swal.fire({ title: "Error", text: msg, icon: "error" });
+            }
+        });
+    });
 });

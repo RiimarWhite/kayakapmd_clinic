@@ -56,14 +56,14 @@ class StocksLedgerModel extends Model
     public static function booted()
     {
         static::updating(function ($model) {
+            // Detailed Comment: Resolve updatedby defensively based on active authentication guard
             $guard = collect(['admin', 'doctor', 'secretary'])->first(fn($g) => auth()->guard($g)->check());
             $model->updatedby = match ($guard) {
-                'admin' => auth()->user()->username,
-                'doctor' => auth()->user()->full_name,
-                'secretary' => auth()->user()->full_name,
+                'admin' => auth()->user()?->username ?? 0,
+                'doctor' => auth()->user()?->full_name ?? 0,
+                'secretary' => auth()->user()?->full_name ?? 0,
+                default => 0,
             };
-
-            $model->updatedby = 0;
         });
     }
 }

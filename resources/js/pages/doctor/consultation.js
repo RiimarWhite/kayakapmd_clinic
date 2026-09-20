@@ -46,6 +46,7 @@ $(function () {
                     let b = 'bg-secondary fs-6';
                     if (data === 'WAITING') b = 'bg-warning text-white text-dark fs-6';
                     if (data === 'IN_CONSULTATION') b = 'bg-info text-white fs-6';
+                    if (data === 'FOR_BILLING') b = 'bg-primary text-white fs-6';
                     if (data === 'COMPLETED') b = 'bg-success fs-6';
                     if (data === 'UNSCHEDULED') b = 'bg-primary fs-6';
                     if (data === 'CANCELLED' || data === 'NO_SHOW') b = 'bg-danger fs-6';
@@ -181,9 +182,12 @@ $(function () {
                     const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
                     $("#print_rx_btn").attr("href", `${basePath}/print_pdf?type=rx&consultationrefno=${rowConsultationRefno}`);
                     $("#print_inst_btn").attr("href", `${basePath}/print_pdf?type=instructions&consultationrefno=${rowConsultationRefno}`);
+                    $("#print_admit_btn").attr("href", `${basePath}/print_pdf?type=admission&consultationrefno=${rowConsultationRefno}`);
                     $("#reasonforconsultation").val(p.reasonforconsultation);
                     $("#impressions").val(p.impression);
                     $("#diagnosis").val(p.finadiagnosis);
+                    $("#foradmit").prop("checked", p.foradmit == 1);
+                    $("#foradmit_instructions").val(p.foradmit_instructions || "");
                 }
                 loadDashboardRx();
             },

@@ -75,7 +75,7 @@ $(function () {
                 }},
                 { data: "patientname" },
                 { data: "status", render: function (data) {
-                    const badges = { WAITING: "bg-warning text-white fs-6", IN_CONSULTATION: "bg-info text-white fs-6", COMPLETED: "bg-success fs-6", UNSCHEDULED: "bg-primary fs-6", CANCELLED: "bg-danger fs-6", NO_SHOW: "bg-danger fs-6" };
+                    const badges = { WAITING: "bg-warning text-white fs-6", IN_CONSULTATION: "bg-info text-white fs-6", FOR_BILLING: "bg-primary text-white fs-6", COMPLETED: "bg-success fs-6", UNSCHEDULED: "bg-primary fs-6", CANCELLED: "bg-danger fs-6", NO_SHOW: "bg-danger fs-6" };
                     return `<span class="badge ${badges[data] || 'bg-secondary fs-6'}">${data}</span>`;
                 }}
             ],
@@ -104,7 +104,7 @@ $(function () {
                 { data: null, render: function (data) { return `<button class="btn btn-sm btn-primary import-queue" value="${data.pxrefno}" data-consultationrefno="${data.consultationrefno || ''}" title="Import patient details"><i class="fa-solid fa-share"></i></button>`; } },
                 { data: "patientname" },
                 { data: "status", render: function (data) {
-                    const badges = { WAITING: "bg-warning text-white fs-6", IN_CONSULTATION: "bg-info text-white fs-6", COMPLETED: "bg-success fs-6", UNSCHEDULED: "bg-primary fs-6", CANCELLED: "bg-danger fs-6", NO_SHOW: "bg-danger fs-6" };
+                    const badges = { WAITING: "bg-warning text-white fs-6", IN_CONSULTATION: "bg-info text-white fs-6", FOR_BILLING: "bg-primary text-white fs-6", COMPLETED: "bg-success fs-6", UNSCHEDULED: "bg-primary fs-6", CANCELLED: "bg-danger fs-6", NO_SHOW: "bg-danger fs-6" };
                     return `<span class="badge ${badges[data] || 'bg-secondary fs-6'}">${data}</span>`;
                 }}
             ],
@@ -284,6 +284,18 @@ $(function () {
                         });
                     }
                     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Patient data imported', showConfirmButton: false, timer: 1500 });
+
+                    // Detailed Comment: Update secretary 1-click printable document links with imported consultation reference
+                    const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
+                    const cref = p.consultationrefno || '';
+                    if (cref) {
+                        $("#sec_print_rx_btn").attr("href", `${basePath}/print_pdf?type=rx&consultationrefno=${cref}`);
+                        $("#sec_print_diag_btn").attr("href", `${basePath}/print_pdf?type=diagnostics&consultationrefno=${cref}`);
+                        $("#sec_print_admit_btn").attr("href", `${basePath}/print_pdf?type=admission&consultationrefno=${cref}`);
+                        $("#sec_print_soa_btn").attr("href", `${basePath}/print_pdf?type=soa&consultationrefno=${cref}`);
+                    } else {
+                        $("#sec_print_rx_btn, #sec_print_diag_btn, #sec_print_admit_btn, #sec_print_soa_btn").attr("href", "#");
+                    }
 
                     if (p.hmocode != null) {
                         $("#patient_type").val("hmo");
@@ -746,7 +758,7 @@ $(function () {
                 {
                     data: 'status',
                     render: function (data) {
-                        const badges = { WAITING: "bg-warning text-white", IN_CONSULTATION: "bg-info text-white", COMPLETED: "bg-success text-white", UNSCHEDULED: "bg-primary text-white", CANCELLED: "bg-danger text-white", NO_SHOW: "bg-danger text-white" };
+                        const badges = { WAITING: "bg-warning text-white", IN_CONSULTATION: "bg-info text-white", FOR_BILLING: "bg-primary text-white", COMPLETED: "bg-success text-white", UNSCHEDULED: "bg-primary text-white", CANCELLED: "bg-danger text-white", NO_SHOW: "bg-danger text-white" };
                         return `<span class="badge ${badges[data] || 'bg-secondary'}">${data || 'N/A'}</span>`;
                     }
                 },
@@ -805,6 +817,7 @@ $(function () {
         $("#info_cta").val(r.cta ? '₱' + parseFloat(r.cta).toFixed(2) : '₱0.00');
         $("#info_cta_type").val(cardLabel);
         $("#info_hmo").val(r.hmo ? '₱' + parseFloat(r.hmo).toFixed(2) : '₱0.00');
+        $("#info_phic").val(r.phic ? '₱' + parseFloat(r.phic).toFixed(2) : '₱0.00');
 
         let hmoLabel = r.hmo_type || 'None';
         const hmoOption = $(`#hmo_type option[value="${r.hmo_type}"]`).text();
@@ -877,6 +890,7 @@ $(function () {
                             if (r.cta_type) $("#card_type").val(r.cta_type);
                             if (parseFloat(r.hmo) > 0) $("#hmo").val(parseFloat(r.hmo).toFixed(2));
                             if (r.hmo_type) $("#hmo_type").val(r.hmo_type);
+                            if (parseFloat(r.phic) > 0) $("#phic").val(parseFloat(r.phic).toFixed(2));
                             updateSettlementRemaining();
                             populateViewSettlements(r);
                         } else {
@@ -885,6 +899,7 @@ $(function () {
                             $("#info_cta").val('₱0.00');
                             $("#info_cta_type").val('None');
                             $("#info_hmo").val('₱0.00');
+                            $("#info_phic").val('₱0.00');
                             $("#info_hmo_type").val('None');
                         }
                     }
@@ -1005,13 +1020,28 @@ $(function () {
                     $("#info_cta").val('₱0.00');
                     $("#info_cta_type").val('None');
                     $("#info_hmo").val('₱0.00');
+                    $("#info_phic").val('₱0.00');
                     $("#info_hmo_type").val('None');
                 }
             }
         });
     });
 
+    // Detailed Comment: Guard secretary printable document buttons to verify a consultation record is selected
+    $(document).on("click", "#sec_print_rx_btn, #sec_print_diag_btn, #sec_print_admit_btn, #sec_print_soa_btn", function (e) {
+        const href = $(this).attr("href");
+        if (!href || href === "#") {
+            e.preventDefault();
+            Swal.fire({
+                title: "Reminder",
+                text: "Please select a queued consultation record first to generate printable documents.",
+                icon: "warning"
+            });
+        }
+    });
+
     // Detailed Comment: Remove patient charge handler with button spinner feedback
+    // Uses /api/delete_patient_charge to synchronize with DoctorController::deleteCharge
     $(document).on("click", ".remove_charge", function () {
         const $btn = $(this);
         const prodcode = $btn.val();
@@ -1029,7 +1059,7 @@ $(function () {
             if (result.isConfirmed) {
                 setBtnLoading($btn, "");
                 $.ajax({
-                    url: "/api/delete_charge_doctor",
+                    url: "/api/delete_patient_charge",
                     type: "POST",
                     headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
                     data: { consultationrefno: refno, prodcode: prodcode },

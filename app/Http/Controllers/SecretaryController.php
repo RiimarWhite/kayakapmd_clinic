@@ -16,6 +16,7 @@ use App\Models\SecretaryDoctorsModel;
 use App\Models\SettlementsModel;
 use App\Models\ServicesGroupManagementModel;
 use App\Models\ServicesManagementModel;
+use App\Models\Stocks\StocksLedgerModel;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 
@@ -706,11 +707,31 @@ class SecretaryController extends Controller
 
     /**
      * Detailed Comment: Saves or updates consultation billing settlements across Cash, Card (CTA),
-     * and HMO channels into the pxsettlements table. Synchronizes consultation patient and doctor metadata,
-     * generates a unique transaction reference number (TRX...), and records audit logs.
+     * Detailed Comment: Saves and updates patient consultation billing settlement details in pxsettlements.
+     * Computes gross charges and categorized subtotals from stocks_ledger (DRUGS AND MEDS, DIAGNOSTIC,
+     * PROFESSIONAL FEE, PROCEDURES, SUPPLIES, VACCINES, IMMUNIZATION), applies PhilHealth (PHIC) and HMO
+     * deductions, records cash and card payment channels, generates transaction reference number (TRX...),
+     * and logs structured audit events.
      */
     public function saveSettlements(Request $request) {
         $consultation = ConsultationModel::where('consultationrefno', $request->sett_consultationrefno)->first();
+
+        // Detailed Comment: Compute categorized charge totals from stocks_ledger for billing auditing and SOA breakdown
+        $charges = StocksLedgerModel::where('px_consultcode_cn', $request->sett_consultationrefno)->get();
+        $totalMeds = (float) $charges->where('item_grouping', 'DRUGS AND MEDS')->sum('totalamt');
+        $totalLab = (float) $charges->where('item_grouping', 'DIAGNOSTIC')->sum('totalamt');
+        $totalPf = (float) $charges->where('item_grouping', 'PROFESSIONAL FEE')->sum('totalamt');
+        $totalProcedures = (float) $charges->where('item_grouping', 'PROCEDURES')->sum('totalamt');
+        $totalSupplies = (float) $charges->where('item_grouping', 'SUPPLIES')->sum('totalamt');
+        $totalVaccines = (float) $charges->where('item_grouping', 'VACCINES')->sum('totalamt');
+        $totalImmunizations = (float) $charges->where('item_grouping', 'IMMUNIZATION')->sum('totalamt');
+        $totalOthers = (float) $charges->whereNotIn('item_grouping', ['DRUGS AND MEDS', 'DIAGNOSTIC', 'PROFESSIONAL FEE', 'PROCEDURES', 'SUPPLIES', 'VACCINES', 'IMMUNIZATION'])->sum('totalamt');
+
+        $computedGross = (float) $charges->sum('totalamt');
+        $totalGross = $computedGross > 0 ? $computedGross : (float) ($request->total ?? 0);
+        $lessPhic = (float) ($request->phic ?: ($request->less_phic ?: 0));
+        $lessHmo = (float) ($request->hmo ?: ($request->less_hmo ?: 0));
+        $netPayable = max(0, $totalGross - $lessPhic - $lessHmo);
 
         $record = SettlementsModel::updateOrCreate([
             'consultationrefno' => $request->sett_consultationrefno
@@ -718,13 +739,23 @@ class SecretaryController extends Controller
             'pincode' => $consultation->pincode ?? $request->pincode ?? null,
             'docrefno' => $consultation->docrefno ?? null,
             'docname' => $consultation->docname ?? null,
-            'total_gross' => (float) ($request->total ?? 0),
-            'net_payable' => (float) ($request->total ?? 0),
+            'total_gross' => $totalGross,
+            'net_payable' => $netPayable,
+            'total_meds' => $totalMeds,
+            'total_lab' => $totalLab,
+            'total_doctorspf' => $totalPf,
+            'total_procedures' => $totalProcedures,
+            'total_supplies' => $totalSupplies,
+            'total_vaccines' => $totalVaccines,
+            'total_immunizations' => $totalImmunizations,
+            'total_others' => $totalOthers,
+            'less_phic' => $lessPhic,
+            'less_hmo' => $lessHmo,
+            'hmo_type' => $request->hmo_type,
+            'hmocode' => $request->hmo_type,
             'payment_cash' => (float) ($request->cash ?: 0),
             'payment_card' => (float) ($request->cta ?: 0),
             'cta_type' => $request->cta_type ?? $request->card_type,
-            'less_hmo' => (float) ($request->hmo ?: 0),
-            'hmo_type' => $request->hmo_type,
             'created' => Date::now(),
             'createdby' => auth()->guard('secretary')->check()
                 ? auth()->guard('secretary')->user()->seclname
@@ -740,7 +771,10 @@ class SecretaryController extends Controller
             // Detailed Comment: Log patient billing settlement save
             Log::info('Consultation settlement saved', [
                 'consultationrefno' => $request->sett_consultationrefno,
-                'total' => $request->total,
+                'total_gross' => $totalGross,
+                'less_phic' => $lessPhic,
+                'less_hmo' => $lessHmo,
+                'net_payable' => $netPayable,
                 'transactionrefno' => $record->transactionrefno,
                 'recorded_by' => auth()->guard('secretary')->check()
                     ? auth()->guard('secretary')->user()->seclname

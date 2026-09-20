@@ -20,6 +20,7 @@ use App\Models\DoctorModel;
 use App\Models\DoctorsProfileModel;
 use App\Models\MedicineModel;
 use App\Models\ScheduleModel;
+use App\Models\SettlementsModel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -710,6 +711,34 @@ class DoctorController extends Controller
             $medicines = $ledgerMeds->concat($rxDocs);
         }
 
+        // Detailed Comment: Retrieve patient charges, diagnostics, and billing settlement for SOA and admission documents
+        $charges = collect();
+        $settlement = null;
+        $requests = collect();
+        if ($refno) {
+            $charges = StocksLedgerModel::where('px_consultcode_cn', $refno)->get();
+            $settlement = SettlementsModel::where('consultationrefno', $refno)->first();
+
+            $ledgerDiags = StocksLedgerModel::where('px_consultcode_cn', $refno)
+                ->where('item_grouping', 'DIAGNOSTIC')
+                ->get()
+                ->map(function ($item) {
+                    return (object)[
+                        'diagnostic_name' => $item->item_dscr,
+                    ];
+                });
+
+            $pxreq = DocRequestsModel::where(['consultationrefno' => $refno])->get();
+            $masterDiags = DiagnosticsMasterlistModel::whereIn('diagnosticrefno', $pxreq->pluck('requestrefno')->toArray())->get()
+                ->map(function ($item) {
+                    return (object)[
+                        'diagnostic_name' => $item->diagnostic_name,
+                    ];
+                });
+
+            $requests = $ledgerDiags->concat($masterDiags);
+        }
+
         $profile = KayakapProfileModel::first() ?? (object)[
             'HOSP_NAME' => config('app.name', 'KayakapMD Clinic'),
             'HOSP_ADDBRGY' => ''
@@ -717,10 +746,18 @@ class DoctorController extends Controller
 
         $type = $request->type ?: $request->query('type', 'rx');
 
+        $filenamePrefix = match($type) {
+            'admission' => 'admission_orders_',
+            'soa' => 'statement_of_account_',
+            'instructions' => 'instructions_',
+            'diagnostics' => 'diagnostics_',
+            default => 'prescription_'
+        };
+
         try {
-            return Pdf::loadView('printables.rx_print', compact('doctor', 'type', 'patient', 'profile', 'medicines'))
+            return Pdf::loadView('printables.rx_print', compact('doctor', 'type', 'patient', 'profile', 'medicines', 'charges', 'settlement', 'requests'))
                 ->setPaper('A4', 'portrait')
-                ->stream('prescription_' . ($refno ?: 'document') . '.pdf');
+                ->stream($filenamePrefix . ($refno ?: 'document') . '.pdf');
         } catch (\Throwable $e) {
             // Detailed Comment: Structured error logging if PDF rendering fails
             Log::error('Failed to generate printable PDF document', [
@@ -1115,12 +1152,15 @@ class DoctorController extends Controller
         $record = ConsultationModel::where(['consultationrefno' => $request->consultationrefno])->first();
 
         if ($record) {
-            $record->status = "COMPLETED";
+            // Detailed Comment: Transition consultation status to FOR_BILLING per approved OPD workflow plan
+            // so that the patient is queued on the secretary side for billing, settlement, and document printing.
+            $record->status = "FOR_BILLING";
             $record->save();
 
             // Detailed Comment: Log consultation status change
-            Log::info('Consultation marked completed', [
+            Log::info('Consultation marked for billing and document handover', [
                 'consultationrefno' => $request->consultationrefno,
+                'status' => 'FOR_BILLING',
                 'doctor' => auth()->guard('doctor')->check() ? auth()->guard('doctor')->user()->docrefno : null,
             ]);
 
@@ -1132,17 +1172,21 @@ class DoctorController extends Controller
 
     public function saveImpressionsDiagnosis(Request $request)
     {
+        $foradmit = $request->boolean('foradmit') || $request->input('foradmit') === '1' || $request->input('foradmit') === 1 ? 1 : 0;
         $record = ConsultationModel::where(['consultationrefno' => $request->consultationrefno])
             ->update([
                 'reasonforconsultation' => $request->reasonforconsultation,
-                'impression' => $request->impressions,
-                'finadiagnosis' => $request->diagnosis
+                'impression' => $request->impressions ?: $request->impression,
+                'finadiagnosis' => $request->diagnosis ?: $request->finadiagnosis,
+                'foradmit' => $foradmit,
+                'foradmit_instructions' => $request->foradmit_instructions ?? null,
             ]);
 
         if ($record) {
-            // Detailed Comment: Log diagnostic notes update
-            Log::info('Consultation impressions and diagnosis updated', [
+            // Detailed Comment: Log diagnostic notes and admission orders update
+            Log::info('Consultation impressions, diagnosis, and admission orders updated', [
                 'consultationrefno' => $request->consultationrefno,
+                'foradmit' => $foradmit,
                 'doctor' => auth()->guard('doctor')->check() ? auth()->guard('doctor')->user()->docrefno : null,
             ]);
 

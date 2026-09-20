@@ -9,6 +9,15 @@ class ConsultationModel extends Model
     protected $table = "pxwalkinconsultation";
 
     /**
+     * Detailed Comment: consultationrefno serves as the unique string primary key for pxwalkinconsultation
+     */
+    protected $primaryKey = 'consultationrefno';
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
+
+    /**
      * Detailed Comment: Default model attributes to satisfy database integrity constraints (finadiagnosis NOT NULL)
      */
     protected $attributes = [
@@ -78,7 +87,10 @@ class ConsultationModel extends Model
         'radiologypath',
         'photo_path',
         'hmocode',
-        'hmoname'
+        'hmoname',
+        'instructions',
+        'foradmit',
+        'foradmit_instructions'
     ];
 
     public $timestamps = false;

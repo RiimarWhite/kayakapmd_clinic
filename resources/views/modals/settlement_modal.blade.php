@@ -55,8 +55,8 @@
                                 </div>
 
                                 <div class="input-group">
-                                    <div class="input-group-text justify-content-center fw-bold" style="width: 5rem">--:--</div>
-                                    <input class="form-control settlement-input" type="number" step="0.01" min="0.00" placeholder="0.00" name="aaa" id="aaa">
+                                    <div class="input-group-text justify-content-center fw-bold text-success" style="width: 5rem">PHIC</div>
+                                    <input class="form-control settlement-input" type="number" step="0.01" min="0.00" placeholder="0.00" name="phic" id="phic">
                                     <button class="btn btn-secondary import-total" type="button" title="Import total"><i class="fa-solid fa-circle-arrow-down"></i></button>
                                 </div>
 
@@ -72,7 +72,7 @@
                         </form>
                     </div>
 
-                    {{-- Detailed Comment: View Settlements tab with text inputs to safely render formatted currency and string names (CTA card types, HMO labels) --}}
+                    {{-- Detailed Comment: View Settlements tab with text inputs to safely render formatted currency and string names (CTA card types, HMO labels, PHIC) --}}
                     <div class="tab-pane" id="view_sett">
                         <div class="d-flex flex-column gap-2">
                             <div class="input-group">
@@ -93,6 +93,11 @@
                             <div class="input-group">
                                 <span class="input-group-text fw-bold" style="width: 10rem;">CTA Type</span>
                                 <input class="form-control" type="text" id="info_cta_type" readonly>
+                            </div>
+
+                            <div class="input-group">
+                                <span class="input-group-text fw-bold text-success" style="width: 10rem;">PHIC</span>
+                                <input class="form-control" type="text" id="info_phic" readonly>
                             </div>
 
                             <div class="input-group">

@@ -77,7 +77,7 @@ return new class extends Migration
             $table->string('instructions', 100)->nullable();
             $table->string('radiologypath', 255)->nullable();
             $table->string('laboratorypath', 255)->nullable();
-            $table->enum('status', ['PENDING', 'FOR CONFIRMATION', 'WAITING', 'IN_CONSULTATION', 'COMPLETED', 'CANCELLED', 'NO_SHOW', 'UNSCHEDULED'])->nullable();
+            $table->enum('status', ['PENDING', 'FOR CONFIRMATION', 'WAITING', 'IN_CONSULTATION', 'FOR_BILLING', 'COMPLETED', 'CANCELLED', 'NO_SHOW', 'UNSCHEDULED'])->nullable();
             $table->dateTime('consultation_date')->nullable();
             $table->string('queueno', 100)->nullable();
             $table->string('lastpayreferenceno', 35)->nullable();

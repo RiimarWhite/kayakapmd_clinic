@@ -629,7 +629,7 @@ The front-desk / EMR core: the patient master list, the walk-in consultation que
 | `instructions` | varchar(100) | NULL | NULL |  |
 | `radiologypath` | varchar(255) | NULL | NULL |  |
 | `laboratorypath` | varchar(255) | NULL | NULL |  |
-| `status` | enum('PENDING','FOR CONFIRMATION','WAITING','IN_CONSULTATION','COMPLETED','CANCELLED','NO_SHOW','UNSCHEDULED') | NULL | NULL |  |
+| `status` | enum('PENDING','FOR CONFIRMATION','WAITING','IN_CONSULTATION','FOR_BILLING','COMPLETED','CANCELLED','NO_SHOW','UNSCHEDULED') | NULL | NULL | Workflow state: PENDING, FOR CONFIRMATION, WAITING, IN_CONSULTATION, FOR_BILLING, COMPLETED, CANCELLED, NO_SHOW, UNSCHEDULED |
 | `consultation_date` | datetime | NULL | NULL |  |
 | `queueno` | varchar(100) | NULL | NULL |  |
 | `lastpayreferenceno` | varchar(35) | NULL | NULL |  |

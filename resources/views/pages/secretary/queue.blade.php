@@ -176,6 +176,20 @@
                                 <i class="fa-solid fa-bars"></i> Patient Masterlist
                             </button>
 
+                            {{-- Detailed Comment: 1-Click Document Printing dropdown matching Step 3 & 6 of OPD Consultation Workflow Plan --}}
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-info text-white fw-bold dropdown-toggle" type="button" id="printDocsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fa-solid fa-print"></i> Print Documents
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="printDocsDropdown">
+                                    <li><a class="dropdown-item" id="sec_print_rx_btn" target="_blank" href="#"><i class="fa-solid fa-prescription text-info me-2"></i> Print Rx (Prescription)</a></li>
+                                    <li><a class="dropdown-item" id="sec_print_diag_btn" target="_blank" href="#"><i class="fa-solid fa-envelope-open-text text-success me-2"></i> Print Diagnostic Requests</a></li>
+                                    <li><a class="dropdown-item" id="sec_print_admit_btn" target="_blank" href="#"><i class="fa-solid fa-hospital-user text-danger me-2"></i> Print Admission / Kin Orders</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item fw-bold" id="sec_print_soa_btn" target="_blank" href="#"><i class="fa-solid fa-file-invoice-dollar text-primary me-2"></i> Print Statement of Account (SOA)</a></li>
+                                </ul>
+                            </div>
+
                             <button type="button" class="btn btn-sm btn-danger fw-bold text-nowrap ms-auto" id="clear_form">
                                 <i class="fa-solid fa-trash-can"></i> Clear Consultation Form
                             </button>

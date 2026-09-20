@@ -71,17 +71,19 @@ class SettlementsModel extends Model
         'cash',
         'cta',
         'hmo',
+        'phic',
     ];
 
     /**
      * Detailed Comment: Automatically append virtual aliases so that JSON serialized models
-     * contain net_total, cash, cta, and hmo required by frontend views and API tests.
+     * contain net_total, cash, cta, hmo, and phic required by frontend views and API tests.
      */
     protected $appends = [
         'net_total',
         'cash',
         'cta',
         'hmo',
+        'phic',
     ];
 
     /**
@@ -148,6 +150,22 @@ class SettlementsModel extends Model
     public function setHmoAttribute($value)
     {
         $this->attributes['less_hmo'] = (float) $value;
+    }
+
+    /**
+     * Detailed Comment: Mutator & Accessor for phic.
+     * Maps to less_phic in pxsettlements.
+     */
+    public function getPhicAttribute()
+    {
+        return isset($this->attributes['less_phic'])
+            ? number_format((float) $this->attributes['less_phic'], 2, '.', '')
+            : '0.00';
+    }
+
+    public function setPhicAttribute($value)
+    {
+        $this->attributes['less_phic'] = (float) $value;
     }
 
     public function consultation()

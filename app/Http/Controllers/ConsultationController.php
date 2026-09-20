@@ -757,7 +757,7 @@ class ConsultationController extends Controller
     public function updateQueueStatus(Request $request)
     {
         $request->validate([
-            'status' => 'required|in:WAITING,IN_CONSULTATION,COMPLETED,CANCELLED,NO_SHOW,ON_HOLD,SCHEDULED',
+            'status' => 'required|in:WAITING,IN_CONSULTATION,FOR_BILLING,COMPLETED,CANCELLED,NO_SHOW,ON_HOLD,SCHEDULED',
         ]);
 
         $code = $request->input('casecode') ?: ($request->input('consultationrefno') ?: $request->input('caseno'));

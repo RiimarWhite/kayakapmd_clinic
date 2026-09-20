@@ -82,7 +82,9 @@ $(function () {
                 consultationrefno: $("#consultationrefno").val(),
                 reasonforconsultation: $("#reasonforconsultation").val(),
                 impressions: $("#impressions").val(),
-                diagnosis: $("#diagnosis").val()
+                diagnosis: $("#diagnosis").val(),
+                foradmit: $("#foradmit").is(":checked") ? 1 : 0,
+                foradmit_instructions: $("#foradmit_instructions").val()
             },
             headers: {
                 "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content")

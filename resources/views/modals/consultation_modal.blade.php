@@ -186,7 +186,28 @@
                                     <textarea rows="4" class="form-control" name="diagnosis" id="diagnosis"></textarea>
                                 </div>
 
-                                <button type="button" class="btn btn-primary fw-bold w-25" id="save_impressions_diagnosis">Save</button>
+                                {{-- Detailed Comment: Admission Orders & Instructions to Kin (Database A in OPD Consultation Workflow Plan) --}}
+                                <div class="border rounded p-3 bg-light mt-2">
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" role="switch" name="foradmit" id="foradmit" value="1">
+                                        <label class="form-check-label fw-bold text-danger" for="foradmit">
+                                            <i class="fa-solid fa-hospital-user me-1"></i> Patient Recommended for Admission
+                                        </label>
+                                    </div>
+                                    <div class="d-flex flex-column gap-1" id="admit_instructions_container">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <label class="form-label fw-bold m-0" for="foradmit_instructions">Admission Orders & Instructions to Kin / Caregiver</label>
+                                            <a target="_blank" class="btn btn-sm btn-danger text-white" id="print_admit_btn">
+                                                <i class="fa-solid fa-print"></i> Print Admission Orders
+                                            </a>
+                                        </div>
+                                        <textarea rows="4" class="form-control" name="foradmit_instructions" id="foradmit_instructions" placeholder="Enter admission orders, initial IV fluids, monitoring instructions, and instructions to kin..."></textarea>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2 align-items-center mt-2">
+                                    <button type="button" class="btn btn-primary fw-bold w-25" id="save_impressions_diagnosis">Save Details</button>
+                                </div>
                             </form>
                         </div>
 

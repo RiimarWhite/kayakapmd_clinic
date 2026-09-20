@@ -892,7 +892,7 @@ Drug/medical-supply catalog (`stocks_listing`) and the transactional stock movem
 
 | Column | Type | Null? | Default | Notes |
 |---|---|---|---|---|
-| `id` | bigint | NULL | NULL |  |
+| `id` | bigint unsigned | NO | auto_increment | Primary key (auto-incrementing ledger entry ID) |
 | `dw_clientcode` | varchar(12) | NULL | NULL |  |
 | `transactiontype` | enum('CHARGES','RETURNS','VOID','PAYMENTS','DISCOUNT','COLLECTION') | NULL | NULL |  |
 | `px_pin` | varchar(50) | NULL | NULL |  |

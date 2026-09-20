@@ -372,7 +372,7 @@ $(function () {
                 }
             },
             columns: [
-                { data: null, render: function (data) { return `<button class="btn btn-sm btn-danger remove_charge" type="button" value="${data.prodcode}"><i class="fa-solid fa-trash"></i></button> <button class="btn btn-sm btn-primary edit_charge_btn_sc" type="button" value="${data.pxchargerefno}"><i class="fa-solid fa-pen-to-square"></i></button>`; } },
+                { data: null, render: function (data) { return `<button class="btn btn-sm btn-danger remove_charge" type="button" value="${data.prodcode}" data-id="${data.id || ''}"><i class="fa-solid fa-trash"></i></button> <button class="btn btn-sm btn-primary edit_charge_btn_sc" type="button" value="${data.pxchargerefno}"><i class="fa-solid fa-pen-to-square"></i></button>`; } },
                 { data: 'item_dscr' }, { data: 'qty' }, { data: 'totalamt' }
             ],
             columnDefs: [{ target: 0, width: '1%', orderable: false, className: 'text-nowrap text-center align-middle' }, { target: '_all', orderable: false, className: 'text-nowrap align-middle' }],
@@ -385,6 +385,248 @@ $(function () {
             searching: false, lengthChange: false, pageLength: 5, paging: true, order: [[1, 'asc']]
         });
     }
+
+    /**
+     * Detailed Comment: Appended Charges logic for Secretary Queue and Admin Secretary console.
+     * Manages client-side queue of charges, Select2 searching with category filtering,
+     * HMO/tier price auto-population, and batch submission to /api/save_patient_charges.
+     */
+    let secPendingCharges = [];
+
+    function renderSecPendingCharges() {
+        const $tbody = $("#sec_appended_charges_table tbody");
+        $tbody.empty();
+
+        if (secPendingCharges.length === 0) {
+            $tbody.append(`
+                <tr class="no-charges-placeholder">
+                    <td class="align-middle text-center text-muted" colspan="5">No pending charges appended yet.</td>
+                </tr>
+            `);
+            return;
+        }
+
+        secPendingCharges.forEach((charge, index) => {
+            const total = (parseFloat(charge.unit_price) * parseFloat(charge.qty)).toFixed(2);
+            $tbody.append(`
+                <tr data-index="${index}">
+                    <td class="text-center align-middle">
+                        <button type="button" class="btn btn-sm btn-danger sec-remove-pending-charge" data-index="${index}">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                    <td class="align-middle fw-semibold">${charge.item_dscr}</td>
+                    <td class="text-center align-middle">${charge.qty}</td>
+                    <td class="text-end align-middle">PHP ${parseFloat(charge.unit_price).toFixed(2)}</td>
+                    <td class="text-end align-middle fw-bold">PHP ${total}</td>
+                </tr>
+            `);
+        });
+    }
+
+    // Detailed Comment: Open Append Charges Modal with active consultation validation
+    $("#append_pxcharges_btn").on("click", function () {
+        const refno = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
+        if (!refno) {
+            return Swal.fire({
+                title: "Reminder",
+                text: "Please select or import a queued consultation record first to append charges.",
+                icon: "warning"
+            });
+        }
+
+        secPendingCharges = [];
+        renderSecPendingCharges();
+        $("#sec_charge_qty").val(1);
+        $("#sec_charge_amount").val("");
+
+        initSecSearchCharge(refno);
+
+        const modal = new bootstrap.Modal(document.getElementById("append_charge_modal"));
+        modal.show();
+    });
+
+    function initSecSearchCharge(consultationRefno) {
+        const $select = $("#sec_search_charge");
+        if ($select.hasClass("select2-hidden-accessible")) {
+            $select.select2("destroy");
+        }
+
+        $select.empty().append('<option value="" selected disabled>Type to search charge...</option>');
+
+        $select.select2({
+            dropdownParent: $("#append_charge_modal"),
+            width: "100%",
+            placeholder: "Search service, supply, procedure, medicine, or diagnostic fee...",
+            ajax: {
+                url: "/api/fetch_all_charges",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                data: function (params) {
+                    return {
+                        search: params.term,
+                        category: $("#sec_search_filter").val() || "ALL",
+                        consultationrefno: consultationRefno
+                    };
+                },
+                processResults: function (response) {
+                    return {
+                        results: (response.charges || []).map(item => ({
+                            id: item.prodcode,
+                            text: `${item.prod_itemdscr} [${item.item_grouping || 'CHARGE'}]`,
+                            price: item.price_regular || item.cost_ave || 0,
+                            data: item
+                        }))
+                    };
+                }
+            }
+        });
+    }
+
+    // Detailed Comment: Category filter switch inside Append Charges modal re-initializes Select2
+    $("#sec_search_filter").on("change", function () {
+        const refno = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
+        initSecSearchCharge(refno);
+        $("#sec_charge_amount").val("");
+    });
+
+    // Detailed Comment: Price auto-fill upon charge selection with HMO / PHIC tier consideration
+    $("#sec_search_charge").on("select2:select", function (e) {
+        const selectedData = e.params.data;
+        const prodcode = selectedData.id;
+        const patientType = $("#patient_type").val();
+
+        let initialPrice = selectedData.price || 0;
+        $("#sec_charge_amount").val(parseFloat(initialPrice).toFixed(2));
+
+        $.ajax({
+            url: "/api/fetch_charge_payments",
+            type: "POST",
+            headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+            data: { prodcode: prodcode },
+            success: function (res) {
+                if (res && res.prices) {
+                    let unitPrice = res.prices.price_regular || initialPrice;
+                    if (patientType === "hmo" && parseFloat(res.prices.price_hmo) > 0) {
+                        unitPrice = res.prices.price_hmo;
+                    } else if (patientType === "phic" && parseFloat(res.prices.price_phic) > 0) {
+                        unitPrice = res.prices.price_phic;
+                    }
+                    $("#sec_charge_amount").val(parseFloat(unitPrice).toFixed(2));
+                }
+            }
+        });
+    });
+
+    // Detailed Comment: Append selected charge to pending queue table
+    $("#sec_append_to_charges_btn").on("click", function () {
+        const prodcode = $("#sec_search_charge").val();
+        const selectData = $("#sec_search_charge").select2("data");
+        const itemDscr = selectData && selectData.length > 0 ? selectData[0].text : "";
+        const qty = parseFloat($("#sec_charge_qty").val()) || 1;
+        const amount = parseFloat($("#sec_charge_amount").val());
+
+        if (!prodcode) {
+            return Swal.fire({ title: "Select Charge", text: "Please choose a charge item first.", icon: "warning" });
+        }
+        if (isNaN(amount) || amount < 0) {
+            return Swal.fire({ title: "Invalid Price", text: "Please enter a valid unit price.", icon: "warning" });
+        }
+        if (qty <= 0) {
+            return Swal.fire({ title: "Invalid Quantity", text: "Quantity must be at least 1.", icon: "warning" });
+        }
+
+        const existing = secPendingCharges.find(c => c.prodcode === prodcode);
+        if (existing) {
+            existing.qty += qty;
+            existing.unit_price = amount;
+        } else {
+            secPendingCharges.push({
+                prodcode: prodcode,
+                item_dscr: itemDscr,
+                qty: qty,
+                unit_price: amount
+            });
+        }
+
+        renderSecPendingCharges();
+
+        $("#sec_search_charge").val(null).trigger("change");
+        $("#sec_charge_qty").val(1);
+        $("#sec_charge_amount").val("");
+    });
+
+    // Detailed Comment: Remove item from pending charges queue
+    $(document).on("click", ".sec-remove-pending-charge", function () {
+        const index = $(this).data("index");
+        secPendingCharges.splice(index, 1);
+        renderSecPendingCharges();
+    });
+
+    // Detailed Comment: Save all appended charges to database with spinner loader
+    $("#sec_save_charges_btn").on("click", function () {
+        const refno = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
+        if (!refno) {
+            return Swal.fire({ title: "Error", text: "No active consultation selected.", icon: "error" });
+        }
+        if (secPendingCharges.length === 0) {
+            return Swal.fire({ title: "Empty Charges", text: "Please append at least one charge item before saving.", icon: "warning" });
+        }
+
+        const $btn = $(this);
+        setBtnLoading($btn, "Saving...");
+
+        const payload = {
+            consultationrefno: refno,
+            chargerefnos: secPendingCharges.map(item => ({
+                prodcode: item.prodcode,
+                quantity: item.qty,
+                amount: item.unit_price
+            }))
+        };
+
+        $.ajax({
+            url: "/api/save_patient_charges",
+            type: "POST",
+            headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+            data: payload,
+            success: function (response) {
+                if (response.success) {
+                    Swal.fire({
+                        toast: true,
+                        position: "top-end",
+                        icon: "success",
+                        title: "Charges appended and saved successfully!",
+                        showConfirmButton: false,
+                        timer: 1500
+                    });
+
+                    const modalEl = document.getElementById("append_charge_modal");
+                    if (modalEl) {
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+                    }
+
+                    secPendingCharges = [];
+                    renderSecPendingCharges();
+                    loadPatientCharges();
+                } else {
+                    Swal.fire({
+                        title: "Failed to Save Charges",
+                        html: response.message || "An error occurred while saving charges.",
+                        icon: "error"
+                    });
+                }
+            },
+            error: function (xhr) {
+                const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "Failed to save charges.";
+                Swal.fire({ title: "Error", html: msg, icon: "error" });
+            },
+            complete: function () {
+                resetBtnLoading($btn);
+            }
+        });
+    });
 
     // Detailed Comment: Save consultation record with defensive null-coalescing string handling and button loading state
     $(document).on("click", ".save_consultation_btn", function () {
@@ -812,12 +1054,12 @@ $(function () {
         const cardMap = { 'cc': 'Credit Card', 'dc': 'Debit Card' };
         const cardLabel = cardMap[r.cta_type] || r.cta_type || 'None';
 
-        $("#info_total").val(r.net_total ? '₱' + parseFloat(r.net_total).toFixed(2) : '₱0.00');
-        $("#info_cash").val(r.cash ? '₱' + parseFloat(r.cash).toFixed(2) : '₱0.00');
-        $("#info_cta").val(r.cta ? '₱' + parseFloat(r.cta).toFixed(2) : '₱0.00');
+        $("#info_total").val(r.net_total ? 'PHP ' + parseFloat(r.net_total).toFixed(2) : 'PHP 0.00');
+        $("#info_cash").val(r.cash ? 'PHP ' + parseFloat(r.cash).toFixed(2) : 'PHP 0.00');
+        $("#info_cta").val(r.cta ? 'PHP ' + parseFloat(r.cta).toFixed(2) : 'PHP 0.00');
         $("#info_cta_type").val(cardLabel);
-        $("#info_hmo").val(r.hmo ? '₱' + parseFloat(r.hmo).toFixed(2) : '₱0.00');
-        $("#info_phic").val(r.phic ? '₱' + parseFloat(r.phic).toFixed(2) : '₱0.00');
+        $("#info_hmo").val(r.hmo ? 'PHP ' + parseFloat(r.hmo).toFixed(2) : 'PHP 0.00');
+        $("#info_phic").val(r.phic ? 'PHP ' + parseFloat(r.phic).toFixed(2) : 'PHP 0.00');
 
         let hmoLabel = r.hmo_type || 'None';
         const hmoOption = $(`#hmo_type option[value="${r.hmo_type}"]`).text();
@@ -894,12 +1136,12 @@ $(function () {
                             updateSettlementRemaining();
                             populateViewSettlements(r);
                         } else {
-                            $("#info_total").val('₱' + totalSettlementAmount.toFixed(2));
-                            $("#info_cash").val('₱0.00');
-                            $("#info_cta").val('₱0.00');
+                            $("#info_total").val('PHP ' + totalSettlementAmount.toFixed(2));
+                            $("#info_cash").val('PHP 0.00');
+                            $("#info_cta").val('PHP 0.00');
                             $("#info_cta_type").val('None');
-                            $("#info_hmo").val('₱0.00');
-                            $("#info_phic").val('₱0.00');
+                            $("#info_hmo").val('PHP 0.00');
+                            $("#info_phic").val('PHP 0.00');
                             $("#info_hmo_type").val('None');
                         }
                     }
@@ -1015,12 +1257,12 @@ $(function () {
                 if (response.success && response.record) {
                     populateViewSettlements(response.record);
                 } else {
-                    $("#info_total").val('₱' + totalSettlementAmount.toFixed(2));
-                    $("#info_cash").val('₱0.00');
-                    $("#info_cta").val('₱0.00');
+                    $("#info_total").val('PHP ' + totalSettlementAmount.toFixed(2));
+                    $("#info_cash").val('PHP 0.00');
+                    $("#info_cta").val('PHP 0.00');
                     $("#info_cta_type").val('None');
-                    $("#info_hmo").val('₱0.00');
-                    $("#info_phic").val('₱0.00');
+                    $("#info_hmo").val('PHP 0.00');
+                    $("#info_phic").val('PHP 0.00');
                     $("#info_hmo_type").val('None');
                 }
             }
@@ -1058,11 +1300,17 @@ $(function () {
         }).then((result) => {
             if (result.isConfirmed) {
                 setBtnLoading($btn, "");
+                const chargeId = $btn.data("id");
+                const payload = { consultationrefno: refno, prodcode: prodcode };
+                if (chargeId && chargeId !== 'null' && chargeId !== 'undefined') {
+                    payload.chargeid = chargeId;
+                }
+
                 $.ajax({
                     url: "/api/delete_patient_charge",
                     type: "POST",
                     headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-                    data: { consultationrefno: refno, prodcode: prodcode },
+                    data: payload,
                     success: function (response) {
                         if (response.success) {
                             loadPatientCharges();

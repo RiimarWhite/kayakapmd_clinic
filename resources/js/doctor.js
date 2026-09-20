@@ -1497,10 +1497,19 @@ $(function () {
                 {
                     data: null,
                     render: function (data) {
+                        // Detailed Comment: Pass both sanitized charge id and prodcode/pxchargerefno
+                        const chargeId = (data.id && data.id !== 'null') ? data.id : '';
+                        const prodcode = (data.prodcode || data.pxchargerefno || '');
                         return `
                             <div class="d-flex gap-1">
-                                <button class="btn btn-sm btn-danger remove_charge_btn" value="${data.pxchargerefno}"><i class="fa-solid fa-trash"></i></button>
-                                <button class="btn btn-sm btn-primary edit_charge_btn" value="${data.pxchargerefno}"><i class="fa-solid fa-pen-to-square"></i></button>
+                                <button class="btn btn-sm btn-danger remove_charge_btn" 
+                                    data-id="${chargeId}" 
+                                    data-prodcode="${prodcode}" 
+                                    value="${chargeId || prodcode}"><i class="fa-solid fa-trash"></i></button>
+                                <button class="btn btn-sm btn-primary edit_charge_btn" 
+                                    data-id="${chargeId}" 
+                                    data-prodcode="${prodcode}" 
+                                    value="${chargeId || prodcode}"><i class="fa-solid fa-pen-to-square"></i></button>
                             </div>
                             `;
                     }
@@ -1543,8 +1552,13 @@ $(function () {
         });
     });
 
-    // Edit and deletion of patient charges
+    // Detailed Comment: Edit and deletion of patient charges with defensive multi-identifier fallback
     $(document).on("click", ".remove_charge_btn", function () {
+        const $btn = $(this);
+        const chargeId = $btn.data("id") || $btn.val();
+        const prodcode = $btn.data("prodcode");
+        const consultationrefno = $("#consultationrefno").val();
+
         Swal.fire({
             title: "Remove Charge?",
             text: "Are you sure you want to remove this charge from the patient's consultation?",
@@ -1553,14 +1567,19 @@ $(function () {
             confirmButtonText: "Confirm"
         }).then((result) => {
             if (result.isConfirmed) {
+                const payload = { consultationrefno: consultationrefno };
+                if (chargeId && chargeId !== 'null' && chargeId !== 'undefined') {
+                    payload.chargeid = chargeId;
+                }
+                if (prodcode && prodcode !== 'null' && prodcode !== 'undefined') {
+                    payload.prodcode = prodcode;
+                }
+
                 $.ajax({
                     url: "delete_patient_charge",
                     type: "POST",
                     headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-                    data: {
-                        chargeid: $(this).val(),
-                        consultationrefno: $("#consultationrefno").val()
-                    },
+                    data: payload,
                     success: function (response) {
                         if (response.success) {
                             Swal.fire({

@@ -9,6 +9,7 @@ class StocksListingModel extends Model
     protected $table = 'stocks_listing';
 
     protected $fillable = [
+        'prodcode',
         'item_grouping',
         'phic_reference_code',
         'drug_generic',

@@ -159,8 +159,8 @@
                                     <td style="padding: 5px 6px;">{{ $charge->item_dscr }}</td>
                                     <td style="padding: 5px 6px; color: #666;">{{ $charge->item_grouping ?? 'OTHER' }}</td>
                                     <td style="padding: 5px 6px; text-align: center;">{{ (float)($charge->qty ?: 1) }}</td>
-                                    <td style="padding: 5px 6px; text-align: right;">₱{{ number_format((float)($charge->cost_ave ?? $charge->retails ?? 0), 2) }}</td>
-                                    <td style="padding: 5px 6px; text-align: right;">₱{{ number_format((float)($charge->totalamt ?? 0), 2) }}</td>
+                                    <td style="padding: 5px 6px; text-align: right;">PHP {{ number_format((float)($charge->cost_ave ?? $charge->retails ?? 0), 2) }}</td>
+                                    <td style="padding: 5px 6px; text-align: right;">PHP {{ number_format((float)($charge->totalamt ?? 0), 2) }}</td>
                                 </tr>
                             @endforeach
                         @else
@@ -179,11 +179,11 @@
                                 <table style="width: 100%; font-size: 11px; margin-top: 5px;">
                                     <tr>
                                         <td>Cash Payment:</td>
-                                        <td style="text-align: right; font-weight: bold;">₱{{ number_format((float)($settlement->payment_cash ?? 0), 2) }}</td>
+                                        <td style="text-align: right; font-weight: bold;">PHP {{ number_format((float)($settlement->payment_cash ?? 0), 2) }}</td>
                                     </tr>
                                     <tr>
                                         <td>Card / Electronic ({{ strtoupper($settlement->cta_type ?? 'None') }}):</td>
-                                        <td style="text-align: right; font-weight: bold;">₱{{ number_format((float)($settlement->payment_card ?? 0), 2) }}</td>
+                                        <td style="text-align: right; font-weight: bold;">PHP {{ number_format((float)($settlement->payment_card ?? 0), 2) }}</td>
                                     </tr>
                                     @if (!empty($settlement->hmo_type))
                                     <tr>
@@ -198,19 +198,19 @@
                             <table style="width: 100%; font-size: 12px;">
                                 <tr>
                                     <td style="padding: 3px 0;">Total Gross Charges:</td>
-                                    <td style="padding: 3px 0; text-align: right; font-weight: bold;">₱{{ number_format((float)($settlement->total_gross ?? (!empty($charges) ? $charges->sum('totalamt') : 0)), 2) }}</td>
+                                    <td style="padding: 3px 0; text-align: right; font-weight: bold;">PHP {{ number_format((float)($settlement->total_gross ?? (!empty($charges) ? $charges->sum('totalamt') : 0)), 2) }}</td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 3px 0; color: #2e7d32;">Less PhilHealth (PHIC):</td>
-                                    <td style="padding: 3px 0; text-align: right; color: #2e7d32;">- ₱{{ number_format((float)($settlement->less_phic ?? 0), 2) }}</td>
+                                    <td style="padding: 3px 0; text-align: right; color: #2e7d32;">- PHP {{ number_format((float)($settlement->less_phic ?? 0), 2) }}</td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 3px 0; color: #1565c0;">Less HMO Deduction:</td>
-                                    <td style="padding: 3px 0; text-align: right; color: #1565c0;">- ₱{{ number_format((float)($settlement->less_hmo ?? 0), 2) }}</td>
+                                    <td style="padding: 3px 0; text-align: right; color: #1565c0;">- PHP {{ number_format((float)($settlement->less_hmo ?? 0), 2) }}</td>
                                 </tr>
                                 <tr style="border-top: 2px solid #333;">
                                     <td style="padding: 6px 0; font-weight: bold; font-size: 14px;">Net Payable / Settled:</td>
-                                    <td style="padding: 6px 0; text-align: right; font-weight: bold; font-size: 14px;">₱{{ number_format((float)($settlement->net_payable ?? 0), 2) }}</td>
+                                    <td style="padding: 6px 0; text-align: right; font-weight: bold; font-size: 14px;">PHP {{ number_format((float)($settlement->net_payable ?? 0), 2) }}</td>
                                 </tr>
                             </table>
                         </td>

@@ -218,29 +218,53 @@ class DoctorController extends Controller
         $length = $request->input('length', 25);
         $search = $request->input('search.value');
 
+        // Detailed Comment: Correlate each patient with their latest walk-in consultation without duplication.
+        // Left join subquery ensures patients without consultations are also visible in the masterlist.
+        $latestConsultation = DB::table('pxwalkinconsultation as c1')
+            ->select('c1.pxrefno', 'c1.consultationrefno', 'c1.consultation_date', 'c1.photo_path', 'c1.docrefno')
+            ->whereRaw('c1.id = (SELECT MAX(c2.id) FROM pxwalkinconsultation as c2 WHERE c2.pxrefno = c1.pxrefno)');
+
         $baseQuery = DB::table('pxmasterlist')
-            ->join('pxwalkinconsultation as c', 'pxmasterlist.pxrefno', '=', 'c.pxrefno');
+            ->leftJoinSub($latestConsultation, 'latest_c', function ($join) {
+                $join->on('pxmasterlist.pxrefno', '=', 'latest_c.pxrefno');
+            });
+
+        // Doctor role scoping: view assigned / consulted patients or general clinic patients
+        if (auth()->guard('doctor')->check()) {
+            $docrefno = auth()->guard('doctor')->user()->docrefno;
+            $baseQuery->where(function ($q) use ($docrefno) {
+                $q->where('pxmasterlist.last_docrefno', $docrefno)
+                    ->orWhere('latest_c.docrefno', $docrefno)
+                    ->orWhereNull('pxmasterlist.last_docrefno')
+                    ->orWhere('pxmasterlist.last_docrefno', '');
+            });
+        }
 
         // TOTAL (no filter)
-        $recordsTotal = $baseQuery->count();
+        $recordsTotal = (clone $baseQuery)->count();
 
-        // APPLY SEARCH
+        // APPLY SEARCH across multiple patient identifiers and demographic fields
         if (!empty($search)) {
             $baseQuery->where(function ($q) use ($search) {
                 $q->where('pxmasterlist.patientname', 'like', "%{$search}%")
-                ->orWhere('pxmasterlist.pxfirstname', 'like', "%{$search}%")
-                ->orWhere('pxmasterlist.pxmidname', 'like', "%{$search}%")
-                ->orWhere('pxmasterlist.pxlastname', 'like', "%{$search}%")
-                ->orWhere('pxmasterlist.pincode', 'like', "%{$search}%");
+                    ->orWhere('pxmasterlist.pxfirstname', 'like', "%{$search}%")
+                    ->orWhere('pxmasterlist.pxmidname', 'like', "%{$search}%")
+                    ->orWhere('pxmasterlist.pxlastname', 'like', "%{$search}%")
+                    ->orWhere('pxmasterlist.pincode', 'like', "%{$search}%")
+                    ->orWhere('pxmasterlist.pxrefno', 'like', "%{$search}%")
+                    ->orWhere('pxmasterlist.mobilenumber', 'like', "%{$search}%")
+                    ->orWhere('pxmasterlist.emailaddress', 'like', "%{$search}%")
+                    ->orWhere('pxmasterlist.phic_pin', 'like', "%{$search}%");
             });
         }
 
         // FILTERED COUNT
-        $recordsFiltered = $baseQuery->count();
+        $recordsFiltered = (clone $baseQuery)->count();
 
-        // DATA
+        // DATA: Select all pxmasterlist fields + latest consultation metadata
         $data = $baseQuery
             ->select([
+                'pxmasterlist.id',
                 'pxmasterlist.pxrefno',
                 'pxmasterlist.pincode',
                 'pxmasterlist.patientname',
@@ -248,18 +272,46 @@ class DoctorController extends Controller
                 'pxmasterlist.pxmidname',
                 'pxmasterlist.pxlastname',
                 'pxmasterlist.pxsuffix',
-                'c.consultationrefno',
-                'c.consultation_date',
-                'c.docrefno',
-                'c.photo_path'
+                'pxmasterlist.gender',
+                'pxmasterlist.birthday',
+                'pxmasterlist.age',
+                'pxmasterlist.religion',
+                'pxmasterlist.nationality',
+                'pxmasterlist.mobilenumber',
+                'pxmasterlist.emailaddress',
+                'pxmasterlist.address',
+                'pxmasterlist.streetadrs',
+                'pxmasterlist.brgy',
+                'pxmasterlist.muncity',
+                'pxmasterlist.province',
+                'pxmasterlist.zipcode',
+                'pxmasterlist.region',
+                'pxmasterlist.country',
+                'pxmasterlist.phic_pin',
+                'pxmasterlist.ipd_pincode',
+                'pxmasterlist.ispwd',
+                'pxmasterlist.senior_idno',
+                'pxmasterlist.last_consultation',
+                'pxmasterlist.last_enlistcode',
+                'pxmasterlist.last_docrefno',
+                'pxmasterlist.last_docname',
+                'pxmasterlist.classification',
+                'pxmasterlist.followupdate',
+                'pxmasterlist.followupcheckup',
+                'pxmasterlist.recordedby',
+                'pxmasterlist.recordeddate',
+                'pxmasterlist.updatedby',
+                'pxmasterlist.updated',
+                'latest_c.consultationrefno',
+                'latest_c.consultation_date',
+                'latest_c.docrefno',
+                'latest_c.photo_path'
             ])
-            // ->where(['docrefno' => auth()->guard('doctor')->user()->docrefno ?? $request->docrefno])
-            ->when(auth()->guard('doctor')->check(), function ($q) {
-                $q->where(['docrefno' => auth()->guard('doctor')->user()->docrefno]);
-            })
+            ->orderBy('pxmasterlist.id', 'desc')
             ->skip($start)
             ->take($length)
             ->get();
+
         $data->transform(function ($patient) {
             if ($patient->photo_path) {
                 $filename = basename($patient->photo_path);
@@ -679,14 +731,12 @@ class DoctorController extends Controller
             ];
         }
 
-        // Detailed Comment: Retrieve prescription medicines from active StocksLedgerModel and legacy DoctorMedicinesModel
+        // Detailed Comment: Retrieve prescription medicines strictly matching 'DRUGS AND MEDS' grouping
+        // to guarantee that diagnostic requests, medical supplies, and administrative charges never print on Rx prescriptions.
         $medicines = collect();
         if ($refno) {
             $ledgerMeds = StocksLedgerModel::where('px_consultcode_cn', $refno)
-                ->where(function ($q) {
-                    $q->where('item_grouping', 'DRUGS AND MEDS')
-                      ->orWhereNull('item_grouping');
-                })
+                ->where('item_grouping', 'DRUGS AND MEDS')
                 ->get()
                 ->map(function ($item) {
                     return [
@@ -719,8 +769,12 @@ class DoctorController extends Controller
             $charges = StocksLedgerModel::where('px_consultcode_cn', $refno)->get();
             $settlement = SettlementsModel::where('consultationrefno', $refno)->first();
 
+            $diagProdCodes = StocksListingModel::where('item_grouping', 'DIAGNOSTIC')->pluck('prodcode')->toArray();
             $ledgerDiags = StocksLedgerModel::where('px_consultcode_cn', $refno)
-                ->where('item_grouping', 'DIAGNOSTIC')
+                ->where(function ($q) use ($diagProdCodes) {
+                    $q->where('item_grouping', 'DIAGNOSTIC')
+                      ->orWhereIn('prodcode', $diagProdCodes);
+                })
                 ->get()
                 ->map(function ($item) {
                     return (object)[
@@ -838,20 +892,55 @@ class DoctorController extends Controller
         // ]);
     }
 
+    /**
+     * Detailed Comment: Saves requested diagnostic procedures into stocks_ledger.
+     * Explicitly sets item_grouping = 'DIAGNOSTIC' and transactiontype = 'CHARGES' so that
+     * diagnostic requests are recognized in printables and patient billing without contaminating medicines.
+     */
     public function saveDiagnosticRequest(Request $request)
     {
         $patient = ConsultationModel::where(['consultationrefno' => $request->consultationrefno])->first();
 
-        foreach ($request->diagnostics as $diags) {
+        $diagsList = $request->diagnostics;
+        if (empty($diagsList) && $request->filled('requestrefno')) {
+            $diagsList = [$request->requestrefno];
+        }
+        if (!is_array($diagsList)) {
+            $diagsList = $diagsList ? [$diagsList] : [];
+        }
+
+        foreach ($diagsList as $diags) {
             $item = StocksListingModel::where(['prodcode' => $diags])->first();
+            if (!$item) {
+                continue;
+            }
+
+            // Sync with legacy doc_requests table
+            DocRequestsModel::firstOrCreate([
+                'consultationrefno' => $request->consultationrefno,
+                'requestrefno' => $diags
+            ]);
+
+            // Detailed Comment: Prevent duplicate insertion of the same diagnostic code for this consultation
+            if (StocksLedgerModel::where(['px_consultcode_cn' => $request->consultationrefno, 'prodcode' => $diags])->exists()) {
+                continue;
+            }
+
+            $unitPrice = (float)($item->price_regular ?? $item->cost_ave ?? 0);
 
             StocksLedgerModel::create([
+                'transactiontype' => 'CHARGES',
+                'px_pin' => $patient->pxrefno ?? '',
                 'px_consultcode_cn' => $request->consultationrefno,
-                'patient_name' => $patient->patient_name,
+                'patient_name' => $patient->patientname ?? $patient->patient_name ?? '',
                 'prodcode' => $diags,
-                'phic_reference_code' => $item->phic_reference_code,
-                'item_dscr' => $item->prod_itemdscr,
-                'qty' => 1
+                'phic_reference_code' => $item->phic_reference_code ?? '',
+                'item_dscr' => $item->prod_itemdscr ?? '',
+                'qty' => 1,
+                'cost_ave' => $unitPrice,
+                'retails' => $unitPrice,
+                'totalamt' => $unitPrice,
+                'item_grouping' => 'DIAGNOSTIC'
             ]);
         }
 
@@ -865,17 +954,19 @@ class DoctorController extends Controller
             'requestrefno' => $request->requestrefno
         ])->delete();
 
-        if ($req) {
-            return response()->json(['success' => true]);
-        }
+        // Detailed Comment: Also check and remove from stocks_ledger if recorded as diagnostic charge
+        StocksLedgerModel::where([
+            'px_consultcode_cn' => $request->consultationrefno,
+            'prodcode' => $request->requestrefno
+        ])->delete();
 
-        return response()->json(['success' => false]);
+        return response()->json(['success' => true]);
     }
 
     /**
      * Detailed Comment: Streams PDF printable document for Diagnostics Requests.
      * Resolves patient and doctor safely across guards, and retrieves diagnostic requests from both
-     * stocks_ledger (active DIAGNOSTIC grouping) and legacy docrequests/diagnosticsmasterlist.
+     * stocks_ledger (active DIAGNOSTIC grouping or cross-referenced with stocks_listing) and legacy docrequests/diagnosticsmasterlist.
      */
     public function printDiagnostics(Request $request)
     {
@@ -922,8 +1013,12 @@ class DoctorController extends Controller
         // Detailed Comment: Retrieve requested diagnostics from stocks_ledger and legacy docrequests
         $requests = collect();
         if ($refno) {
+            $diagProdCodes = StocksListingModel::where('item_grouping', 'DIAGNOSTIC')->pluck('prodcode')->toArray();
             $ledgerDiags = StocksLedgerModel::where('px_consultcode_cn', $refno)
-                ->where('item_grouping', 'DIAGNOSTIC')
+                ->where(function ($q) use ($diagProdCodes) {
+                    $q->where('item_grouping', 'DIAGNOSTIC')
+                      ->orWhereIn('prodcode', $diagProdCodes);
+                })
                 ->get()
                 ->map(function ($item) {
                     return (object)[
@@ -1081,18 +1176,60 @@ class DoctorController extends Controller
         return response()->json(['success' => true]);
     }
 
+    /**
+     * Detailed Comment: Delete a consultation charge item from stocks_ledger defensively.
+     * Supports identification by numeric ledger ID (chargeid), stock item code (prodcode),
+     * or legacy charge reference (chargerefno). Sanitizes against string 'null' or empty identifiers
+     * to prevent SQLSTATE[22007] integer truncation crashes.
+     */
     public function deleteCharge(Request $request)
     {
-        $deleted = StocksLedgerModel::where([
-            'px_consultcode_cn' => $request->consultationrefno,
-            'id' => $request->chargeid
-        ])->delete();
+        $request->validate([
+            'consultationrefno' => 'required|string',
+        ]);
+
+        $query = StocksLedgerModel::where('px_consultcode_cn', $request->consultationrefno);
+
+        $chargeId = $request->input('chargeid');
+        $prodcode = $request->input('prodcode');
+        $chargerefno = $request->input('chargerefno');
+
+        // Defensive normalization: treat 'null', 'undefined', non-numeric strings as null for ID
+        if ($chargeId === 'null' || $chargeId === 'undefined' || empty($chargeId) || !is_numeric($chargeId)) {
+            $chargeId = null;
+        }
+
+        if ($chargeId) {
+            $query->where('id', (int) $chargeId);
+        } elseif (!empty($prodcode) && $prodcode !== 'null' && $prodcode !== 'undefined') {
+            $query->where('prodcode', $prodcode);
+        } elseif (!empty($chargerefno) && $chargerefno !== 'null' && $chargerefno !== 'undefined') {
+            $query->where(function ($q) use ($chargerefno) {
+                $q->where('prodcode', $chargerefno)
+                  ->orWhere('phic_reference_code', $chargerefno);
+            });
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'No valid charge identifier provided for deletion.'
+            ], 422);
+        }
+
+        $deleted = $query->delete();
+
+        Log::info('Patient charge deletion attempted', [
+            'consultationrefno' => $request->consultationrefno,
+            'chargeid' => $chargeId,
+            'prodcode' => $prodcode,
+            'chargerefno' => $chargerefno,
+            'deleted_count' => $deleted
+        ]);
 
         if ($deleted) {
             return response()->json(['success' => true]);
         }
 
-        return response()->json(['success' => false]);
+        return response()->json(['success' => false, 'message' => 'Charge not found or already removed.'], 404);
     }
 
     public function editCharge(Request $request)

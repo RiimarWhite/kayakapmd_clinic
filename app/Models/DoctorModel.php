@@ -88,7 +88,11 @@ class DoctorModel extends Authenticatable
     public static function booted()
     {   
         static::creating(function ($model) {
-            $model->docrefno = now()->format('mdYHis') . 'MD';
+            // Detailed Comment: Auto-generate unique docrefno only if not explicitly provided,
+            // with timestamp and random entropy to prevent sub-second collision.
+            if (empty($model->docrefno)) {
+                $model->docrefno = now()->format('mdYHis') . rand(100, 999) . 'MD';
+            }
         });
     }
 

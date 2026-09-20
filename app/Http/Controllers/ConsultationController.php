@@ -161,33 +161,68 @@ class ConsultationController extends Controller
     {
         $patientCode = $this->generatePatientCode();
 
-        // Create patient record into PatientMasterlist
+        $fname = $request->pPatientFname ?? $request->pxfirstname;
+        $mname = $request->pPatientMname ?? $request->pxmidname;
+        $lname = $request->pPatientLname ?? $request->pxlastname;
+        $suffix = $request->pPatientExtname ?? $request->pxsuffix;
+        $gender = $request->pPatientSex ?? $request->gender ?? 'MALE';
+        $bday = $request->pPatientDob ?? $request->birthday;
+        $mobile = $request->pPatientMobileNo ?? $request->mobilenumber;
+        $email = $request->email ?? $request->emailaddress;
+        $address = $request->address;
+
+        $fullName = trim(implode(' ', array_filter([
+            $lname ? $lname . ',' : null,
+            $fname,
+            $mname,
+            $suffix
+        ])));
+
+        $pincode = 'PIN' . Carbon::now()->year . '-' . str_pad(PatientMasterlist::count() + 1, 5, '0', STR_PAD_LEFT);
+
+        // Detailed Comment: Create patient record into PatientMasterlist with comprehensive demographic and PhilHealth fields
         $record = PatientMasterlist::create([
             'pxrefno' => $patientCode,
-            'pincode' => 'PIN' . Carbon::now()->year . '-' . str_pad(PatientMasterlist::count(), 5, '0', STR_PAD_LEFT),
-            'patientname' => $request->pPatientLname . ', ' . $request->pPatientFname . ' ' . $request->pPatientMname . ' ' . $request->pPatientExtname,
-            'pxfirstname' => $request->pPatientFname,
-            'pxmidname' => $request->pPatientMname,
-            'pxlastname' => $request->pPatientLname,
-            'pxsuffix' => $request->pPatientExtname,
-            'gender' => $request->pPatientSex,
-            'birthday' => $request->pPatientDob,
-            'age' => Carbon::parse($request->pPatientDob)->age,
-            'mobilenumber' => $request->pPatientMobileNo,
-            'emailaddress' => $request->email,
-            'address' => $request->address
+            'pincode' => $pincode,
+            'patientname' => $fullName,
+            'pxfirstname' => $fname,
+            'pxmidname' => $mname,
+            'pxlastname' => $lname,
+            'pxsuffix' => $suffix,
+            'gender' => $gender,
+            'birthday' => $bday,
+            'age' => $bday ? Carbon::parse($bday)->age : 0,
+            'religion' => $request->religion,
+            'nationality' => $request->nationality ?? 'FILIPINO',
+            'mobilenumber' => $mobile,
+            'emailaddress' => $email,
+            'address' => $address,
+            'streetadrs' => $request->streetadrs ?? $request->street,
+            'brgy' => $request->brgy,
+            'muncity' => $request->muncity,
+            'province' => $request->province,
+            'zipcode' => $request->zipcode,
+            'region' => $request->region,
+            'country' => $request->country ?? 'PHILIPPINES',
+            'phic_pin' => $request->phic_pin,
+            'ipd_pincode' => $request->ipd_pincode,
+            'ispwd' => $request->has('ispwd') ? ($request->ispwd ? 1 : 0) : 0,
+            'senior_idno' => $request->senior_idno,
+            'classification' => $request->classification,
+            'followupdate' => $request->followupdate,
+            'followupcheckup' => $request->followupcheckup,
         ]);
 
         $consultation = ConsultationModel::create([
             'pxrefno' => $patientCode,
-            'pincode' => 'PIN' . Carbon::now()->year . '-' . str_pad(PatientMasterlist::count(), 5, '0', STR_PAD_LEFT),
+            'pincode' => $pincode,
             'caseno' => $this->generateCaseCode(),
             'patientname' => $record->patientname,
             'pxfirstname' => $record->pxfirstname,
             'pxmidname' => $record->pxmidname,
             'pxlastname' => $record->pxlastname,
             'pxsuffix' => $record->pxsuffix,
-            'gender' => $record->gender == 'MALE' ? 'M' : 'F',
+            'gender' => ($record->gender == 'MALE' || $record->gender == 'M') ? 'M' : 'F',
             'birthday' => $record->birthday,
             'age' => $record->age,
             'mobilenumber' => $record->mobilenumber,
@@ -196,10 +231,10 @@ class ConsultationController extends Controller
         ]);
 
         if ($record && $consultation) {
-            return response()->json(['success' => true]);
+            return response()->json(['success' => true, 'patient' => $record]);
         }
 
-        return response()->json(['success' => false]);
+        return response()->json(['success' => false, 'message' => 'Failed to register patient.'], 500);
     }
 
     public function updatePatientRecord(Request $request)

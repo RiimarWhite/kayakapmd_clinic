@@ -947,10 +947,19 @@ $(function () {
                 {
                     data: null,
                     render: function (data) {
+                        // Detailed Comment: Pass both sanitized charge id and prodcode to prevent string 'null' issues
+                        const chargeId = (data.id && data.id !== 'null') ? data.id : '';
+                        const prodcode = (data.prodcode && data.prodcode !== 'null') ? data.prodcode : '';
                         return `
                             <div class="d-flex gap-1">
-                                <button class="btn btn-sm btn-danger remove_charge_btn" value="${data.id}"><i class="fa-solid fa-trash"></i></button>
-                                <button class="btn btn-sm btn-primary edit_charge_btn" value="${data.id}"><i class="fa-solid fa-pen-to-square"></i></button>
+                                <button class="btn btn-sm btn-danger remove_charge_btn" 
+                                    data-id="${chargeId}" 
+                                    data-prodcode="${prodcode}" 
+                                    value="${chargeId}"><i class="fa-solid fa-trash"></i></button>
+                                <button class="btn btn-sm btn-primary edit_charge_btn" 
+                                    data-id="${chargeId}" 
+                                    data-prodcode="${prodcode}" 
+                                    value="${chargeId}"><i class="fa-solid fa-pen-to-square"></i></button>
                             </div>
                             `;
                     }
@@ -1004,9 +1013,13 @@ $(function () {
         });
     });
 
-    // Detailed Comment: Remove charge with button loading state
+    // Detailed Comment: Remove charge with button loading state and multi-identifier fallback
     $(document).on("click", ".remove_charge_btn", function () {
         const $btn = $(this);
+        const chargeId = $btn.data("id") || $btn.val();
+        const prodcode = $btn.data("prodcode");
+        const consultationrefno = $("#consultationrefno").val();
+
         Swal.fire({
             title: "Remove Charge?",
             text: "Are you sure you want to remove this charge from the patient's consultation?",
@@ -1016,14 +1029,20 @@ $(function () {
         }).then((result) => {
             if (result.isConfirmed) {
                 $btn.prop("disabled", true).html('<i class="fa-solid fa-spinner fa-spin"></i>');
+
+                const payload = { consultationrefno: consultationrefno };
+                if (chargeId && chargeId !== 'null' && chargeId !== 'undefined') {
+                    payload.chargeid = chargeId;
+                }
+                if (prodcode && prodcode !== 'null' && prodcode !== 'undefined') {
+                    payload.prodcode = prodcode;
+                }
+
                 $.ajax({
                     url: "/api/delete_patient_charge",
                     type: "POST",
                     headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-                    data: {
-                        chargeid: $btn.val(),
-                        consultationrefno: $("#consultationrefno").val()
-                    },
+                    data: payload,
                     success: function (response) {
                         if (response.success) {
                             Swal.fire({

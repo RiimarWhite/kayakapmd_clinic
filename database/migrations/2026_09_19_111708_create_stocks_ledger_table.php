@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('stocks_ledger', function (Blueprint $table) {
-            $table->bigInteger('id')->nullable();
+            $table->bigIncrements('id');
             $table->string('dw_clientcode', 12)->nullable();
             $table->enum('transactiontype', ['CHARGES', 'RETURNS', 'VOID', 'PAYMENTS', 'DISCOUNT', 'COLLECTION'])->nullable();
             $table->string('px_pin', 50)->nullable();

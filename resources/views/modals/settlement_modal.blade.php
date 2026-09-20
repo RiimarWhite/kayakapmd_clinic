@@ -27,10 +27,10 @@
                             @csrf
                             <div class="text-center w-100">
                                 <h2 class="mb-1">
-                                    <span class="fw-bold">Total:</span> <span id="total_amount"></span>
+                                    <span class="fw-bold">Total:</span> PHP <span id="total_amount">0.00</span>
                                 </h2>
 
-                                <p class="text-secondary fw-bold">Remaining: <span class="fw-normal" id="remaining"></span></p>
+                                <p class="text-secondary fw-bold">Remaining: PHP <span class="fw-normal" id="remaining">0.00</span></p>
                             </div>
 
                             <input type="hidden" name="sett_consultationrefno" id="sett_consultationrefno">

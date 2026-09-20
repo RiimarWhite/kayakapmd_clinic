@@ -531,7 +531,7 @@
 
                                             <!-- Detailed Comment: Position charges total element cleanly below table beside Settlements button -->
                                             <div class="d-flex justify-content-between align-items-center mt-2">
-                                                <h4 class="fw-bold m-0">Total: ₱<span class="fw-normal ms-1" id="charges_total">0.00</span></h4>
+                                                <h4 class="fw-bold m-0">Total: PHP <span class="fw-normal ms-1" id="charges_total">0.00</span></h4>
                                                 <button type="button" class="btn btn-primary" data-bs-toggle="modal"
                                                     data-bs-target="#settlementModal" id="settlement_btn">
                                                     <i class="fa-solid fa-credit-card"></i> Settlements

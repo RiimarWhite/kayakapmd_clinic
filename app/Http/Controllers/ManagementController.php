@@ -476,7 +476,8 @@ class ManagementController extends Controller
             'pass' => 'required|string|min:5',
         ]);
 
-        $docrefno = Date::now()->format('mdYHis') . 'MD';
+        // Detailed Comment: Generate unique docrefno with timestamp and random entropy to prevent sub-second collision
+        $docrefno = Date::now()->format('mdYHis') . rand(100, 999) . 'MD';
         $username = $request->filled('username') ? strtolower(trim($request->username)) : strtolower(trim($request->doclname));
 
         // Detailed Comment: Create doctor profile in the primary 'doctors' table with all columns
@@ -1491,6 +1492,11 @@ class ManagementController extends Controller
 
     public function deleteDiagnostic(Request $request)
     {
+        // Detailed Comment: If consultationrefno is provided, delegate to patient consultation diagnostic request deletion
+        if ($request->filled('consultationrefno')) {
+            return app(DoctorController::class)->deleteDiagnostic($request);
+        }
+
         $result = DiagnosticsMasterlistModel::where([
             'diagnosticrefno' => $request->refno
         ])->delete();
@@ -1966,6 +1972,176 @@ class ManagementController extends Controller
             'recordsTotal' => $recordsTotal,
             'recordsFiltered' => $recordsFiltered,
             'data' => $records
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Fetch comprehensive patient record from pxmasterlist along with
+     * latest consultation metadata for viewing and editing modals.
+     * Supports search by pxrefno, pincode, or consultationrefno.
+     */
+    public function fetchPatientDetails(Request $request)
+    {
+        $pxrefno = $request->input('pxrefno');
+        $pincode = $request->input('pincode');
+        $consultationrefno = $request->input('consultationrefno');
+
+        $query = PatientMasterlist::query();
+
+        if (!empty($pxrefno)) {
+            $query->where('pxrefno', $pxrefno);
+        } elseif (!empty($pincode)) {
+            $query->where('pincode', $pincode);
+        } elseif (!empty($consultationrefno)) {
+            $px = ConsultationModel::where('consultationrefno', $consultationrefno)->value('pxrefno');
+            if ($px) {
+                $query->where('pxrefno', $px);
+            } else {
+                return response()->json(['success' => false, 'message' => 'Patient record not found.'], 404);
+            }
+        } else {
+            return response()->json(['success' => false, 'message' => 'No patient identifier provided.'], 422);
+        }
+
+        $patient = $query->first();
+
+        if (!$patient) {
+            return response()->json(['success' => false, 'message' => 'Patient record not found.'], 404);
+        }
+
+        // Attach latest consultation and photo if available
+        $latestConsult = ConsultationModel::where('pxrefno', $patient->pxrefno)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        $photoUrl = null;
+        if ($latestConsult && $latestConsult->photo_path) {
+            $filename = basename($latestConsult->photo_path);
+            $photoUrl = url('/patient/photo/' . $filename);
+        }
+
+        return response()->json([
+            'success' => true,
+            'patient' => $patient,
+            'latest_consultation' => $latestConsult,
+            'photo_url' => $photoUrl
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Admin Patient Update Endpoint.
+     * Synchronously updates all pxmasterlist attributes and propagates primary demographic
+     * updates (name, gender, birthday, phone, email) to corresponding walk-in consultations.
+     */
+    public function updatePatient(Request $request)
+    {
+        $request->validate([
+            'pxrefno' => 'required|string',
+            'pxfirstname' => 'required|string|max:150',
+            'pxlastname' => 'required|string|max:150',
+        ]);
+
+        $patient = PatientMasterlist::where('pxrefno', $request->pxrefno)->first();
+        if (!$patient) {
+            return response()->json(['success' => false, 'message' => 'Patient record not found.'], 404);
+        }
+
+        $fullName = trim(implode(' ', array_filter([
+            $request->pxlastname . ',',
+            $request->pxfirstname,
+            $request->pxmidname,
+            $request->pxsuffix
+        ])));
+
+        $data = [
+            'patientname' => $fullName,
+            'pxfirstname' => $request->pxfirstname,
+            'pxmidname' => $request->pxmidname,
+            'pxlastname' => $request->pxlastname,
+            'pxsuffix' => $request->pxsuffix,
+            'gender' => $request->gender,
+            'birthday' => $request->birthday,
+            'age' => $request->birthday ? Carbon::parse($request->birthday)->age : $request->age,
+            'religion' => $request->religion,
+            'nationality' => $request->nationality,
+            'mobilenumber' => $request->mobilenumber,
+            'emailaddress' => $request->emailaddress,
+            'address' => $request->address,
+            'streetadrs' => $request->streetadrs,
+            'brgy' => $request->brgy,
+            'muncity' => $request->muncity,
+            'province' => $request->province,
+            'zipcode' => $request->zipcode,
+            'region' => $request->region,
+            'country' => $request->country,
+            'phic_pin' => $request->phic_pin,
+            'ipd_pincode' => $request->ipd_pincode,
+            'ispwd' => $request->has('ispwd') ? ($request->ispwd ? 1 : 0) : $patient->ispwd,
+            'senior_idno' => $request->senior_idno,
+            'classification' => $request->classification,
+            'followupdate' => $request->followupdate,
+            'followupcheckup' => $request->followupcheckup,
+        ];
+
+        $patient->update(array_filter($data, function ($val) {
+            return $val !== null;
+        }));
+
+        // Propagate demographic changes to walk-in consultations for consistency
+        ConsultationModel::where('pxrefno', $patient->pxrefno)->update([
+            'patientname' => $fullName,
+            'pxfirstname' => $request->pxfirstname,
+            'pxmidname' => $request->pxmidname,
+            'pxlastname' => $request->pxlastname,
+            'pxsuffix' => $request->pxsuffix,
+            'gender' => ($request->gender == 'MALE' || $request->gender == 'M') ? 'M' : 'F',
+            'birthday' => $request->birthday,
+            'age' => $patient->age,
+            'mobilenumber' => $request->mobilenumber,
+            'emailaddress' => $request->emailaddress
+        ]);
+
+        Log::info('Patient masterlist updated by admin', [
+            'pxrefno' => $patient->pxrefno,
+            'updated_by' => auth()->guard('admin')->user()->adminname ?? 'admin'
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Patient updated successfully.',
+            'patient' => $patient
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Admin Patient Deletion Endpoint.
+     * Removes the patient record from pxmasterlist while preserving consultation history
+     * in pxwalkinconsultation for medical, financial, and legal audit trail compliance.
+     */
+    public function deletePatient(Request $request)
+    {
+        $request->validate([
+            'pxrefno' => 'required|string'
+        ]);
+
+        $patient = PatientMasterlist::where('pxrefno', $request->pxrefno)->first();
+        if (!$patient) {
+            return response()->json(['success' => false, 'message' => 'Patient record not found.'], 404);
+        }
+
+        $patientName = $patient->patientname;
+        $pxrefno = $patient->pxrefno;
+        $patient->delete();
+
+        Log::info('Patient deleted from masterlist by admin', [
+            'pxrefno' => $pxrefno,
+            'patientname' => $patientName,
+            'admin' => auth()->guard('admin')->user()->adminname ?? 'admin'
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Patient {$patientName} has been removed from masterlist successfully."
         ]);
     }
 }

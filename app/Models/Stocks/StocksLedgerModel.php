@@ -9,6 +9,10 @@ class StocksLedgerModel extends Model
 {
     protected $table = 'stocks_ledger';
 
+    // Detailed Comment: Explicitly define auto-incrementing primary key matching updated schema
+    protected $primaryKey = 'id';
+    public $incrementing = true;
+
     protected $fillable = [
         'transactiontype',
         'px_pin',
@@ -48,6 +52,7 @@ class StocksLedgerModel extends Model
     protected function casts() : array
     {
         return [
+            'id' => 'integer',
             'updated' => 'date',
             'dispensed' => 'date'
         ];

@@ -12,9 +12,6 @@ use Illuminate\Support\Facades\Route;
 
 // Secretary API Routes
 Route::middleware(['web', 'auth:secretary,admin'])->group(function () {
-    // Detailed Comment: Dedicated medical history endpoint for secretary queue to prevent collision with doctor route
-    Route::post('fetch_patient_medhistory', [SecretaryController::class, 'fetchPatientMedhistory'])->name('secretary.patient_medhistory');
-    Route::post('fetch_patient_history', [SecretaryController::class, 'fetchPatientMedhistory']);
     // Detailed Comment: Self-service profile update endpoint allowing logged in secretary to update own info, username, and password
     Route::post('secretary/update_profile', [SecretaryController::class, 'updateSecretaryProfile'])->name('secretary.update_profile');
 
@@ -121,12 +118,16 @@ Route::middleware(['web', 'auth:doctor,admin'])->group(function () {
     Route::post('upload_consultation_files', [DoctorController::class, 'uploadConsultationFiles']);
 
     Route::post('complete_consultation', [DoctorController::class, 'completeConsultation']);
-
-    Route::post('get_hmo_price', [DoctorController::class, 'getHmoPrice']);
 });
 
 // Utility API Routes for Secretary, Doctor, and Admin consoles
 Route::middleware(['web', 'auth:secretary,doctor,admin'])->group(function () {
+    // Detailed Comment: Medical consultation history & patient details accessible across secretary, doctor, and admin consoles
+    Route::post('fetch_patient_medhistory', [SecretaryController::class, 'fetchPatientMedhistory'])->name('secretary.patient_medhistory');
+    Route::post('fetch_patient_history', [SecretaryController::class, 'fetchPatientMedhistory']);
+    Route::post('fetch_patient_details', [ManagementController::class, 'fetchPatientDetails'])->name('patient.details');
+    Route::post('get_hmo_price', [DoctorController::class, 'getHmoPrice']);
+
     Route::post('fetch_charge_categories_dr', [ManagementController::class, 'fetchChargeCategories']);
     Route::post('fetch_charge_categories_sc', [ManagementController::class, 'fetchChargeCategoriesSc']);
 
@@ -144,6 +145,10 @@ Route::middleware(['web', 'auth:secretary,doctor,admin'])->group(function () {
 
 // Admin API Routes
 Route::middleware(['web', 'auth:admin'])->group(function () {
+    // Detailed Comment: Admin Patient Masterlist Management (update and deletion)
+    Route::post('admin/update_patient', [ManagementController::class, 'updatePatient'])->name('admin.update_patient');
+    Route::post('admin/delete_patient', [ManagementController::class, 'deletePatient'])->name('admin.delete_patient');
+
     Route::post('get_assigned_doctors', [ManagementController::class, 'getAssigned']);
 
     Route::post('fetch_hmo', [ConsultationController::class, 'fetchHMO']);

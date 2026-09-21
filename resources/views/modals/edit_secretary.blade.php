@@ -68,9 +68,50 @@
                     </div>
                 </div>
 
-                <div class="d-flex flex-column">
-                    <label class="form-label fw-bold" for="edit_secadrs">Address</label>
-                    <input class="form-control" type="text" name="secadrs" id="edit_secadrs">
+                <!-- Detailed Comment: Integrated PSGC Geographic Address Cascade for Secretary Edit Modal -->
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold" for="edit_sec_region">Region</label>
+                        <select class="form-select" id="edit_sec_region" name="sec_region">
+                            <option value="" selected disabled>-- Select Region --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold" for="edit_sec_prov">Province</label>
+                        <select class="form-select" id="edit_sec_prov" name="sec_prov" disabled>
+                            <option value="" selected disabled>-- Select Province --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold" for="edit_sec_mun">City / Municipality</label>
+                        <select class="form-select" id="edit_sec_mun" name="sec_mun" disabled>
+                            <option value="" selected disabled>-- Select Municipality --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold" for="edit_sec_brgy">Barangay</label>
+                        <select class="form-select" id="edit_sec_brgy" name="sec_brgy" disabled>
+                            <option value="" selected disabled>-- Select Barangay --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold" for="edit_sec_street">Street / House No.</label>
+                        <input class="form-control" type="text" id="edit_sec_street" name="sec_street" placeholder="e.g. 123 Rizal St.">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold" for="edit_sec_zipcode">Zip Code</label>
+                        <input class="form-control" type="text" id="edit_sec_zipcode" name="sec_zipcode" placeholder="Zip Code" disabled>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold" for="edit_secadrs">Compiled Address</label>
+                        <input class="form-control" type="text" name="secadrs" id="edit_secadrs">
+                    </div>
                 </div>
 
                 <div class="d-flex flex-column">

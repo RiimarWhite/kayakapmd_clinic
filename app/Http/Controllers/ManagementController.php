@@ -685,6 +685,17 @@ class ManagementController extends Controller
     {
         $accountType = trim((string) $request->input('account_type', $request->input('type', '')));
 
+        // Detailed Comment: Also check column filter on column 1 (Account Type)
+        $colAccountType = trim((string) $request->input('columns.1.search.value', ''));
+        if (!empty($colAccountType)) {
+            // Unpack regex picklist like ^(Secretary|Admin)$ or direct string
+            if (stripos($colAccountType, 'Secretary') !== false && stripos($colAccountType, 'Admin') === false) {
+                $accountType = 'Secretary';
+            } elseif (stripos($colAccountType, 'Admin') !== false && stripos($colAccountType, 'Secretary') === false) {
+                $accountType = 'Admin';
+            }
+        }
+
         $secretaries = collect();
         $admins = collect();
 
@@ -702,6 +713,7 @@ class ManagementController extends Controller
                     'secmname' => $sec->secmname,
                     'seclname' => $sec->seclname,
                     'secsuffix' => $sec->secsuffix,
+                    'fullname' => trim(($sec->seclname ?? '') . ', ' . ($sec->secfname ?? '') . ' ' . ($sec->secmname ?? '') . ' ' . ($sec->secsuffix ?? '')),
                     'secgender' => $sec->secgender,
                     'secbday' => $sec->secbday,
                     'seccontactno' => $sec->seccontactno,
@@ -732,6 +744,7 @@ class ManagementController extends Controller
                     'secmname' => $admin->adminmname ?: '',
                     'seclname' => $lname,
                     'secsuffix' => '',
+                    'fullname' => trim($lname . ', ' . $fname . ' ' . ($admin->adminmname ?? '')),
                     'secgender' => 'N/A',
                     'secbday' => null,
                     'seccontactno' => $admin->admincontactno ?: '',
@@ -744,12 +757,97 @@ class ManagementController extends Controller
             });
         }
 
-        $merged = $secretaries->concat($admins)->values();
+        $allUsers = $secretaries->concat($admins)->values();
+        $recordsTotal = $allUsers->count();
 
+        // Detailed Comment: If client requested DataTables server-side pagination, apply search, filters, ordering and slice
+        if ($request->has('draw')) {
+            $draw = (int) $request->input('draw', 1);
+            $start = (int) $request->input('start', 0);
+            $length = (int) $request->input('length', 10);
+            $globalSearch = trim((string) $request->input('search.value', ''));
+
+            // Column-specific searches
+            $colSourceTable = trim((string) $request->input('columns.2.search.value', ''));
+            $colUsername = trim((string) $request->input('columns.3.search.value', ''));
+            $colFullname = trim((string) $request->input('columns.4.search.value', ''));
+            $colContact = trim((string) $request->input('columns.5.search.value', ''));
+            $colEmail = trim((string) $request->input('columns.6.search.value', ''));
+
+            $filtered = $allUsers->filter(function ($item) use ($globalSearch, $colSourceTable, $colUsername, $colFullname, $colContact, $colEmail) {
+                // Global search
+                if (!empty($globalSearch)) {
+                    $haystack = strtolower($item['username'] . ' ' . $item['fullname'] . ' ' . $item['seccontactno'] . ' ' . $item['secemail'] . ' ' . $item['source_table'] . ' ' . $item['account_type']);
+                    if (strpos($haystack, strtolower($globalSearch)) === false) {
+                        return false;
+                    }
+                }
+                // Source table column filter
+                if (!empty($colSourceTable)) {
+                    $cleaned = trim($colSourceTable, '^$()');
+                    $targets = explode('|', $cleaned);
+                    if (!in_array($item['source_table'], $targets) && stripos($item['source_table'], $colSourceTable) === false) {
+                        return false;
+                    }
+                }
+                // Username column filter
+                if (!empty($colUsername) && stripos($item['username'], $colUsername) === false) {
+                    return false;
+                }
+                // Fullname column filter
+                if (!empty($colFullname) && stripos($item['fullname'], $colFullname) === false) {
+                    return false;
+                }
+                // Contact column filter
+                if (!empty($colContact) && stripos($item['seccontactno'], $colContact) === false) {
+                    return false;
+                }
+                // Email column filter
+                if (!empty($colEmail) && stripos($item['secemail'], $colEmail) === false) {
+                    return false;
+                }
+                return true;
+            })->values();
+
+            $recordsFiltered = $filtered->count();
+
+            // Ordering
+            $orderCol = (int) $request->input('order.0.column', 3);
+            $orderDir = strtolower((string) $request->input('order.0.dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+            $sortKeyMap = [
+                1 => 'account_type',
+                2 => 'source_table',
+                3 => 'username',
+                4 => 'fullname',
+                5 => 'seccontactno',
+                6 => 'secemail',
+            ];
+            $sortField = $sortKeyMap[$orderCol] ?? 'username';
+
+            if ($orderDir === 'desc') {
+                $filtered = $filtered->sortByDesc($sortField, SORT_NATURAL | SORT_FLAG_CASE)->values();
+            } else {
+                $filtered = $filtered->sortBy($sortField, SORT_NATURAL | SORT_FLAG_CASE)->values();
+            }
+
+            // Pagination slice
+            $paged = $length > 0 ? $filtered->slice($start, $length)->values() : $filtered;
+
+            return response()->json([
+                'draw' => $draw,
+                'recordsTotal' => $recordsTotal,
+                'recordsFiltered' => $recordsFiltered,
+                'data' => $paged,
+                'secretaries' => $paged,
+                'success' => true
+            ]);
+        }
+
+        // Detailed Comment: Fallback for non-DataTables callers / unit tests
         return response()->json([
             'success' => true,
-            'secretaries' => $merged,
-            'data' => $merged
+            'secretaries' => $allUsers,
+            'data' => $allUsers
         ]);
     }
 
@@ -1260,9 +1358,14 @@ class ManagementController extends Controller
 
     public function loadCompanyProfile()
     {
+        // Detailed Comment: Load company profile including PSGC address codes from kayakapmd_profile
         $profile = KayakapProfileModel::select([
             'HOSP_NAME',
+            'HOSP_ADDREG',
+            'HOSP_ADDPROV',
+            'HOSP_ADDMUN',
             'HOSP_ADDBRGY',
+            'HOSP_ADDZIPCODE',
             'EMAIL_ADD',
             'TEL_NO'
         ])->first();
@@ -1274,8 +1377,16 @@ class ManagementController extends Controller
         ])
             ->first();
 
-        if ($profile && $company) {
-            return response()->json(['success' => true, 'profile' => $profile, 'company' => $company]);
+        if ($profile) {
+            return response()->json([
+                'success' => true,
+                'profile' => $profile,
+                'company' => $company ?: (object) [
+                    'userid' => '',
+                    'passwd' => '',
+                    'hciaccreno' => ''
+                ]
+            ]);
         }
 
         return response()->json(['success' => false]);
@@ -1283,19 +1394,16 @@ class ManagementController extends Controller
 
     public function updateProfile(Request $request)
     {
+        // Detailed Comment: Update company profile including PSGC address attributes from admin profile form
         $data = [
             'HOSP_NAME' => $request->comp_name,
             'TEL_NO' => $request->comp_tel,
-            'EMAIL_ADD' => $request->comp_email
-            // 'company_name' => $request->comp_name,
-            // 'company_brgy' => $request->comp_brgy,
-            // 'company_mun' => $request->comp_mun,
-            // 'company_prov' => $request->comp_prov,
-            // 'company_region' => $request->comp_region,
-            // 'company_zipcode' => $request->comp_zipcode,
-            // 'company_email' => $request->comp_email,
-            // 'company_mobilenumber' => $request->comp_contact,
-            // 'company_telephone' => $request->comp_tel
+            'EMAIL_ADD' => $request->comp_email,
+            'HOSP_ADDREG' => $request->phregion,
+            'HOSP_ADDPROV' => $request->phprov,
+            'HOSP_ADDMUN' => $request->phmun,
+            'HOSP_ADDBRGY' => $request->phbrgy,
+            'HOSP_ADDZIPCODE' => $request->phzipcode,
         ];
 
         if ($request->hasFile('comp_logo')) {
@@ -1313,7 +1421,7 @@ class ManagementController extends Controller
             return response()->json(['success' => false]);
         }
 
-        $profile->fill($data)->save();
+        KayakapProfileModel::query()->update($data);
 
         return response()->json(['success' => true]);
     }
@@ -1420,18 +1528,75 @@ class ManagementController extends Controller
     }
 
     // Diagnostics-related
-    public function fetchDiagnosticCategory()
+    public function fetchDiagnosticCategory(Request $request = null)
     {
-        $categories = DiagnosticsCategoryModel::all();
+        $request = $request ?: request();
 
-        return response()->json(['categories' => $categories]);
+        if ($request->has('draw')) {
+            $draw = (int) $request->input('draw', 1);
+            $start = (int) $request->input('start', 0);
+            $length = (int) $request->input('length', 15);
+            $globalSearch = trim((string) $request->input('search.value', ''));
+
+            $query = DiagnosticsCategoryModel::query();
+            $recordsTotal = (clone $query)->count();
+
+            // Detailed Comment: Global search across category_refno and category_name
+            if (!empty($globalSearch)) {
+                $query->where(function ($q) use ($globalSearch) {
+                    $q->where('category_name', 'like', "%{$globalSearch}%")
+                        ->orWhere('category_refno', 'like', "%{$globalSearch}%");
+                });
+            }
+
+            // Detailed Comment: Column-specific filtering
+            $colRef = trim((string) $request->input('columns.1.search.value', ''));
+            $colName = trim((string) $request->input('columns.2.search.value', ''));
+            if (!empty($colRef)) {
+                $query->where('category_refno', 'like', "%{$colRef}%");
+            }
+            if (!empty($colName)) {
+                $query->where('category_name', 'like', "%{$colName}%");
+            }
+
+            $recordsFiltered = (clone $query)->count();
+
+            // Detailed Comment: Directional ordering
+            $orderCol = (int) $request->input('order.0.column', 2);
+            $orderDir = strtolower((string) $request->input('order.0.dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+            $sortField = ($orderCol === 1) ? 'category_refno' : 'category_name';
+            $query->orderBy($sortField, $orderDir);
+
+            if ($length > 0) {
+                $query->skip($start)->take($length);
+            }
+
+            $data = $query->get();
+
+            return response()->json([
+                'draw' => $draw,
+                'recordsTotal' => $recordsTotal,
+                'recordsFiltered' => $recordsFiltered,
+                'data' => $data,
+                'categories' => $data,
+                'success' => true
+            ]);
+        }
+
+        $categories = DiagnosticsCategoryModel::orderBy('category_name', 'ASC')->get();
+        return response()->json([
+            'success' => true,
+            'categories' => $categories,
+            'data' => $categories
+        ]);
     }
 
     public function saveDiagnosticCategory(Request $request)
     {
+        // Detailed Comment: Support both category_name and legacy categoryname field names
         $catg = DiagnosticsCategoryModel::create([
             'category_refno' => Date::now()->format('mdYHis') . 'CCATG',
-            'category_name' => $request->categoryname
+            'category_name' => $request->category_name ?? $request->categoryname
         ]);
 
         if ($catg) {
@@ -1443,7 +1608,9 @@ class ManagementController extends Controller
 
     public function deleteDiagnosticCategory(Request $request)
     {
-        $catg = DiagnosticsCategoryModel::where(['category_refno' => $request->refno])->delete();
+        // Detailed Comment: Support both category_refno and legacy refno field names
+        $ref = $request->category_refno ?? $request->refno;
+        $catg = DiagnosticsCategoryModel::where(['category_refno' => $ref])->delete();
 
         if ($catg) {
             return response()->json(['success' => true]);
@@ -1509,11 +1676,67 @@ class ManagementController extends Controller
     }
 
     // Charges-related
-    public function fetchChargeCategories(Request $request)
+    public function fetchChargeCategories(Request $request = null)
     {
-        $categories = ChargesCategoryModel::all();
+        $request = $request ?: request();
 
-        return response()->json(['categories' => $categories]);
+        if ($request->has('draw')) {
+            $draw = (int) $request->input('draw', 1);
+            $start = (int) $request->input('start', 0);
+            $length = (int) $request->input('length', 15);
+            $globalSearch = trim((string) $request->input('search.value', ''));
+
+            $query = ChargesCategoryModel::query();
+            $recordsTotal = (clone $query)->count();
+
+            // Detailed Comment: Global search across categoryrefno and categoryname
+            if (!empty($globalSearch)) {
+                $query->where(function ($q) use ($globalSearch) {
+                    $q->where('categoryname', 'like', "%{$globalSearch}%")
+                        ->orWhere('categoryrefno', 'like', "%{$globalSearch}%");
+                });
+            }
+
+            // Detailed Comment: Column-specific filtering
+            $colRef = trim((string) $request->input('columns.1.search.value', ''));
+            $colName = trim((string) $request->input('columns.2.search.value', ''));
+            if (!empty($colRef)) {
+                $query->where('categoryrefno', 'like', "%{$colRef}%");
+            }
+            if (!empty($colName)) {
+                $query->where('categoryname', 'like', "%{$colName}%");
+            }
+
+            $recordsFiltered = (clone $query)->count();
+
+            // Detailed Comment: Directional ordering
+            $orderCol = (int) $request->input('order.0.column', 2);
+            $orderDir = strtolower((string) $request->input('order.0.dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+            $sortField = ($orderCol === 1) ? 'categoryrefno' : 'categoryname';
+            $query->orderBy($sortField, $orderDir);
+
+            if ($length > 0) {
+                $query->skip($start)->take($length);
+            }
+
+            $data = $query->get();
+
+            return response()->json([
+                'draw' => $draw,
+                'recordsTotal' => $recordsTotal,
+                'recordsFiltered' => $recordsFiltered,
+                'data' => $data,
+                'categories' => $data,
+                'success' => true
+            ]);
+        }
+
+        $categories = ChargesCategoryModel::orderBy('categoryname', 'ASC')->get();
+        return response()->json([
+            'success' => true,
+            'categories' => $categories,
+            'data' => $categories
+        ]);
     }
 
     public function fetchChargeCategoriesSc(Request $request)
@@ -2144,4 +2367,814 @@ class ManagementController extends Controller
             'message' => "Patient {$patientName} has been removed from masterlist successfully."
         ]);
     }
+
+    /**
+     * Detailed Comment: Updates an existing diagnostic category name identified by its category_refno.
+     */
+    public function editDiagnosticCategory(Request $request)
+    {
+        $request->validate([
+            'category_refno' => 'required|string',
+            'category_name' => 'required|string|max:191'
+        ]);
+
+        $catg = DiagnosticsCategoryModel::where('category_refno', $request->category_refno)->first();
+        if ($catg) {
+            $catg->update([
+                'category_name' => $request->category_name
+            ]);
+
+            Log::info('Diagnostic category updated by admin', [
+                'category_refno' => $request->category_refno,
+                'category_name' => $request->category_name
+            ]);
+
+            return response()->json(['success' => true]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Diagnostic category not found.'], 404);
+    }
+
+    /**
+     * Detailed Comment: Fetches all HMO masterlist entries with DataTables server-side pagination, searching, and sorting support.
+     */
+    public function fetchAllHmo(Request $request = null)
+    {
+        $request = $request ?: request();
+        $clientCode = session()->get('clientcode') ?? config('app.clientcode') ?? env('CLIENT_CODE', '122377');
+
+        $baseQuery = HMOModel::query();
+        if ($clientCode) {
+            $clientCount = (clone $baseQuery)->where('dw_clientcode', $clientCode)->count();
+            if ($clientCount > 0) {
+                $baseQuery->where('dw_clientcode', $clientCode);
+            }
+        }
+
+        if ($request->has('draw')) {
+            $draw = (int) $request->input('draw', 1);
+            $start = (int) $request->input('start', 0);
+            $length = (int) $request->input('length', 15);
+            $globalSearch = trim((string) $request->input('search.value', ''));
+
+            $recordsTotal = (clone $baseQuery)->count();
+            $query = clone $baseQuery;
+
+            // Global search
+            if (!empty($globalSearch)) {
+                $query->where(function ($q) use ($globalSearch) {
+                    $q->where('hmocode', 'like', "%{$globalSearch}%")
+                        ->orWhere('hmoname', 'like', "%{$globalSearch}%")
+                        ->orWhere('hmotype', 'like', "%{$globalSearch}%")
+                        ->orWhere('accre_no', 'like', "%{$globalSearch}%")
+                        ->orWhere('hmoaddress', 'like', "%{$globalSearch}%");
+                });
+            }
+
+            // Column filters
+            $colCode = trim((string) $request->input('columns.1.search.value', ''));
+            $colName = trim((string) $request->input('columns.2.search.value', ''));
+            $colType = trim((string) $request->input('columns.3.search.value', ''));
+            $colAccre = trim((string) $request->input('columns.4.search.value', ''));
+            $colAddress = trim((string) $request->input('columns.5.search.value', ''));
+
+            if (!empty($colCode)) {
+                $query->where('hmocode', 'like', "%{$colCode}%");
+            }
+            if (!empty($colName)) {
+                $query->where('hmoname', 'like', "%{$colName}%");
+            }
+            // Detailed Comment: Support both picklist regex and direct substring filtering on HMO type
+            if (!empty($colType)) {
+                $cleaned = trim($colType, '^$()');
+                $types = array_filter(explode('|', $cleaned));
+                $query->where(function ($q) use ($colType, $types) {
+                    if (!empty($types)) {
+                        $q->whereIn('hmotype', $types);
+                    }
+                    $q->orWhere('hmotype', 'like', "%{$colType}%");
+                });
+            }
+            if (!empty($colAccre)) {
+                $query->where('accre_no', 'like', "%{$colAccre}%");
+            }
+            if (!empty($colAddress)) {
+                $query->where('hmoaddress', 'like', "%{$colAddress}%");
+            }
+
+            $recordsFiltered = (clone $query)->count();
+
+            // Ordering
+            $orderCol = (int) $request->input('order.0.column', 2);
+            $orderDir = strtolower((string) $request->input('order.0.dir', 'asc')) === 'desc' ? 'desc' : 'asc';
+            $sortMap = [
+                1 => 'hmocode',
+                2 => 'hmoname',
+                3 => 'hmotype',
+                4 => 'accre_no',
+                5 => 'hmoaddress'
+            ];
+            $sortField = $sortMap[$orderCol] ?? 'hmoname';
+            $query->orderBy($sortField, $orderDir);
+
+            if ($length > 0) {
+                $query->skip($start)->take($length);
+            }
+
+            $data = $query->get();
+
+            return response()->json([
+                'draw' => $draw,
+                'recordsTotal' => $recordsTotal,
+                'recordsFiltered' => $recordsFiltered,
+                'data' => $data,
+                'hmos' => $data,
+                'hmo' => $data,
+                'success' => true
+            ]);
+        }
+
+        $hmos = $baseQuery->orderBy('hmoname', 'ASC')->get();
+        return response()->json([
+            'success' => true,
+            'data' => $hmos,
+            'hmo' => $hmos,
+            'hmos' => $hmos
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Adds a new HMO masterlist entry with unique hmocode and validation.
+     */
+    public function addHmo(Request $request)
+    {
+        $request->validate([
+            'hmoname' => 'required|string|max:120',
+            'hmotype' => 'required|in:HMO,COMPANY,GOVERNMENT',
+        ]);
+
+        $clientCode = session()->get('clientcode') ?? config('app.clientcode') ?? env('CLIENT_CODE', '122377');
+        $code = $request->hmocode ?: ('HMO' . Date::now()->format('ymdHis'));
+
+        $hmo = HMOModel::create([
+            'dw_clientcode' => $clientCode,
+            'hmocode' => $code,
+            'hmoname' => $request->hmoname,
+            'hmotype' => $request->hmotype,
+            'hmoaddress' => $request->hmoaddress ?? '',
+            'coacode' => $request->coacode ?? '',
+            'accre_no' => $request->accre_no ?? '',
+        ]);
+
+        Log::info('New HMO created by admin', ['hmocode' => $code, 'hmoname' => $request->hmoname]);
+
+        return response()->json(['success' => true, 'hmo' => $hmo]);
+    }
+
+    /**
+     * Detailed Comment: Updates an existing HMO masterlist entry.
+     */
+    public function editHmo(Request $request)
+    {
+        $code = $request->code ?: $request->hmocode;
+
+        $hmo = HMOModel::where('hmocode', $code)->first();
+        if (!$hmo && $request->id) {
+            $hmo = HMOModel::find($request->id);
+        }
+
+        if ($hmo) {
+            $hmo->update([
+                'hmocode' => $request->hmocode ?? $hmo->hmocode,
+                'hmoname' => $request->hmo_ename ?? $request->hmoname ?? $hmo->hmoname,
+                'hmotype' => $request->hmo_etype ?? $request->hmotype ?? $hmo->hmotype,
+                'hmoaddress' => $request->hmoaddress ?? $hmo->hmoaddress,
+                'coacode' => $request->coacode ?? $hmo->coacode,
+                'accre_no' => $request->accre_no ?? $hmo->accre_no,
+            ]);
+
+            Log::info('HMO entry updated by admin', ['hmocode' => $hmo->hmocode]);
+            return response()->json(['success' => true]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'HMO record not found.'], 404);
+    }
+
+    /**
+     * Detailed Comment: Deletes an HMO masterlist record by hmocode or id.
+     */
+    public function deleteHmo(Request $request)
+    {
+        $code = $request->code ?: $request->hmocode;
+        $hmo = HMOModel::where('hmocode', $code)->first();
+        if (!$hmo && $request->id) {
+            $hmo = HMOModel::find($request->id);
+        }
+
+        if ($hmo) {
+            $hmo->delete();
+            Log::info('HMO entry deleted by admin', ['hmocode' => $code]);
+            return response()->json(['success' => true]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'HMO record not found.'], 404);
+    }
+
+    /**
+     * Detailed Comment: Fetches all Philippine administrative regions from lib_region PSGC reference table.
+     */
+    public function getRegions()
+    {
+        $regions = DB::table('lib_region')
+            ->select(['REGION_CODE', 'REGION_DESC', 'PRO_CODE', 'REGION_NAME'])
+            ->orderBy('REGION_CODE', 'ASC')
+            ->get();
+
+        return response()->json(['success' => true, 'regions' => $regions]);
+    }
+
+    /**
+     * Detailed Comment: Fetches provinces belonging to a selected region from lib_province using PROCODE.
+     */
+    public function getProvinces(Request $request)
+    {
+        $proCode = $request->pro_code ?? $request->region_code;
+        if ($proCode !== null && $proCode !== '') {
+            $proCode = str_pad($proCode, 2, '0', STR_PAD_LEFT);
+        }
+
+        $query = DB::table('lib_province')->select(['PROCODE', 'PROVINCE', 'PROV_NAME']);
+        if ($proCode) {
+            $query->where('PROCODE', $proCode);
+        }
+
+        $provinces = $query->orderBy('PROV_NAME', 'ASC')->get();
+        return response()->json(['success' => true, 'provinces' => $provinces]);
+    }
+
+    /**
+     * Detailed Comment: Fetches municipalities/cities for a province from lib_municipality.
+     */
+    public function getMunicipalities(Request $request)
+    {
+        $query = DB::table('lib_municipality')->select(['PROCODE', 'PROVINCE', 'MUNICIPALITY', 'MUN_NAME']);
+        if ($request->pro_code) {
+            $query->where('PROCODE', str_pad($request->pro_code, 2, '0', STR_PAD_LEFT));
+        }
+        if ($request->province) {
+            $query->where('PROVINCE', $request->province);
+        }
+
+        $municipalities = $query->orderBy('MUN_NAME', 'ASC')->get();
+        return response()->json(['success' => true, 'municipalities' => $municipalities]);
+    }
+
+    /**
+     * Detailed Comment: Fetches barangays for a municipality from lib_barangay.
+     */
+    public function getBarangays(Request $request)
+    {
+        $query = DB::table('lib_barangay')->select(['PROCODE', 'PROVINCE', 'MUNICIPALITY', 'BARANGAY', 'BRGY_NAME']);
+        if ($request->pro_code) {
+            $query->where('PROCODE', str_pad($request->pro_code, 2, '0', STR_PAD_LEFT));
+        }
+        if ($request->province) {
+            $query->where('PROVINCE', $request->province);
+        }
+        if ($request->municipality) {
+            $query->where('MUNICIPALITY', $request->municipality);
+        }
+
+        $barangays = $query->orderBy('BRGY_NAME', 'ASC')->get();
+        return response()->json(['success' => true, 'barangays' => $barangays]);
+    }
+
+    /**
+     * Detailed Comment: Fetches postal zip code from lib_zipcode for the specified municipality and province.
+     */
+    public function getZipcode(Request $request)
+    {
+        $query = DB::table('lib_zipcode');
+        if ($request->pro_code) {
+            $query->where('PROCODE', str_pad($request->pro_code, 2, '0', STR_PAD_LEFT));
+        }
+        if ($request->province) {
+            $query->where('PROVINCE', $request->province);
+        }
+        if ($request->municipality) {
+            $query->where('MUNICIPALITY', $request->municipality);
+        }
+
+        $zipcode = $query->value('ZIP_CODE');
+        return response()->json(['success' => true, 'zipcode' => $zipcode ?: '']);
+    }
+
+    /**
+     * Detailed Comment: Returns list of active consultations/patients for searchable dropdown in billing modal.
+     */
+    public function fetchActiveConsultations(Request $request)
+    {
+        $consultations = ConsultationModel::select([
+            'consultationrefno',
+            'patientname',
+            'pincode',
+            'docname',
+            'docrefno',
+            'consultation_date',
+            'status'
+        ])
+        ->whereNotNull('consultationrefno')
+        ->where('consultationrefno', '!=', '')
+        ->orderBy('id', 'DESC')
+        ->limit(100)
+        ->get();
+
+        return response()->json(['success' => true, 'consultations' => $consultations]);
+    }
+
+    /**
+     * Detailed Comment: Fetches all patient billing charges from pxcharges table with DataTables server-side pagination, searching, and sorting.
+     */
+    public function fetchAdminBillings(Request $request)
+    {
+        $clientCode = session()->get('clientcode') ?? config('app.clientcode') ?? env('CLIENT_CODE', '122377');
+
+        $baseQuery = \App\Models\PxChargesModel::query();
+        if ($clientCode) {
+            $baseQuery->where(function ($q) use ($clientCode) {
+                $q->where('dw_clientcode', $clientCode)->orWhereNull('dw_clientcode');
+            });
+        }
+
+        if ($request->has('draw')) {
+            $draw = (int) $request->input('draw', 1);
+            $start = (int) $request->input('start', 0);
+            $length = (int) $request->input('length', 15);
+            $globalSearch = trim((string) $request->input('search.value', ''));
+
+            $recordsTotal = (clone $baseQuery)->count();
+            $query = clone $baseQuery;
+
+            // Global search
+            if (!empty($globalSearch)) {
+                $query->where(function ($q) use ($globalSearch) {
+                    $q->where('pxname', 'like', "%{$globalSearch}%")
+                        ->orWhere('consultationrefno', 'like', "%{$globalSearch}%")
+                        ->orWhere('servicename', 'like', "%{$globalSearch}%")
+                        ->orWhere('group_category', 'like', "%{$globalSearch}%")
+                        ->orWhere('payment_type', 'like', "%{$globalSearch}%")
+                        ->orWhere('px_pin', 'like', "%{$globalSearch}%");
+                });
+            }
+
+            // Detailed Comment: Column filters - using transdate according to pxcharges data dictionary
+            $colDate = trim((string) $request->input('columns.1.search.value', ''));
+            $colRef = trim((string) $request->input('columns.2.search.value', ''));
+            $colPxName = trim((string) $request->input('columns.3.search.value', ''));
+            $colService = trim((string) $request->input('columns.4.search.value', ''));
+            $colCat = trim((string) $request->input('columns.5.search.value', ''));
+            $colPay = trim((string) $request->input('columns.6.search.value', ''));
+            $colTotal = trim((string) $request->input('columns.7.search.value', ''));
+            $colDisc = trim((string) $request->input('columns.8.search.value', ''));
+            $colNet = trim((string) $request->input('columns.9.search.value', ''));
+
+            if (!empty($colDate)) {
+                $query->where('transdate', 'like', "%{$colDate}%");
+            }
+            if (!empty($colRef)) {
+                $query->where('consultationrefno', 'like', "%{$colRef}%");
+            }
+            if (!empty($colPxName)) {
+                $query->where('pxname', 'like', "%{$colPxName}%");
+            }
+            if (!empty($colService)) {
+                $query->where('servicename', 'like', "%{$colService}%");
+            }
+            if (!empty($colCat)) {
+                $query->where('group_category', 'like', "%{$colCat}%");
+            }
+            if (!empty($colPay)) {
+                $cleaned = trim($colPay, '^$()');
+                $types = array_filter(explode('|', $cleaned));
+                $query->where(function ($q) use ($colPay, $types) {
+                    if (!empty($types)) {
+                        $q->whereIn('payment_type', $types);
+                    }
+                    $q->orWhere('payment_type', 'like', "%{$colPay}%");
+                });
+            }
+            if (!empty($colTotal)) {
+                $query->where('total', 'like', "%{$colTotal}%");
+            }
+            if (!empty($colDisc)) {
+                $query->where('discount', 'like', "%{$colDisc}%");
+            }
+            if (!empty($colNet)) {
+                $query->where('net_total', 'like', "%{$colNet}%");
+            }
+
+            $recordsFiltered = (clone $query)->count();
+
+            // Detailed Comment: Directional ordering mapped to real pxcharges schema columns
+            $orderCol = (int) $request->input('order.0.column', 1);
+            $orderDir = strtolower((string) $request->input('order.0.dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+            $sortMap = [
+                1 => 'transdate',
+                2 => 'consultationrefno',
+                3 => 'pxname',
+                4 => 'servicename',
+                5 => 'group_category',
+                6 => 'payment_type',
+                7 => 'total',
+                8 => 'discount',
+                9 => 'net_total'
+            ];
+            $sortField = $sortMap[$orderCol] ?? 'id';
+            $query->orderBy($sortField, $orderDir);
+
+            if ($length > 0) {
+                $query->skip($start)->take($length);
+            }
+
+            $data = $query->get();
+
+            return response()->json([
+                'draw' => $draw,
+                'recordsTotal' => $recordsTotal,
+                'recordsFiltered' => $recordsFiltered,
+                'data' => $data,
+                'success' => true
+            ]);
+        }
+
+        $charges = $baseQuery->orderBy('id', 'DESC')->get();
+        return response()->json(['success' => true, 'data' => $charges]);
+    }
+
+    /**
+     * Detailed Comment: Adds a new patient billing charge to pxcharges with calculated net total and audit timestamps.
+     */
+    public function addAdminBilling(Request $request)
+    {
+        $request->validate([
+            'servicename' => 'required|string|max:100',
+            'retail' => 'required|numeric|min:0',
+            'quantity' => 'required|numeric|min:0.01',
+        ]);
+
+        $clientCode = session()->get('clientcode') ?? config('app.clientcode') ?? env('CLIENT_CODE', '122377');
+        $qty = (float) $request->quantity;
+        $retail = (float) $request->retail;
+        $total = $qty * $retail;
+        $discount = (float) ($request->discount ?? 0);
+        $netTotal = max(0, $total - $discount);
+
+        $nextId = (int) (\App\Models\PxChargesModel::max('id') ?? 0) + 1;
+        $serviceRefNo = $request->servicerefno ?: ('CHG' . Date::now()->format('ymdHis') . rand(10, 99));
+
+        $rawType = strtoupper(trim($request->payment_type ?? 'POCKET'));
+        $paymentType = in_array($rawType, ['HMO', 'PHIC', 'POCKET']) ? $rawType : 'POCKET';
+        $paymentMethod = $request->paymentmethod ?: ($request->payment_type ?: 'CASH');
+
+        $charge = \App\Models\PxChargesModel::create([
+            'id' => $nextId,
+            'dw_clientcode' => $clientCode,
+            'transactiontype' => $request->transactiontype ?? 'CHARGES',
+            'docrefno' => $request->docrefno ?? '',
+            'docname' => $request->docname ?? '',
+            'transdate' => $request->transdate ? Carbon::parse($request->transdate) : Carbon::now(),
+            'servicerefno' => $serviceRefNo,
+            'servicename' => $request->servicename,
+            'vatable' => $request->vatable ? 1 : 0,
+            'retail' => $retail,
+            'quantity' => $qty,
+            'total' => $total,
+            'discount' => $discount,
+            'net_total' => $netTotal,
+            'paymentrefno' => $request->paymentrefno ?? '',
+            'payment_type' => $paymentType,
+            'consultationrefno' => $request->consultationrefno ?? '',
+            'pxcode_pin' => $request->pxcode_pin ?? '',
+            'pxname' => $request->pxname ?? '',
+            'group_category' => $request->group_category ?? 'OTHERS',
+            'paymentmethod' => $paymentMethod,
+            'updatedby' => auth()->guard('admin')->user()->name ?? 'Admin',
+            'updated' => Carbon::now(),
+        ]);
+
+        Log::info('Admin created new patient billing charge', [
+            'id' => $nextId,
+            'servicerefno' => $serviceRefNo,
+            'consultationrefno' => $request->consultationrefno,
+            'net_total' => $netTotal
+        ]);
+
+        return response()->json(['success' => true, 'charge' => $charge]);
+    }
+
+    /**
+     * Detailed Comment: Edits an existing billing charge in pxcharges.
+     */
+    public function editAdminBilling(Request $request)
+    {
+        $request->validate([
+            'servicename' => 'required|string|max:100',
+            'retail' => 'required|numeric|min:0',
+            'quantity' => 'required|numeric|min:0.01',
+        ]);
+
+        $query = \App\Models\PxChargesModel::query();
+        if ($request->id) {
+            $query->where('id', $request->id);
+        } elseif ($request->servicerefno) {
+            $query->where('servicerefno', $request->servicerefno);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Missing charge identifier.'], 422);
+        }
+
+        $charge = $query->first();
+        if (!$charge) {
+            return response()->json(['success' => false, 'message' => 'Charge record not found.'], 404);
+        }
+
+        $qty = (float) $request->quantity;
+        $retail = (float) $request->retail;
+        $total = $qty * $retail;
+        $discount = (float) ($request->discount ?? 0);
+        $netTotal = max(0, $total - $discount);
+
+        $rawType = $request->filled('payment_type') ? strtoupper(trim($request->payment_type)) : null;
+        $paymentType = $rawType ? (in_array($rawType, ['HMO', 'PHIC', 'POCKET']) ? $rawType : 'POCKET') : $charge->payment_type;
+        $paymentMethod = $request->paymentmethod ?: ($request->payment_type ?: $charge->paymentmethod);
+
+        $charge->update([
+            'transactiontype' => $request->transactiontype ?? $charge->transactiontype,
+            'docrefno' => $request->docrefno ?? $charge->docrefno,
+            'docname' => $request->docname ?? $charge->docname,
+            'transdate' => $request->transdate ? Carbon::parse($request->transdate) : $charge->transdate,
+            'servicename' => $request->servicename,
+            'vatable' => $request->has('vatable') ? ($request->vatable ? 1 : 0) : $charge->vatable,
+            'retail' => $retail,
+            'quantity' => $qty,
+            'total' => $total,
+            'discount' => $discount,
+            'net_total' => $netTotal,
+            'paymentrefno' => $request->paymentrefno ?? $charge->paymentrefno,
+            'payment_type' => $paymentType,
+            'consultationrefno' => $request->consultationrefno ?? $charge->consultationrefno,
+            'pxcode_pin' => $request->pxcode_pin ?? $charge->pxcode_pin,
+            'pxname' => $request->pxname ?? $charge->pxname,
+            'group_category' => $request->group_category ?? $charge->group_category,
+            'paymentmethod' => $paymentMethod,
+            'updatedby' => auth()->guard('admin')->user()->name ?? 'Admin',
+            'updated' => Carbon::now(),
+        ]);
+
+        Log::info('Admin updated billing charge', ['id' => $charge->id, 'servicerefno' => $charge->servicerefno]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Detailed Comment: Deletes a billing charge from pxcharges.
+     */
+    public function deleteAdminBilling(Request $request)
+    {
+        $query = \App\Models\PxChargesModel::query();
+        if ($request->id) {
+            $query->where('id', $request->id);
+        } elseif ($request->servicerefno) {
+            $query->where('servicerefno', $request->servicerefno);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Missing charge identifier.'], 422);
+        }
+
+        $charge = $query->first();
+        if ($charge) {
+            $charge->delete();
+            Log::info('Admin deleted billing charge', ['id' => $charge->id, 'servicerefno' => $charge->servicerefno]);
+            return response()->json(['success' => true]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Charge record not found.'], 404);
+    }
+
+    /**
+     * Detailed Comment: Fetches all settlement and SOA records from pxsettlements with DataTables server-side pagination, searching, and sorting.
+     */
+    public function fetchAdminSettlements(Request $request)
+    {
+        $baseQuery = SettlementsModel::query();
+
+        if ($request->has('draw')) {
+            $draw = (int) $request->input('draw', 1);
+            $start = (int) $request->input('start', 0);
+            $length = (int) $request->input('length', 15);
+            $globalSearch = trim((string) $request->input('search.value', ''));
+
+            $recordsTotal = (clone $baseQuery)->count();
+            $query = clone $baseQuery;
+
+            // Global search
+            if (!empty($globalSearch)) {
+                $query->where(function ($q) use ($globalSearch) {
+                    $q->where('consultationrefno', 'like', "%{$globalSearch}%")
+                        ->orWhere('docname', 'like', "%{$globalSearch}%")
+                        ->orWhere('docrefno', 'like', "%{$globalSearch}%")
+                        ->orWhere('px_pin', 'like', "%{$globalSearch}%");
+                });
+            }
+
+            // Column filters
+            $colCreated = trim((string) $request->input('columns.1.search.value', ''));
+            $colRef = trim((string) $request->input('columns.2.search.value', ''));
+            $colDoc = trim((string) $request->input('columns.3.search.value', ''));
+            $colGross = trim((string) $request->input('columns.4.search.value', ''));
+            $colCash = trim((string) $request->input('columns.5.search.value', ''));
+            $colCta = trim((string) $request->input('columns.6.search.value', ''));
+            $colHmo = trim((string) $request->input('columns.7.search.value', ''));
+            $colPhic = trim((string) $request->input('columns.8.search.value', ''));
+            $colPayable = trim((string) $request->input('columns.9.search.value', ''));
+
+            if (!empty($colCreated)) {
+                $query->where('created', 'like', "%{$colCreated}%");
+            }
+            if (!empty($colRef)) {
+                $query->where('consultationrefno', 'like', "%{$colRef}%");
+            }
+            if (!empty($colDoc)) {
+                $query->where('docname', 'like', "%{$colDoc}%");
+            }
+            // Detailed Comment: Column filters mapped to authoritative pxsettlements schema
+            if (!empty($colGross)) {
+                $query->where('total_gross', 'like', "%{$colGross}%");
+            }
+            if (!empty($colCash)) {
+                $query->where('payment_cash', 'like', "%{$colCash}%");
+            }
+            if (!empty($colCta)) {
+                $query->where('payment_card', 'like', "%{$colCta}%");
+            }
+            if (!empty($colHmo)) {
+                $query->where('less_hmo', 'like', "%{$colHmo}%");
+            }
+            if (!empty($colPhic)) {
+                $query->where('less_phic', 'like', "%{$colPhic}%");
+            }
+            if (!empty($colPayable)) {
+                $query->where('net_payable', 'like', "%{$colPayable}%");
+            }
+
+            $recordsFiltered = (clone $query)->count();
+
+            // Detailed Comment: Directional ordering mapped to real pxsettlements columns
+            $orderCol = (int) $request->input('order.0.column', 1);
+            $orderDir = strtolower((string) $request->input('order.0.dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+            $sortMap = [
+                1 => 'created',
+                2 => 'consultationrefno',
+                3 => 'docname',
+                4 => 'total_gross',
+                5 => 'payment_cash',
+                6 => 'payment_card',
+                7 => 'less_hmo',
+                8 => 'less_phic',
+                9 => 'net_payable'
+            ];
+            $sortField = $sortMap[$orderCol] ?? 'created';
+            $query->orderBy($sortField, $orderDir);
+
+            if ($length > 0) {
+                $query->skip($start)->take($length);
+            }
+
+            $data = $query->get();
+
+            return response()->json([
+                'draw' => $draw,
+                'recordsTotal' => $recordsTotal,
+                'recordsFiltered' => $recordsFiltered,
+                'data' => $data,
+                'success' => true
+            ]);
+        }
+
+        $settlements = $baseQuery->orderBy('created', 'DESC')->get();
+        return response()->json(['success' => true, 'data' => $settlements]);
+    }
+
+    /**
+     * Detailed Comment: Adds or updates a settlement record in pxsettlements from admin console.
+     */
+    public function addAdminSettlement(Request $request)
+    {
+        $request->validate([
+            'consultationrefno' => 'required|string|max:50',
+            'total_gross' => 'required|numeric|min:0',
+        ]);
+
+        $gross = (float) $request->total_gross;
+        $lessPhic = (float) ($request->less_phic ?? 0);
+        $lessHmo = (float) ($request->less_hmo ?? 0);
+        $netPayable = max(0, $gross - $lessPhic - $lessHmo);
+        $trxRef = $request->transactionrefno ?: ('TRX' . Date::now()->format('mdYHis'));
+
+        $settlement = SettlementsModel::updateOrCreate(
+            ['consultationrefno' => $request->consultationrefno],
+            [
+                'transactionrefno' => $trxRef,
+                'pincode' => $request->pincode ?? '',
+                'docrefno' => $request->docrefno ?? '',
+                'docname' => $request->docname ?? '',
+                'total_gross' => $gross,
+                'less_phic' => $lessPhic,
+                'less_hmo' => $lessHmo,
+                'net_payable' => $netPayable,
+                'payment_cash' => (float) ($request->payment_cash ?? 0),
+                'payment_card' => (float) ($request->payment_card ?? 0),
+                'cta_type' => $request->cta_type ?? '',
+                'hmocode' => $request->hmocode ?? $request->hmo_type ?? '',
+                'hmoname' => $request->hmoname ?? '',
+                'hmo_type' => $request->hmo_type ?? '',
+                'created' => Carbon::now(),
+                'createdby' => auth()->guard('admin')->user()->name ?? 'Admin',
+            ]
+        );
+
+        Log::info('Admin created consultation settlement', [
+            'consultationrefno' => $request->consultationrefno,
+            'transactionrefno' => $trxRef,
+            'net_payable' => $netPayable
+        ]);
+
+        return response()->json(['success' => true, 'settlement' => $settlement]);
+    }
+
+    /**
+     * Detailed Comment: Edits an existing settlement record in pxsettlements.
+     */
+    public function editAdminSettlement(Request $request)
+    {
+        $query = SettlementsModel::query();
+        if ($request->consultationrefno) {
+            $query->where('consultationrefno', $request->consultationrefno);
+        } elseif ($request->transactionrefno) {
+            $query->where('transactionrefno', $request->transactionrefno);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Missing settlement identifier.'], 422);
+        }
+
+        $settlement = $query->first();
+        if (!$settlement) {
+            return response()->json(['success' => false, 'message' => 'Settlement record not found.'], 404);
+        }
+
+        $gross = (float) ($request->total_gross ?? $settlement->total_gross);
+        $lessPhic = (float) ($request->less_phic ?? $settlement->less_phic);
+        $lessHmo = (float) ($request->less_hmo ?? $settlement->less_hmo);
+        $netPayable = max(0, $gross - $lessPhic - $lessHmo);
+
+        $settlement->update([
+            'pincode' => $request->pincode ?? $settlement->pincode,
+            'docname' => $request->docname ?? $settlement->docname,
+            'total_gross' => $gross,
+            'less_phic' => $lessPhic,
+            'less_hmo' => $lessHmo,
+            'net_payable' => $netPayable,
+            'payment_cash' => (float) ($request->payment_cash ?? $settlement->payment_cash),
+            'payment_card' => (float) ($request->payment_card ?? $settlement->payment_card),
+            'cta_type' => $request->cta_type ?? $settlement->cta_type,
+            'hmoname' => $request->hmoname ?? $settlement->hmoname,
+            'hmo_type' => $request->hmo_type ?? $settlement->hmo_type,
+        ]);
+
+        Log::info('Admin updated settlement', ['consultationrefno' => $settlement->consultationrefno]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Detailed Comment: Deletes a settlement record from pxsettlements.
+     */
+    public function deleteAdminSettlement(Request $request)
+    {
+        $query = SettlementsModel::query();
+        if ($request->consultationrefno) {
+            $query->where('consultationrefno', $request->consultationrefno);
+        } elseif ($request->transactionrefno) {
+            $query->where('transactionrefno', $request->transactionrefno);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Missing settlement identifier.'], 422);
+        }
+
+        $settlement = $query->first();
+        if ($settlement) {
+            $settlement->delete();
+            Log::info('Admin deleted settlement', ['consultationrefno' => $settlement->consultationrefno]);
+            return response()->json(['success' => true]);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Settlement record not found.'], 404);
+    }
 }
+

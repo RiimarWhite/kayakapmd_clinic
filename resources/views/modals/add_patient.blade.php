@@ -88,41 +88,49 @@
                     </div>
 
                     <div>
-                        <h6 class="fw-bold border-bottom pb-1 text-primary"><i class="fa-solid fa-location-dot me-1"></i> Address Details</h6>
+                        <!-- Detailed Comment: Address section with PSGC lib_ table cascading selects -->
+                        <h6 class="fw-bold border-bottom pb-1 text-primary"><i class="fa-solid fa-location-dot me-1"></i> Address Details (PSGC Reference)</h6>
                         <div class="row g-2 mt-1">
-                            <div class="col-12">
-                                <label class="form-label fw-bold small" for="address">Full Address</label>
-                                <input class="form-control" type="text" name="address" id="address" placeholder="Full address line">
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold small" for="region">Region <span class="text-danger">*</span></label>
+                                <select class="form-select form-select-sm" name="region" id="region">
+                                    <option value="" selected disabled>-- Select Region --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold small" for="province">Province <span class="text-danger">*</span></label>
+                                <select class="form-select form-select-sm" name="province" id="province" disabled>
+                                    <option value="" selected disabled>-- Select Province --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold small" for="muncity">Municipality / City <span class="text-danger">*</span></label>
+                                <select class="form-select form-select-sm" name="muncity" id="muncity" disabled>
+                                    <option value="" selected disabled>-- Select Municipality --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold small" for="brgy">Barangay <span class="text-danger">*</span></label>
+                                <select class="form-select form-select-sm" name="brgy" id="brgy" disabled>
+                                    <option value="" selected disabled>-- Select Barangay --</option>
+                                </select>
                             </div>
 
                             <div class="col-md-4">
                                 <label class="form-label fw-bold small" for="streetadrs">Street Address</label>
-                                <input class="form-control" type="text" name="streetadrs" id="streetadrs" placeholder="House No. / Street">
+                                <input class="form-control form-control-sm" type="text" name="streetadrs" id="streetadrs" placeholder="House No. / Street">
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold small" for="brgy">Barangay</label>
-                                <input class="form-control" type="text" name="brgy" id="brgy" placeholder="Barangay">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold small" for="muncity">Municipality / City</label>
-                                <input class="form-control" type="text" name="muncity" id="muncity" placeholder="City or Municipality">
-                            </div>
-
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold small" for="province">Province</label>
-                                <input class="form-control" type="text" name="province" id="province" placeholder="Province">
-                            </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label class="form-label fw-bold small" for="zipcode">Zip Code</label>
-                                <input class="form-control" type="text" name="zipcode" id="zipcode" placeholder="Zip code">
+                                <input class="form-control form-control-sm" type="text" name="zipcode" id="zipcode" placeholder="Zip code">
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold small" for="region">Region</label>
-                                <input class="form-control" type="text" name="region" id="region" placeholder="Region">
-                            </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label class="form-label fw-bold small" for="country">Country</label>
-                                <input class="form-control" type="text" name="country" id="country" value="PHILIPPINES">
+                                <input class="form-control form-control-sm" type="text" name="country" id="country" value="PHILIPPINES">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold small" for="address">Full Address (Auto-compiled)</label>
+                                <input class="form-control form-control-sm bg-light" type="text" name="address" id="address" placeholder="Auto-compiled address" readonly>
                             </div>
                         </div>
                     </div>

@@ -107,9 +107,47 @@
                             </div>
                         </div>
 
-                        <div class="mb-2">
-                            <label class="form-label fw-bold" for="adrs">Address</label>
-                            <input class="form-control" type="text" name="adrs" id="adrs">
+                        <!-- Detailed Comment: PSGC Geographic Address Cascade Integration for Doctor Registration -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold" for="doc_region">Region</label>
+                                <select class="form-select" id="doc_region" name="doc_region">
+                                    <option value="" selected disabled>-- Select Region --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold" for="doc_prov">Province</label>
+                                <select class="form-select" id="doc_prov" name="doc_prov" disabled>
+                                    <option value="" selected disabled>-- Select Province --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold" for="doc_mun">City / Municipality</label>
+                                <select class="form-select" id="doc_mun" name="doc_mun" disabled>
+                                    <option value="" selected disabled>-- Select Municipality --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold" for="doc_brgy">Barangay</label>
+                                <select class="form-select" id="doc_brgy" name="doc_brgy" disabled>
+                                    <option value="" selected disabled>-- Select Barangay --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold" for="doc_street">Street / Building / Unit</label>
+                                <input class="form-control" type="text" id="doc_street" name="doc_street" placeholder="e.g. Rm 101, Bldg A, Rizal Ave">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fw-bold" for="doc_zipcode">Zip Code</label>
+                                <input class="form-control" type="text" id="doc_zipcode" name="doc_zipcode" placeholder="Zip Code" disabled>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold" for="adrs">Compiled Address</label>
+                                <input class="form-control" type="text" name="adrs" id="adrs" placeholder="Full address will be compiled here">
+                            </div>
                         </div>
                     </div>
 

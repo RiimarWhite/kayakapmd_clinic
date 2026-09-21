@@ -32,23 +32,41 @@
                         </div>
                     </div>
 
-                    <div class="d-flex flex-column">
-                        <label class="form-label fw-bold" for="address">Company Address</label>
-                        <div class="input-group">
-                            <select class="form-select form-select-sm" name="phregion" id="phregion">
-                                <option value="0" selected disabled>-- Select Region --</option>
-                            </select>
-                            <select class="form-select form-select-sm" name="phprov" id="phprov" disabled>
-                                <option value="0" selected disabled>-- Select Province --</option>
-                            </select>
-                            <select class="form-select form-select-sm" name="phmun" id="phmun" disabled>
-                                <option value="0" selected disabled>-- Select Municipality --</option>
-                            </select>
-                            <select class="form-select form-select-sm" name="phbrgy" id="phbrgy" disabled>
-                                <option value="0" selected disabled>-- Select Barangay --</option>
-                            </select>
-                            <input class="form-control form-control-sm" type="text" name="phzipcode" id="phzipcode"
-                                placeholder="ZIP Code" disabled>
+                    <!-- Detailed Comment: Company Address with PSGC Reference Tables Cascading Integration -->
+                    <div class="d-flex flex-column gap-2">
+                        <label class="form-label fw-bold mb-0">Company Address</label>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1" for="phregion">Region</label>
+                                <select class="form-select form-select-sm" name="phregion" id="phregion">
+                                    <option value="" selected disabled>-- Select Region --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted mb-1" for="phprov">Province</label>
+                                <select class="form-select form-select-sm" name="phprov" id="phprov" disabled>
+                                    <option value="" selected disabled>-- Select Province --</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-md-5">
+                                <label class="form-label small text-muted mb-1" for="phmun">City / Municipality</label>
+                                <select class="form-select form-select-sm" name="phmun" id="phmun" disabled>
+                                    <option value="" selected disabled>-- Select Municipality --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small text-muted mb-1" for="phbrgy">Barangay</label>
+                                <select class="form-select form-select-sm" name="phbrgy" id="phbrgy" disabled>
+                                    <option value="" selected disabled>-- Select Barangay --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1" for="phzipcode">ZIP Code</label>
+                                <input class="form-control form-control-sm" type="text" name="phzipcode" id="phzipcode"
+                                    placeholder="ZIP Code">
+                            </div>
                         </div>
                     </div>
                 </div>

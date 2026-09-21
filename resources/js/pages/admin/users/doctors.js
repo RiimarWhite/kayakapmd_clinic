@@ -1,4 +1,28 @@
+import { initAddressCascade } from '../../../helpers/address-cascade.js';
+
 $(function () {
+    // Detailed Comment: Initialize PSGC address cascade for Add Doctor modal
+    const addDocAddressCascade = initAddressCascade({
+        regionSel: '#doc_region',
+        provSel: '#doc_prov',
+        munSel: '#doc_mun',
+        brgySel: '#doc_brgy',
+        zipInput: '#doc_zipcode',
+        streetInput: '#doc_street',
+        fullAddressInput: '#adrs'
+    });
+
+    // Detailed Comment: Initialize PSGC address cascade for Edit Doctor modal
+    const editDocAddressCascade = initAddressCascade({
+        regionSel: '#edoc_region',
+        provSel: '#edoc_prov',
+        munSel: '#edoc_mun',
+        brgySel: '#edoc_brgy',
+        zipInput: '#edoc_zipcode',
+        streetInput: '#edoc_street',
+        fullAddressInput: '#eadrs'
+    });
+
     loadDoctors();
 
     // Detailed Comment: Auto-populate doctor username from lowercase last name
@@ -147,6 +171,7 @@ $(function () {
                     Swal.fire({ title: 'Success', text: 'Doctor account added successfully.', icon: 'success', confirmButtonText: 'Okay' })
                         .then(() => {
                             $("#add_doctor_form")[0].reset();
+                            addDocAddressCascade.reset();
                             $("#docusername").data("auto-generated", false);
                             loadDoctors();
                         });

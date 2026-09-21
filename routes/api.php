@@ -141,6 +141,18 @@ Route::middleware(['web', 'auth:secretary,doctor,admin'])->group(function () {
     Route::post('edit_charge', [DoctorController::class, 'editCharge'])->name('doctor.edit_charge');
 
     Route::post('update_charge', [DoctorController::class, 'updateCharge']);
+
+    // Detailed Comment: Geographic PSGC reference cascading endpoints for address pickers across roles
+    Route::get('address/regions', [ManagementController::class, 'getRegions'])->name('address.regions');
+    Route::get('address/provinces', [ManagementController::class, 'getProvinces'])->name('address.provinces');
+    Route::get('address/municipalities', [ManagementController::class, 'getMunicipalities'])->name('address.municipalities');
+    Route::get('address/barangays', [ManagementController::class, 'getBarangays'])->name('address.barangays');
+    Route::get('address/zipcode', [ManagementController::class, 'getZipcode'])->name('address.zipcode');
+    Route::post('address/regions', [ManagementController::class, 'getRegions']);
+    Route::post('address/provinces', [ManagementController::class, 'getProvinces']);
+    Route::post('address/municipalities', [ManagementController::class, 'getMunicipalities']);
+    Route::post('address/barangays', [ManagementController::class, 'getBarangays']);
+    Route::post('address/zipcode', [ManagementController::class, 'getZipcode']);
 });
 
 // Admin API Routes
@@ -203,6 +215,7 @@ Route::middleware(['web', 'auth:admin'])->group(function () {
 
     Route::post('fetch_diagnostic_category', [ManagementController::class, 'fetchDiagnosticCategory']);
     Route::post('create_diagnostic_category', [ManagementController::class, 'saveDiagnosticCategory']);
+    Route::post('edit_diagnostic_category', [ManagementController::class, 'editDiagnosticCategory'])->name('admin.edit_diagnostic_category');
     Route::post('delete_diagnostic_category', [ManagementController::class, 'deleteDiagnosticCategory']);
 
     Route::post('fetch_diagnostics', [ManagementController::class, 'fetchDiagnostic']);
@@ -282,7 +295,24 @@ Route::middleware(['web', 'auth:admin'])->group(function () {
 
     // HMO
     Route::post('fetch_all_hmo', [ManagementController::class, 'fetchAllHmo']);
+    Route::post('admin/fetch_hmo', [ManagementController::class, 'fetchAllHmo']);
     Route::post('add_hmo', [ManagementController::class, 'addHmo']);
+    Route::post('admin/add_hmo', [ManagementController::class, 'addHmo']);
     Route::post('edit_hmo', [ManagementController::class, 'editHmo']);
+    Route::post('admin/edit_hmo', [ManagementController::class, 'editHmo']);
     Route::post('delete_hmo', [ManagementController::class, 'deleteHmo']);
+    Route::post('admin/delete_hmo', [ManagementController::class, 'deleteHmo']);
+
+    // Detailed Comment: Admin Consultation Billing endpoints
+    Route::post('admin/fetch_billings', [ManagementController::class, 'fetchAdminBillings'])->name('admin.fetch_billings');
+    Route::post('admin/add_billing', [ManagementController::class, 'addAdminBilling'])->name('admin.add_billing');
+    Route::post('admin/edit_billing', [ManagementController::class, 'editAdminBilling'])->name('admin.edit_billing');
+    Route::post('admin/delete_billing', [ManagementController::class, 'deleteAdminBilling'])->name('admin.delete_billing');
+    Route::post('admin/active_consultations', [ManagementController::class, 'fetchActiveConsultations'])->name('admin.active_consultations');
+
+    // Detailed Comment: Admin Consultation Settlements endpoints
+    Route::post('admin/fetch_settlements', [ManagementController::class, 'fetchAdminSettlements'])->name('admin.fetch_settlements');
+    Route::post('admin/add_settlement', [ManagementController::class, 'addAdminSettlement'])->name('admin.add_settlement');
+    Route::post('admin/edit_settlement', [ManagementController::class, 'editAdminSettlement'])->name('admin.edit_settlement');
+    Route::post('admin/delete_settlement', [ManagementController::class, 'deleteAdminSettlement'])->name('admin.delete_settlement');
 });

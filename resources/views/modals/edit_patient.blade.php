@@ -114,39 +114,47 @@
                                 <input class="form-control" type="email" name="emailaddress" id="edit_emailaddress" placeholder="patient@example.com">
                             </div>
 
-                            <div class="col-12">
-                                <label class="form-label small fw-bold" for="edit_address">Complete Address</label>
-                                <input class="form-control" type="text" name="address" id="edit_address" placeholder="Full address line">
+                            <!-- Detailed Comment: Patient edit address section integrated with PSGC cascading reference dropdowns -->
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="edit_region">Region</label>
+                                <select class="form-select form-select-sm" name="region" id="edit_region">
+                                    <option value="" selected disabled>-- Select Region --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="edit_province">Province</label>
+                                <select class="form-select form-select-sm" name="province" id="edit_province" disabled>
+                                    <option value="" selected disabled>-- Select Province --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="edit_muncity">Municipality / City</label>
+                                <select class="form-select form-select-sm" name="muncity" id="edit_muncity" disabled>
+                                    <option value="" selected disabled>-- Select Municipality --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="edit_brgy">Barangay</label>
+                                <select class="form-select form-select-sm" name="brgy" id="edit_brgy" disabled>
+                                    <option value="" selected disabled>-- Select Barangay --</option>
+                                </select>
                             </div>
 
                             <div class="col-md-4">
                                 <label class="form-label small fw-bold" for="edit_streetadrs">Street Address</label>
-                                <input class="form-control" type="text" name="streetadrs" id="edit_streetadrs" placeholder="House No. / Street">
+                                <input class="form-control form-control-sm" type="text" name="streetadrs" id="edit_streetadrs" placeholder="House No. / Street">
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-bold" for="edit_brgy">Barangay</label>
-                                <input class="form-control" type="text" name="brgy" id="edit_brgy" placeholder="Barangay">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label small fw-bold" for="edit_muncity">Municipality / City</label>
-                                <input class="form-control" type="text" name="muncity" id="edit_muncity" placeholder="City or Municipality">
-                            </div>
-
-                            <div class="col-md-3">
-                                <label class="form-label small fw-bold" for="edit_province">Province</label>
-                                <input class="form-control" type="text" name="province" id="edit_province" placeholder="Province">
-                            </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label class="form-label small fw-bold" for="edit_zipcode">Zip Code</label>
-                                <input class="form-control" type="text" name="zipcode" id="edit_zipcode" placeholder="Zip code">
+                                <input class="form-control form-control-sm" type="text" name="zipcode" id="edit_zipcode" placeholder="Zip code">
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label small fw-bold" for="edit_region">Region</label>
-                                <input class="form-control" type="text" name="region" id="edit_region" placeholder="Region">
-                            </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label class="form-label small fw-bold" for="edit_country">Country</label>
-                                <input class="form-control" type="text" name="country" id="edit_country" value="PHILIPPINES">
+                                <input class="form-control form-control-sm" type="text" name="country" id="edit_country" value="PHILIPPINES">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold" for="edit_address">Complete Address (Auto-compiled)</label>
+                                <input class="form-control form-control-sm bg-light" type="text" name="address" id="edit_address" placeholder="Full address line" readonly>
                             </div>
                         </div>
                     </div>

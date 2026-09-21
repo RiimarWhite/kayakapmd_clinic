@@ -21,8 +21,8 @@ import Swal from 'sweetalert2';
 window.Swal = Swal;
 
 // Select2
+// Detailed Comment: Import select2 UMD bundle which self-initializes $.fn.select2 on the global jQuery instance without calling select2() directly
 import 'select2';
-select2();
 
 
 // Custom JS

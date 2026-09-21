@@ -1,4 +1,22 @@
+import { initAddressCascade } from '../../helpers/address-cascade.js';
+
 $(function () {
+    /**
+     * Detailed Comment: Initialize PSGC address cascade for patient registration in secretary console
+     */
+    let queuePatientAddressCascade = null;
+    if ($("#add_patient_modal").length) {
+        queuePatientAddressCascade = initAddressCascade({
+            regionSel: '#region',
+            provSel: '#province',
+            munSel: '#muncity',
+            brgySel: '#brgy',
+            zipInput: '#zipcode',
+            streetInput: '#streetadrs',
+            fullAddressInput: '#address'
+        });
+    }
+
     /**
      * Detailed Comment: Helper functions to toggle button loading spinners and disabled state
      * Stores original button HTML in data attribute and restores upon operation completion.

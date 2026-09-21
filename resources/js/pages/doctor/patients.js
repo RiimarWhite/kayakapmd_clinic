@@ -1,4 +1,29 @@
+import { initAddressCascade } from '../../helpers/address-cascade.js';
+
 $(function () {
+    /**
+     * Detailed Comment: Initialize PSGC address cascading helpers for Add and Edit Patient modals.
+     */
+    const addPatientAddressCascade = initAddressCascade({
+        regionSel: '#region',
+        provSel: '#province',
+        munSel: '#muncity',
+        brgySel: '#brgy',
+        zipInput: '#zipcode',
+        streetInput: '#streetadrs',
+        fullAddressInput: '#address'
+    });
+
+    const editPatientAddressCascade = initAddressCascade({
+        regionSel: '#edit_region',
+        provSel: '#edit_province',
+        munSel: '#edit_muncity',
+        brgySel: '#edit_brgy',
+        zipInput: '#edit_zipcode',
+        streetInput: '#edit_streetadrs',
+        fullAddressInput: '#edit_address'
+    });
+
     /**
      * Detailed Comment: Button loading state helper functions.
      * Preserves original inner HTML in data attribute and renders a Bootstrap spinner.
@@ -341,14 +366,18 @@ $(function () {
 
                     $("#edit_mobilenumber").val(p.mobilenumber || '');
                     $("#edit_emailaddress").val(p.emailaddress || '');
-                    $("#edit_address").val(p.address || '');
-                    $("#edit_streetadrs").val(p.streetadrs || '');
-                    $("#edit_brgy").val(p.brgy || '');
-                    $("#edit_muncity").val(p.muncity || '');
-                    $("#edit_province").val(p.province || '');
-                    $("#edit_zipcode").val(p.zipcode || '');
-                    $("#edit_region").val(p.region || '');
                     $("#edit_country").val(p.country || 'PHILIPPINES');
+
+                    // Detailed Comment: Populate cascading PSGC address selects in edit patient modal
+                    editPatientAddressCascade.setAddressValues({
+                        region: p.region || '',
+                        province: p.province || '',
+                        muncity: p.muncity || '',
+                        brgy: p.brgy || '',
+                        streetadrs: p.streetadrs || '',
+                        zipcode: p.zipcode || '',
+                        address: p.address || ''
+                    });
 
                     $("#edit_classification").val(p.classification || '');
                     $("#edit_followupdate").val(p.followupdate ? p.followupdate.split(' ')[0] : '');
@@ -482,6 +511,7 @@ $(function () {
     $("#add_patient_modal_btn").on("click", function () {
         const form = document.getElementById("add_patient_form");
         if (form) form.reset();
+        addPatientAddressCascade.reset();
         const modal = new bootstrap.Modal(document.getElementById("add_patient_modal"));
         modal.show();
     });

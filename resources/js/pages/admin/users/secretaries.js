@@ -1,7 +1,39 @@
+import { initAddressCascade } from '../../../helpers/address-cascade.js';
+import { initTableColumnFilters, renderColumnFilterHeader } from '../../../helpers/table-column-filter.js';
+
 $(function () {
     // Detailed Comment: State variables declared at the top of scope to prevent Temporal Dead Zone (TDZ) ReferenceError
     let secretaryTable = null;
-    let currentAccountTypeFilter = '';
+
+    // Detailed Comment: Render custom column filter dropdown headers for Users masterlist
+    $("#th_sec_account_type").html(renderColumnFilterHeader('Account Type', 1, { picklist: ['Secretary', 'Admin'] }));
+    $("#th_sec_source_table").html(renderColumnFilterHeader('Source Table', 2, { picklist: ['secretaryrights', 'adminrights'] }));
+    $("#th_sec_username").html(renderColumnFilterHeader('Username', 3));
+    $("#th_sec_fullname").html(renderColumnFilterHeader('Full Name', 4));
+    $("#th_sec_contact").html(renderColumnFilterHeader('Contact #', 5));
+    $("#th_sec_email").html(renderColumnFilterHeader('Email Address', 6));
+
+    // Detailed Comment: Initialize PSGC address cascade for Add Secretary form
+    const addSecAddressCascade = initAddressCascade({
+        regionSel: '#sec_region',
+        provSel: '#sec_prov',
+        munSel: '#sec_mun',
+        brgySel: '#sec_brgy',
+        zipInput: '#sec_zipcode',
+        streetInput: '#sec_street',
+        fullAddressInput: '#secadrs'
+    });
+
+    // Detailed Comment: Initialize PSGC address cascade for Edit Secretary modal
+    const editSecAddressCascade = initAddressCascade({
+        regionSel: '#edit_sec_region',
+        provSel: '#edit_sec_prov',
+        munSel: '#edit_sec_mun',
+        brgySel: '#edit_sec_brgy',
+        zipInput: '#edit_sec_zipcode',
+        streetInput: '#edit_sec_street',
+        fullAddressInput: '#edit_secadrs'
+    });
 
     // Detailed Comment: Auto-populate default username from Last Name for Secretary registration
     $("#seclname").on("input blur", function () {
@@ -57,15 +89,11 @@ $(function () {
 
         secretaryTable = $("#secretary_table").DataTable({
             processing: true,
+            serverSide: true,
             ajax: {
                 url: "/api/fetch_secretaries",
                 type: "POST",
-                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-                data: function (d) {
-                    // Detailed Comment: Pass server-side account_type filter parameter
-                    d.account_type = currentAccountTypeFilter;
-                },
-                dataSrc: 'secretaries'
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') }
             },
             columns: [
                 {
@@ -134,13 +162,12 @@ $(function () {
             columnDefs: [
                 // Detailed Comment: Expanded width to 300px for labeled Action buttons
                 { targets: 0, width: '300px', orderable: false, searchable: false, className: 'text-nowrap text-center align-middle' },
-                // Detailed Comment: Account Type column with dropdown menu filter
-                { targets: 1, width: '210px', orderable: false, className: 'text-center align-middle' },
-                // Detailed Comment: Source Table column badge
-                { targets: 2, width: '140px', className: 'text-center align-middle' },
-                { targets: 3, width: '120px', className: 'align-middle' },
+                { targets: 1, width: '170px', className: 'text-center align-middle' },
+                { targets: 2, width: '150px', className: 'text-center align-middle' },
+                { targets: 3, width: '140px', className: 'align-middle' },
                 { targets: [4, 5, 6], className: 'align-middle' }
             ],
+            order: [[3, 'asc']],
             language: {
                 // Detailed Comment: Styled loading spinner overlay when table data is fetching/processing
                 processing: '<div class="d-flex justify-content-center align-items-center py-2"><div class="spinner-border spinner-border-sm text-success me-2" role="status"></div><span class="text-secondary fw-bold">Loading accounts...</span></div>',
@@ -152,41 +179,16 @@ $(function () {
             lengthChange: true,
             paging: true,
             searching: true,
-            ordering: false,
+            ordering: true,
             responsive: true
         });
+
+        // Detailed Comment: Initialize interactive column filters & sorting modal dropdowns on the table
+        initTableColumnFilters(secretaryTable, '#secretary_table');
     }
 
     // Detailed Comment: Initial table load on page ready
     loadSecretaries();
-
-    // Detailed Comment: Filter table by Account Type using the column header dropdown menu with server-side AJAX reload
-    $(document).on("click", ".filter-account-opt", function (e) {
-        e.preventDefault();
-        const filterVal = $(this).data("filter"); // '', 'Secretary', or 'Admin'
-        currentAccountTypeFilter = filterVal || '';
-        
-        // Update active state and checkmark icon in dropdown
-        $(".filter-account-opt").removeClass("active");
-        $(".filter-account-opt .filter-check-icon").addClass("d-none");
-        $(this).addClass("active");
-        $(this).find(".filter-check-icon").removeClass("d-none");
-
-        // Update column header label and badge color
-        const $label = $("#filtered_account_type_label");
-        if (filterVal === 'Secretary') {
-            $label.text("Secretary").removeClass("bg-secondary bg-primary").addClass("bg-info text-dark");
-        } else if (filterVal === 'Admin') {
-            $label.text("Admin").removeClass("bg-secondary bg-info text-dark").addClass("bg-primary text-white");
-        } else {
-            $label.text("All").removeClass("bg-info bg-primary text-dark").addClass("bg-secondary text-white");
-        }
-
-        // Detailed Comment: Trigger server-side reload with the selected account_type parameter
-        if (secretaryTable) {
-            secretaryTable.ajax.reload();
-        }
-    });
 
     // Detailed Comment: Add Secretary submission handler with loading spinner
     $("#add_secretary_btn").on("click", function () {
@@ -220,6 +222,7 @@ $(function () {
                         .then(() => {
                             loadSecretaries();
                             $("#add_secretary_form")[0].reset();
+                            addSecAddressCascade.reset();
                             $("#secusername").data("auto-generated", false);
                         });
                 }

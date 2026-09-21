@@ -74,3 +74,20 @@ body {
 .select2-container--default .select2-results__option--highlighted[aria-selected] {
     background-color: #0d6efd;
 }
+
+/* Detailed Comment: Ensure table responsive containers provide adequate vertical clearance for header dropdown
+ * menus even when table has few or zero records (e.g. consultations billing, settlements). Prevents vertical clipping. */
+.table-responsive {
+    min-height: 380px;
+}
+
+/* Detailed Comment: Ensure column filter container acts as reference anchor for statically positioned dropdown menu */
+.column-filter-container {
+    position: relative !important;
+}
+
+/* Detailed Comment: Elevate column filter dropdown menu above all table and card elements and anchor directly below button */
+.column-filter-menu {
+    z-index: 1070 !important;
+    position: absolute !important;
+}

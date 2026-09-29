@@ -36,6 +36,10 @@ class DoctorController extends Controller
     public function dashboardPage()
     {
         $doctor = auth()->guard('doctor')->user();
+        if ($doctor) {
+            $profile = DoctorsProfileModel::where('docrefno', $doctor->docrefno)->first();
+            $doctor->pfrate = $profile ? ($profile->pfrate ?: ($doctor->consultationfee ?? 0)) : ($doctor->consultationfee ?? 0);
+        }
 
         // Detailed Comment: Structured log when doctor dashboard view is accessed
         Log::info('Doctor dashboard rendered', [
@@ -193,6 +197,38 @@ class DoctorController extends Controller
         ]);
     }
 
+    /**
+     * Detailed Comment: Quick self-service endpoint for doctor to configure default consultation/professional fee
+     * directly from their dashboard widget or profile modal.
+     */
+    public function updateDoctorFee(Request $request)
+    {
+        $doctorAuth = auth()->guard('doctor')->user();
+        if (!$doctorAuth) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated doctor'], 401);
+        }
+
+        $pfrate = floatval($request->input('pfrate', $request->input('consultationfee', 0)));
+        DoctorsProfileModel::where('docrefno', $doctorAuth->docrefno)->update([
+            'pfrate' => $pfrate
+        ]);
+
+        DoctorModel::where('docrefno', $doctorAuth->docrefno)->update([
+            'consultationfee' => $pfrate
+        ]);
+
+        Log::info('Doctor updated default consultation fee', [
+            'docrefno' => $doctorAuth->docrefno,
+            'pfrate' => $pfrate
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Consultation fee updated successfully.',
+            'pfrate' => $pfrate
+        ]);
+    }
+
     public function fetchPatientHistory(Request $request)
     {
         $start = $request->input('start', 0);
@@ -305,17 +341,22 @@ class DoctorController extends Controller
                 'latest_c.consultationrefno',
                 'latest_c.consultation_date',
                 'latest_c.docrefno',
-                'latest_c.photo_path'
+                'latest_c.photo_path',
+                'pxmasterlist.photo_path as px_photo_path'
             ])
             ->orderBy('pxmasterlist.id', 'desc')
             ->skip($start)
             ->take($length)
             ->get();
 
+        // Detailed Comment: Transform patient photo to accessible URL, checking both consultation and masterlist with blank photo fallback
         $data->transform(function ($patient) {
-            if ($patient->photo_path) {
-                $filename = basename($patient->photo_path);
+            $photo = $patient->photo_path ?: ($patient->px_photo_path ?? null);
+            if ($photo && !str_contains($photo, 'blank_photo.png')) {
+                $filename = basename($photo);
                 $patient->photo_path = url('/patient/photo/' . $filename);
+            } else {
+                $patient->photo_path = url('/images/blank_photo.png');
             }
             return $patient;
         });
@@ -411,11 +452,22 @@ class DoctorController extends Controller
         return response()->json(['patients' => $patients]);
     }
 
+    /**
+     * Detailed Comment: Fetches today's queued patients strictly scoped to the authenticated doctor's docrefno.
+     * Prevents cross-doctor queue leakage so doctors only see patients assigned to them.
+     */
     public function fetchTodaysPatients(Request $request)
     {
-        $patients = ConsultationModel::whereDate('consultation_date', Carbon::today())
-            ->orderBy('queueno', 'ASC')
-            ->get();
+        $doctor = auth()->guard('doctor')->user();
+        $docrefno = $doctor ? $doctor->docrefno : $request->input('docrefno');
+
+        $query = ConsultationModel::whereDate('consultation_date', Carbon::today());
+
+        if (!empty($docrefno)) {
+            $query->where('docrefno', $docrefno);
+        }
+
+        $patients = $query->orderBy('queueno', 'ASC')->get();
 
         return response()->json(['patients' => $patients, 'count' => $patients->count()]);
     }
@@ -580,10 +632,52 @@ class DoctorController extends Controller
         return response()->json(['success' => true, 'message' => 'Schedule deleted successfully.']);
     }
 
+    /**
+     * Detailed Comment: Fetches consultation details for the doctor modal, hydrating patient address,
+     * contact information, and photo from pxmasterlist to ensure complete clinical record viewing.
+     */
     public function fetchPatientData(Request $request)
     {
         $patient = ConsultationModel::where(['consultationrefno' => $request->consultationrefno])->first();
-        $patient->photo_path = $patient->photo_path != null ? url('/patient/photo/' . basename($patient->photo_path)) : null;
+        if ($patient) {
+            $master = PatientMasterlist::where('pxrefno', $patient->pxrefno)
+                ->orWhere('pincode', $patient->pincode)
+                ->first();
+            if ($master) {
+                if (empty($patient->address)) {
+                    $patient->address = $master->address ?: trim(implode(', ', array_filter([
+                        $master->streetadrs,
+                        $master->brgy,
+                        $master->muncity,
+                        $master->province
+                    ])));
+                }
+                if (empty($patient->mobilenumber)) {
+                    $patient->mobilenumber = $master->mobilenumber ?? '';
+                }
+                if (empty($patient->emailaddress)) {
+                    $patient->emailaddress = $master->emailaddress ?? '';
+                }
+                if (empty($patient->landlinenumber)) {
+                    $patient->landlinenumber = $master->landlinenumber ?? '';
+                }
+                if (empty($patient->photo_path) && !empty($master->photo_path)) {
+                    $patient->photo_path = $master->photo_path;
+                }
+                if (empty($patient->birthday) && !empty($master->birthday)) {
+                    $patient->birthday = $master->birthday;
+                }
+                if (empty($patient->gender) && !empty($master->gender)) {
+                    $patient->gender = $master->gender;
+                }
+            }
+
+            if (!empty($patient->photo_path) && !str_contains($patient->photo_path, 'blank_photo.png')) {
+                $patient->photo_path = url('/patient/photo/' . basename($patient->photo_path));
+            } else {
+                $patient->photo_path = url('/images/blank_photo.png');
+            }
+        }
 
         return response()->json(['patient' => $patient]);
     }
@@ -604,16 +698,29 @@ class DoctorController extends Controller
         return response()->json($medicines);
     }
 
+    /**
+     * Detailed Comment: Fetches prescribed medicines from stocks_ledger including per-item instructions.
+     */
     public function fetchMedicineRx(Request $request)
     {
-        $rx = StocksLedgerModel::select(['item_dscr', 'qty', 'dispensed_status', 'prodcode'])->where(['px_consultcode_cn' => $request->consultationrefno, 'item_grouping' => 'DRUGS AND MEDS'])->get();
+        $rx = StocksLedgerModel::select([
+            'id',
+            'item_dscr',
+            'qty',
+            'dispensed_status',
+            'prodcode',
+            'instructions'
+        ])
+        ->where(['px_consultcode_cn' => $request->consultationrefno, 'item_grouping' => 'DRUGS AND MEDS'])
+        ->get();
+
         $instructions = ConsultationModel::where(['consultationrefno' => $request->consultationrefno])->pluck('instructions');
 
         return response()->json(['rx' => $rx, 'instructions' => $instructions]);
     }
 
     /**
-     * Detailed Comment: Adds prescription medicine into stocks_ledger.
+     * Detailed Comment: Adds prescription medicine into stocks_ledger with specific instructions per medication.
      * Looks up price and PHIC reference from stocks_listing, computes unit price and total amount,
      * and sets transactiontype = 'CHARGES' so that prescription medicines seamlessly reflect
      * with valid prices and line totals in Patient Charges and Billing.
@@ -625,28 +732,31 @@ class DoctorController extends Controller
             return response()->json(['success' => false, 'message' => 'Consultation not found.'], 404);
         }
 
-        $medicine = StocksListingModel::where(['item_grouping' => 'DRUGS AND MEDS', 'prodcode' => $request->prodcode])->first();
+        $prodcode = $request->prodcode ?: $request->drug_code;
+        $medicine = StocksListingModel::where(['item_grouping' => 'DRUGS AND MEDS', 'prodcode' => $prodcode])->first();
         if (!$medicine) {
             return response()->json(['success' => false, 'message' => 'Medicine not found in inventory listing.'], 404);
         }
 
-        $qty = (float)($request->qty ?: 1);
+        $qty = (float)($request->qty ?: ($request->myquantity ?: 1));
         $unitPrice = (float)($medicine->price_regular ?? $medicine->cost_ave ?? 0);
         $totalAmt = $unitPrice * $qty;
+        $instructions = $request->input('instructions', $request->input('myinstructions', ''));
 
         $record = StocksLedgerModel::create([
             'transactiontype' => 'CHARGES',
             'px_pin' => $consultation->pxrefno,
             'px_consultcode_cn' => $request->consultationrefno,
             'patient_name' => $consultation->patientname,
-            'prodcode' => $request->prodcode,
+            'prodcode' => $prodcode,
             'phic_reference_code' => $medicine->phic_reference_code ?? '',
             'item_dscr' => $medicine->prod_itemdscr ?? '',
             'qty' => $qty,
             'cost_ave' => $unitPrice,
             'retails' => $unitPrice,
             'totalamt' => $totalAmt,
-            'item_grouping' => 'DRUGS AND MEDS'
+            'item_grouping' => 'DRUGS AND MEDS',
+            'instructions' => $instructions
         ]);
 
         if ($record) {
@@ -744,6 +854,7 @@ class DoctorController extends Controller
                         'medicinedosage' => '',
                         'medicineduration' => '',
                         'medicinequantity' => $item->qty ?: 1,
+                        'instructions' => $item->instructions ?? '',
                     ];
                 });
 

@@ -62,6 +62,7 @@
                                         $dosage = is_array($medicine) ? ($medicine['medicinedosage'] ?? '') : ($medicine->medicinedosage ?? '');
                                         $duration = is_array($medicine) ? ($medicine['medicineduration'] ?? '') : ($medicine->medicineduration ?? '');
                                         $qty = is_array($medicine) ? ($medicine['medicinequantity'] ?? $medicine['qty'] ?? 1) : ($medicine->medicinequantity ?? $medicine->qty ?? 1);
+                                        $instruction = is_array($medicine) ? ($medicine['instructions'] ?? '') : ($medicine->instructions ?? '');
                                     @endphp
                                     <div style="margin-bottom: 8px; margin-left: 10px;">
                                         <p style="margin-bottom: 0; font-weight: bold; font-size: 14px;">{{ $medName }}</p>
@@ -70,6 +71,11 @@
                                             @if ($duration) Duration: {{ $duration }} &nbsp;&nbsp;&nbsp;&nbsp; @endif
                                             Quantity: {{ $qty }}
                                         </p>
+                                        @if (!empty($instruction))
+                                            <p style="font-size: 12px; margin: 2px 0 0 0; color: #444; font-style: italic;">
+                                                <strong>Sig / Instructions:</strong> {{ $instruction }}
+                                            </p>
+                                        @endif
                                     </div>
                                 @endforeach
                             @else

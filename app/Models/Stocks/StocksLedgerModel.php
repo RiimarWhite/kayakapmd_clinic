@@ -39,6 +39,8 @@ class StocksLedgerModel extends Model
         'item_grouping',
         'sub_grouping',
         'remarks',
+        // Detailed Comment: Prescription / dosage instructions per medication line item in stocks ledger
+        'instructions',
         'updatedby',
         'updated',
         'dispenseby',

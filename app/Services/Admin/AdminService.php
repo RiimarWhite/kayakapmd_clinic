@@ -15,29 +15,106 @@ use function Symfony\Component\Clock\now;
 
 class AdminService
 {
+    /**
+     * Detailed Comment: Fetches paginated stock/item catalog with individual column filtering and custom ordering.
+     * Supports column-level searches (category picklist, description, PhilHealth code) and dynamic sorting,
+     * mirroring the advanced filter functionality from the HMO module.
+     */
     public function getStockList(array $filter)
     {
         $start = $filter['start'] ?? 0;
         $length = $filter['length'] ?? 25;
-        $search = $filter['search']['value'];
+        $search = $filter['search']['value'] ?? '';
 
         $query = StocksListingModel::query();
         $recordsTotal = $query->count();
 
+        // Global search across description, category, and PhilHealth code
         if (!empty($search)) {
-            $query->where('prod_itemdscr', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('prod_itemdscr', 'like', "%{$search}%")
+                  ->orWhere('item_grouping', 'like', "%{$search}%")
+                  ->orWhere('phic_reference_code', 'like', "%{$search}%");
+            });
         }
 
-        $recordsFiltered = $query->count();
+        // Per-column filter handling from custom table header dropdowns
+        if (!empty($filter['columns']) && is_array($filter['columns'])) {
+            // Column 1: Item Description
+            $descFilter = $filter['columns'][1]['search']['value'] ?? '';
+            if (!empty($descFilter)) {
+                $query->where('prod_itemdscr', 'like', "%{$descFilter}%");
+            }
+
+            // Column 2: Category (Picklist exact match or regex list)
+            $groupFilter = $filter['columns'][2]['search']['value'] ?? '';
+            if (!empty($groupFilter)) {
+                $cleaned = trim($groupFilter, '^$()');
+                $groups = array_filter(explode('|', $cleaned));
+                $query->where(function ($q) use ($groupFilter, $groups) {
+                    if (!empty($groups)) {
+                        $q->whereIn('item_grouping', $groups);
+                    }
+                    $q->orWhere('item_grouping', 'like', "%{$groupFilter}%");
+                });
+            }
+
+            // Column 3: PhilHealth Reference Code
+            $phicFilter = $filter['columns'][3]['search']['value'] ?? '';
+            if (!empty($phicFilter)) {
+                $query->where('phic_reference_code', 'like', "%{$phicFilter}%");
+            }
+
+            // Column 4: Price (Regular)
+            $regFilter = $filter['columns'][4]['search']['value'] ?? '';
+            if (!empty($regFilter)) {
+                $query->where('price_regular', 'like', "%{$regFilter}%");
+            }
+
+            // Column 5: Price (PHIC)
+            $phicPriceFilter = $filter['columns'][5]['search']['value'] ?? '';
+            if (!empty($phicPriceFilter)) {
+                $query->where('price_phic', 'like', "%{$phicPriceFilter}%");
+            }
+
+            // Column 6: Price (HMO)
+            $hmoPriceFilter = $filter['columns'][6]['search']['value'] ?? '';
+            if (!empty($hmoPriceFilter)) {
+                $query->where('price_hmo', 'like', "%{$hmoPriceFilter}%");
+            }
+
+            // Column 7: Price (Others)
+            $othersPriceFilter = $filter['columns'][7]['search']['value'] ?? '';
+            if (!empty($othersPriceFilter)) {
+                $query->where('price_others', 'like', "%{$othersPriceFilter}%");
+            }
+        }
+
+        $recordsFiltered = (clone $query)->count();
+
+        // Dynamic column ordering
+        $orderColIdx = $filter['order'][0]['column'] ?? 1;
+        $orderDir = $filter['order'][0]['dir'] ?? 'asc';
+        $columnsMap = [
+            1 => 'prod_itemdscr',
+            2 => 'item_grouping',
+            3 => 'phic_reference_code',
+            4 => 'price_regular',
+            5 => 'price_phic',
+            6 => 'price_hmo',
+            7 => 'price_others'
+        ];
+        $orderColumn = $columnsMap[$orderColIdx] ?? 'prod_itemdscr';
+        $orderDirection = strtolower($orderDir) === 'desc' ? 'desc' : 'asc';
 
         $items = $query->select(['prodcode', 'prod_itemdscr', 'item_grouping', 'phic_reference_code', 'price_regular', 'price_phic', 'price_hmo', 'price_others'])
-            ->orderBy('prod_itemdscr')
+            ->orderBy($orderColumn, $orderDirection)
             ->offset($start)
             ->limit($length)
             ->get();
 
         return [
-            'draw' => intval($filter['draw']),
+            'draw' => intval($filter['draw'] ?? 1),
             'recordsTotal' => $recordsTotal,
             'recordsFiltered' => $recordsFiltered,
             'data' => $items

@@ -13,18 +13,20 @@
             <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#add_item_modal"><i class="fa-solid fa-plus"></i> Add Item</button>
         </div>
 
+        <!-- Detailed Comment: Stocks & Services Inventory Table with custom column filter and sorting headers -->
         <div class="table-responsive">
-            <table class="table table-sm table-bordered" id="stocks_table">
-                <thead class="table-success">
+            <table class="table table-sm table-bordered table-hover align-middle caption-top w-100" id="stocks_table">
+                <caption>List of Clinic Stocks, Medications, and Service Offerings</caption>
+                <thead class="table-light">
                     <tr>
-                        <th scope="col">Actions</th>
-                        <th scope="col">Item Description</th>
-                        <th scope="col">Category</th>
-                        <th scope="col">PhilHealth Reference Code</th>
-                        <th scope="col">Price <span class="text-secondary">(Regular)</span></th>
-                        <th scope="col">Price <span class="text-secondary">(PHIC)</span></th>
-                        <th scope="col">Price <span class="text-secondary">(HMO)</span></th>
-                        <th scope="col">Price <span class="text-secondary">(Others)</span></th>
+                        <th scope="col" style="width: 110px;" class="text-center" id="th_stock_actions">Actions</th>
+                        <th scope="col" id="th_stock_desc">Item Description</th>
+                        <th scope="col" id="th_stock_group">Category</th>
+                        <th scope="col" id="th_stock_phic">PhilHealth Reference Code</th>
+                        <th scope="col" id="th_stock_reg">Price (Regular)</th>
+                        <th scope="col" id="th_stock_phic_price">Price (PHIC)</th>
+                        <th scope="col" id="th_stock_hmo">Price (HMO)</th>
+                        <th scope="col" id="th_stock_others">Price (Others)</th>
                     </tr>
                 </thead>
                 <tbody></tbody>

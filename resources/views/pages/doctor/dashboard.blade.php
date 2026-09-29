@@ -56,6 +56,33 @@
                 </div>
             </div>
         </div>
+
+        <!-- Detailed Comment: Default Professional/Consultation Fee Configuration widget per user requirements -->
+        <div class="row g-3 mt-1">
+            <div class="col-md-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header text-bg-warning text-dark d-flex justify-content-between align-items-center py-2">
+                        <h5 class="card-title m-0 fw-bold"><i class="fa-solid fa-coins me-1"></i> Default Consultation Fee</h5>
+                        <span class="badge bg-dark text-white">Auto-charge</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Configure your default professional/consultation fee rate. This fee is automatically populated to the patient charges during consultation.</p>
+                        <form id="doctor_fee_form" class="d-flex align-items-end gap-3">
+                            <div class="flex-grow-1">
+                                <label class="form-label fw-bold mb-1" for="doctor_pfrate">Professional Fee Rate (PHP)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text fw-bold">PHP</span>
+                                    <input type="number" step="0.01" min="0" class="form-control form-control-lg fw-bold text-success" id="doctor_pfrate" name="pfrate" value="{{ number_format((float)($doctor->pfrate ?? 0), 2, '.', '') }}">
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-warning fw-bold btn-lg text-nowrap" id="save_doctor_fee_btn">
+                                <i class="fa-solid fa-floppy-disk me-1"></i> Update Fee
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 @endsection
 

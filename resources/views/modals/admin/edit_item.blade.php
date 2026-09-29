@@ -24,41 +24,49 @@
                     </select>
                 </div>
 
-                <div class="d-flex gap-2">
-                    <div class="w-100">
-                        <label class="form-label" for="eitem_dscr">Name <span class="text-danger">*</span></label>
-                        <input class="form-control" type="text" name="eitem_dscr" id="eitem_dscr">
+                <!-- Detailed Comment: Drug-specific fields placed ABOVE Item Name & PhilHealth Code when Category is Drugs & Medicine -->
+                <div class="d-none flex-column gap-3" id="edrug_fields">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="edrug_generic">Generic Name <span class="text-danger">*</span></label>
+                            <select class="form-select" name="edrug_generic" id="edrug_generic" style="width: 100%;">
+                                <option value="">-- Search Generic Name --</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold" for="edrug_brand">Brand Name</label>
+                            <input class="form-control" type="text" name="edrug_brand" id="edrug_brand" placeholder="e.g. Biogesic">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold" for="edrug_dosage">Dosage</label>
+                            <input class="form-control" type="text" name="edrug_dosage" id="edrug_dosage" placeholder="e.g. 500mg">
+                        </div>
                     </div>
 
-                    <div class="d-none w-50" id="erefcode">
-                        <label class="form-label" for="eref_code">PhilHealth Reference Code</label>
-                        <input class="form-control" type="text" name="eref_code" id="eref_code">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="edrug_group">Group</label>
+                            <select class="form-select" name="edrug_group" id="edrug_group">
+                                <option value="" disabled selected>-- Select Group --</option>
+                                <option value="DRUGS AND MEDS">Drugs & Medicine</option>
+                                <option value="MEDICAL SUPPLIES">Medical Supplies</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
-                <div class="d-none gap-2" id="edrug_fields">
-                    <div class="flex-fill">
-                        <label class="form-label" for="edrug_generic">Generic Name</label>
-                        <input class="form-control" type="text" name="edrug_generic" id="edrug_generic">
+                <!-- Detailed Comment: Item Name and PhilHealth Reference Code positioned below drug fields -->
+                <div class="d-flex gap-2" id="ename_and_refcode_row">
+                    <div class="w-100" id="ename_container">
+                        <label class="form-label fw-bold" for="eitem_dscr">Name <span class="text-danger">*</span></label>
+                        <input class="form-control" type="text" name="eitem_dscr" id="eitem_dscr" placeholder="Item or Service Name">
                     </div>
 
-                    <div class="flex-fill">
-                        <label class="form-label" for="edrug_brand">Brand</label>
-                        <input class="form-control" type="text" name="edrug_brand" id="edrug_brand">
-                    </div>
-
-                    <div class="flex-fill">
-                        <label class="form-label" for="edrug_dosage">Dosage</label>
-                        <input class="form-control" type="text" name="edrug_dosage" id="edrug_dosage">
-                    </div>
-
-                    <div class="flex-fill">
-                        <label class="form-label" for="edrug_group">Group</label>
-                        <select class="form-select" name="edrug_group" id="edrug_group">
-                            <option value="" disabled selected>-- Select --</option>
-                            <option value="DRUGS AND MEDS">Drus & Medicine</option>
-                            <option value="MEDICAL SUPPLIES">Medical Supplies</option>
-                        </select>
+                    <div class="d-none w-50" id="erefcode">
+                        <label class="form-label fw-bold" for="eref_code">PhilHealth Reference Code</label>
+                        <input class="form-control" type="text" name="eref_code" id="eref_code" placeholder="PHIC Code">
                     </div>
                 </div>
 

@@ -559,6 +559,7 @@ The front-desk / EMR core: the patient master list, the walk-in consultation que
 | `allow_emailnotification` | tinyint(1) | NULL | NULL |  |
 | `allow_sms` | tinyint(1) | NULL | NULL |  |
 | `senior_idno` | varchar(80) | NULL | NULL |  |
+| `photo_path` | varchar(255) | NULL | NULL | Path to patient captured/uploaded photo |
 
 ### `pxwalkinconsultation`
 
@@ -919,6 +920,7 @@ Drug/medical-supply catalog (`stocks_listing`) and the transactional stock movem
 | `item_grouping` | enum('DRUGS AND MEDS','SUPPLIES','PROCEDURES','DIAGNOSTIC','IMAGING','PROFESSIONAL FEE') | NULL | NULL |  |
 | `sub_grouping` | varchar(50) | NULL | NULL |  |
 | `remarks` | varchar(120) | NULL | NULL |  |
+| `instructions` | text | NULL | NULL | Prescription instructions / dosage instructions for the medicine |
 | `updatedby` | varchar(80) | NULL | NULL |  |
 | `updated` | datetime | NULL | NULL |  |
 | `dispenseby` | varchar(80) | NULL | NULL |  |

@@ -29,6 +29,10 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link fw-semibold" id="view-clinic-tab" data-bs-toggle="tab" data-bs-target="#view-clinic" type="button" role="tab"><i class="fa-solid fa-notes-medical me-1"></i> Clinic & Audit Trail</button>
                     </li>
+                    <!-- Detailed Comment: Medical History tab added to Patient Details Modal per requirements -->
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-semibold" id="view-medhistory-tab" data-bs-toggle="tab" data-bs-target="#view-medhistory" type="button" role="tab"><i class="fa-solid fa-clock-rotate-left me-1"></i> Medical History</button>
+                    </li>
                 </ul>
 
                 <div class="tab-content" id="viewPatientTabContent">
@@ -191,6 +195,33 @@
                                 <label class="form-label small fw-bold text-muted">Last Updated Date</label>
                                 <input class="form-control bg-light" type="text" id="view_updated" readonly>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Comment: Tab 4 - Medical History containing previous consultations and SOAP notes -->
+                    <div class="tab-pane fade" id="view-medhistory" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold m-0 text-primary"><i class="fa-solid fa-clock-rotate-left me-1"></i> Patient Consultation &amp; Medical History</h6>
+                            <span class="badge bg-secondary" id="view_medhistory_count">0 records</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered align-middle w-100" id="view_medhistory_table">
+                                <thead class="table-info">
+                                    <tr>
+                                        <th scope="col" class="text-center" style="width: 50px;">Photo</th>
+                                        <th scope="col" style="width: 130px;">Consultation Date</th>
+                                        <th scope="col">Reason for Consultation</th>
+                                        <th scope="col" style="width: 100px;">Status</th>
+                                        <th scope="col" style="width: 150px;">Recorded By</th>
+                                        <th scope="col" style="width: 120px;">Recorded On</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-3">No consultation history records found.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

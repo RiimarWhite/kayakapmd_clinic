@@ -216,11 +216,32 @@ class ManagementController extends Controller
         return response()->json($stocks);
     }
 
+    /**
+     * Detailed Comment: Fetches generic drug references from dw_lib_meds_generic for searchable dropdowns.
+     * Formats output for Select2 AJAX compatibility (`results`) and retains legacy `generic` array.
+     */
     public function fetchDrugRef(Request $request)
     {
-        $data = $this->service->getDrugRefs($request->input('term'));
+        $term = $request->input('term') ?: $request->input('q');
+        $data = $this->service->getDrugRefs($term);
 
-        return response()->json($data);
+        $results = [];
+        if (!empty($data['generic'])) {
+            foreach ($data['generic'] as $item) {
+                $results[] = [
+                    'id' => $item->value,
+                    'text' => $item->label,
+                    'gen_code' => $item->id,
+                    'gen_desc' => $item->value
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'results' => $results,
+            'generic' => $data['generic'] ?? []
+        ]);
     }
 
     public function fetchDiagRef(Request $request)
@@ -294,7 +315,7 @@ class ManagementController extends Controller
                 'drug_generic' => $request->drug_generic,
                 'drug_brand' => $request->drug_brand,
                 'drug_dosage' => $request->drug_dosage,
-                'drug_group' => $request->drug_group
+                'drug_grouping' => $request->drug_group ?? $request->drug_grouping
             ];
         } else if ($request->item_group == "DIAGNOSTIC") {
             $add_array = [
@@ -2238,9 +2259,12 @@ class ManagementController extends Controller
             ->first();
 
         $photoUrl = null;
-        if ($latestConsult && $latestConsult->photo_path) {
-            $filename = basename($latestConsult->photo_path);
+        $photo = ($latestConsult && $latestConsult->photo_path) ? $latestConsult->photo_path : ($patient->photo_path ?? null);
+        if ($photo && !str_contains($photo, 'blank_photo.png')) {
+            $filename = basename($photo);
             $photoUrl = url('/patient/photo/' . $filename);
+        } else {
+            $photoUrl = url('/images/blank_photo.png');
         }
 
         return response()->json([

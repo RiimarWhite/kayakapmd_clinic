@@ -300,6 +300,13 @@ fi
 echo -e "\n${COLOR_BOLD}${COLOR_BLUE}[8/8] Running: npm run build & configuring permissions...${COLOR_RESET}"
 npm run build
 
+# Detailed Comment: Ensure storage symlink and upload directories exist for patient photos and diagnostic attachments
+if [ ! -L "public/storage" ] && [ ! -d "public/storage" ]; then
+    echo -e "  [✓] Creating storage symlink (php artisan storage:link)..."
+    php artisan storage:link 2>/dev/null || true
+fi
+mkdir -p storage/app/private/patient_photo storage/app/public/patients/photos storage/app/private/radiology_results storage/app/private/laboratory_results 2>/dev/null || true
+
 # Detailed Comment: Ensure storage and bootstrap/cache directories are fully writable (777)
 # across both Docker CLI processes (running as root) and Apache web server (running as www-data).
 # This prevents permission denied crashes on storage/logs/laravel.log and compiled blade templates.

@@ -380,4 +380,47 @@ $(function () {
             });
         });
     }
+
+    /**
+     * Detailed Comment: Save default doctor professional/consultation fee handler.
+     * Posts to /api/doctor/update_fee to update both doctors and doctorsrights tables,
+     * ensuring default auto-charges on new patient consultations.
+     */
+    $("#save_doctor_fee_btn").on("click", function () {
+        const fee = $("#doctor_pfrate").val();
+        if (fee === "" || parseFloat(fee) < 0) {
+            return Swal.fire({ title: "Validation Error", text: "Please enter a valid consultation fee amount.", icon: "warning" });
+        }
+
+        const $btn = $(this);
+        setBtnLoading($btn, "Updating...");
+
+        $.ajax({
+            url: "/api/doctor/update_fee",
+            type: "POST",
+            headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+            data: { pfrate: fee },
+            success: function (response) {
+                if (response.success) {
+                    Swal.fire({
+                        toast: true,
+                        position: "top-end",
+                        icon: "success",
+                        title: "Default consultation fee updated!",
+                        showConfirmButton: false,
+                        timer: 1500
+                    });
+                } else {
+                    Swal.fire({ title: "Error", text: response.message || "Failed to update consultation fee.", icon: "error" });
+                }
+            },
+            error: function (xhr) {
+                const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "Failed to update fee.";
+                Swal.fire({ title: "Error", text: msg, icon: "error" });
+            },
+            complete: function () {
+                resetBtnLoading($btn);
+            }
+        });
+    });
 });

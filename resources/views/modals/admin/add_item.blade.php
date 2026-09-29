@@ -34,15 +34,49 @@
                     </div>
                 </div>
 
-                <div class="d-flex gap-2">
-                    <div class="w-100">
-                        <label class="form-label" for="item_dscr">Name <span class="text-danger">*</span></label>
-                        <input class="form-control" type="text" name="item_dscr" id="item_dscr">
+                <!-- Detailed Comment: Drug-specific fields placed ABOVE Item Name & PhilHealth Code when Category is Drugs & Medicine -->
+                <div class="d-none flex-column gap-3" id="drug_fields">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="drug_generic">Generic Name <span class="text-danger">*</span></label>
+                            <select class="form-select" name="drug_generic" id="drug_generic" style="width: 100%;">
+                                <option value="">-- Search Generic Name --</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold" for="drug_brand">Brand Name</label>
+                            <input class="form-control" type="text" name="drug_brand" id="drug_brand" placeholder="e.g. Biogesic">
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold" for="drug_dosage">Dosage</label>
+                            <input class="form-control" type="text" name="drug_dosage" id="drug_dosage" placeholder="e.g. 500mg">
+                        </div>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold" for="drug_group">Group</label>
+                            <select class="form-select" name="drug_group" id="drug_group">
+                                <option value="" disabled selected>-- Select Group --</option>
+                                <option value="DRUGS AND MEDS">Drugs & Medicine</option>
+                                <option value="MEDICAL SUPPLIES">Medical Supplies</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Comment: Item Name and PhilHealth Reference Code positioned below drug fields -->
+                <div class="d-flex gap-2" id="name_and_refcode_row">
+                    <div class="w-100" id="name_container">
+                        <label class="form-label fw-bold" for="item_dscr">Name <span class="text-danger">*</span></label>
+                        <input class="form-control" type="text" name="item_dscr" id="item_dscr" placeholder="Item or Service Name">
                     </div>
 
                     <div class="d-none w-50" id="refcode">
-                        <label class="form-label" for="ref_code">PhilHealth Reference Code</label>
-                        <input class="form-control" type="text" name="ref_code" id="ref_code">
+                        <label class="form-label fw-bold" for="ref_code">PhilHealth Reference Code</label>
+                        <input class="form-control" type="text" name="ref_code" id="ref_code" placeholder="PHIC Code">
                     </div>
                 </div>
 
@@ -50,32 +84,6 @@
                     <div class="flex flex-fill">
                         <label class="form-label" for="item_add">Additional Description</label>
                         <input class="form-control" type="text" name="item_add" id="item_add">
-                    </div>
-                </div>
-
-                <div class="d-none gap-2" id="drug_fields">
-                    <div class="flex-fill">
-                        <label class="form-label" for="drug_generic">Generic Name</label>
-                        <input class="form-control" type="text" name="drug_generic" id="drug_generic">
-                    </div>
-
-                    <div class="flex-fill">
-                        <label class="form-label" for="drug_brand">Brand</label>
-                        <input class="form-control" type="text" name="drug_brand" id="drug_brand">
-                    </div>
-
-                    <div class="flex-fill">
-                        <label class="form-label" for="drug_dosage">Dosage</label>
-                        <input class="form-control" type="text" name="drug_dosage" id="drug_dosage">
-                    </div>
-
-                    <div class="flex-fill">
-                        <label class="form-label" for="drug_group">Group</label>
-                        <select class="form-select" name="drug_group" id="drug_group">
-                            <option value="" disabled selected>-- Select --</option>
-                            <option value="DRUGS AND MEDS">Drus & Medicine</option>
-                            <option value="MEDICAL SUPPLIES">Medical Supplies</option>
-                        </select>
                     </div>
                 </div>
 

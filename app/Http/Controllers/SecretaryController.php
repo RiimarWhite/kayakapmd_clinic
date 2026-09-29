@@ -690,6 +690,7 @@ class SecretaryController extends Controller
         return response()->json([
             'success' => true,
             'history' => $history,
+            'medhistory' => $history,
             'data' => $history
         ]);
     }

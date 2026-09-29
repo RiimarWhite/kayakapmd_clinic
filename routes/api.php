@@ -62,6 +62,7 @@ Route::middleware(['web', 'auth:secretary,admin'])->group(function () {
     Route::post('update_queue_status', [ConsultationController::class, 'updateQueueStatus'])->name('consultation.update_queue_status');
     Route::post('fetch_latest_patient_details', [ConsultationController::class, 'fetchLatestPatientDetails'])->name('consultation.fetch_latest_patient_details');
     Route::post('reschedule_patient', [ConsultationController::class, 'reschedulePatient']);
+    Route::post('fetch_doctors_queue_counts', [ConsultationController::class, 'fetchDoctorsQueueCounts'])->name('queue.doctors_counts');
 
     Route::post('fetch_hmo', [ConsultationController::class, 'fetchHMO']);
 
@@ -78,6 +79,8 @@ Route::middleware(['web', 'auth:doctor,admin'])->group(function () {
     Route::post('fetch_doctor_data', [DoctorController::class, 'fetchDoctorUser']);
     // Detailed Comment: Self-service profile update route allowing logged in doctor to update own profile and credentials
     Route::post('doctor/update_profile', [DoctorController::class, 'updateDoctorProfile'])->name('doctor.update_profile');
+    Route::post('doctor/update_fee', [DoctorController::class, 'updateDoctorFee'])->name('doctor.update_fee');
+    Route::post('update_doctor_fee', [DoctorController::class, 'updateDoctorFee']);
 
     Route::post('fetch_patient_history', [DoctorController::class, 'fetchPatientHistory']);
 
@@ -168,6 +171,10 @@ Route::middleware(['web', 'auth:admin'])->group(function () {
     // Stocks-related
     Route::post('fetch_stocks', [ManagementController::class, 'fetchStocks']);
     Route::post('fetch_drugref', [ManagementController::class, 'fetchDrugRef']);
+    Route::post('fetch_drug_ref', [ManagementController::class, 'fetchDrugRef']);
+    Route::get('fetch_drug_ref', [ManagementController::class, 'fetchDrugRef']);
+    Route::post('fetch_drug_generic', [ManagementController::class, 'fetchDrugRef']);
+    Route::get('fetch_drug_generic', [ManagementController::class, 'fetchDrugRef']);
     Route::post('fetch_diagnostic_reference', [ManagementController::class, 'fetchDiagRef']);
     Route::post('fetch_stocks_ledger', [ManagementController::class, 'fetchStocksLedger']);
 

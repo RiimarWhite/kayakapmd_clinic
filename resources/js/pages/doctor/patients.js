@@ -97,7 +97,7 @@ $(function () {
                 {
                     data: null,
                     render: function (data) {
-                        return `<div class="text-center"><img src="${data.photo_path || '/images/blank_photo.png'}" class="rounded rounded-circle border shadow-sm" style="width: 40px; height: 40px; object-fit: cover;" alt="patient_photo"></div>`;
+                        return `<div class="text-center"><img src="${data.photo_path || '/images/blank_photo.png'}" class="rounded rounded-circle border shadow-sm" style="width: 40px; height: 40px; object-fit: cover;" alt="patient_photo" onerror="this.src='/images/blank_photo.png'"></div>`;
                     }
                 },
                 {
@@ -223,6 +223,65 @@ $(function () {
                     $("#view_recordeddate").val(p.recordeddate || 'N/A');
                     $("#view_updatedby").val(p.updatedby || 'N/A');
                     $("#view_updated").val(p.updated || 'N/A');
+
+                    // Detailed Comment: Tab 4 - Medical History Loader for Patient Details Modal
+                    const $histTbody = $("#view_medhistory_table tbody");
+                    $histTbody.html('<tr><td colspan="6" class="text-center py-2"><div class="spinner-border spinner-border-sm text-primary me-1"></div> Loading medical history...</td></tr>');
+                    $("#view_medhistory_count").text("Loading...");
+
+                    $.ajax({
+                        url: "/api/fetch_patient_medhistory",
+                        type: "POST",
+                        headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                        data: { pxrefno: p.pxrefno, pincode: p.pincode },
+                        success: function (histRes) {
+                            $histTbody.empty();
+                            const history = histRes.history || histRes.medhistory || [];
+                            $("#view_medhistory_count").text(`${history.length} records`);
+
+                            if (history.length === 0) {
+                                $histTbody.append('<tr><td colspan="6" class="text-center text-muted py-3">No consultation history records found.</td></tr>');
+                                return;
+                            }
+
+                            const badges = {
+                                WAITING: "bg-warning text-white",
+                                IN_CONSULTATION: "bg-info text-white",
+                                FOR_BILLING: "bg-primary text-white",
+                                COMPLETED: "bg-success text-white",
+                                UNSCHEDULED: "bg-secondary text-white",
+                                CANCELLED: "bg-danger text-white",
+                                NO_SHOW: "bg-danger text-white"
+                            };
+
+                            history.forEach(item => {
+                                const photo = item.photo_path || '/images/blank_photo.png';
+                                const dateStr = item.consultation_date ? item.consultation_date.substring(0, 16) : 'N/A';
+                                const reason = item.reasonforconsultation || 'No chief complaint recorded.';
+                                const status = item.status || 'N/A';
+                                const recordedby = item.recordedby || 'N/A';
+                                const recordeddate = item.recordeddate ? item.recordeddate.substring(0, 10) : 'N/A';
+                                const badgeClass = badges[status] || "bg-secondary text-white";
+
+                                $histTbody.append(`
+                                    <tr>
+                                        <td class="text-center">
+                                            <img src="${photo}" alt="patient" class="rounded border" style="width: 36px; height: 36px; object-fit: cover;" onerror="this.src='/images/blank_photo.png'">
+                                        </td>
+                                        <td class="fw-semibold text-nowrap">${dateStr}</td>
+                                        <td>${reason}</td>
+                                        <td><span class="badge ${badgeClass}">${status}</span></td>
+                                        <td class="text-nowrap">${recordedby}</td>
+                                        <td class="text-nowrap">${recordeddate}</td>
+                                    </tr>
+                                `);
+                            });
+                        },
+                        error: function () {
+                            $histTbody.html('<tr><td colspan="6" class="text-center text-danger py-2">Failed to load medical history.</td></tr>');
+                            $("#view_medhistory_count").text("0 records");
+                        }
+                    });
 
                     const modal = new bootstrap.Modal(document.getElementById("viewPatientModal"));
                     modal.show();

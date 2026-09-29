@@ -20,22 +20,30 @@
 
                         <div class="accordion-collapse collapse" id="rx_patient_info">
                             <div class="accordion-body">
+                                <div class="d-flex gap-3 align-items-center mb-3">
+                                    <img id="genphoto" src="/images/blank_photo.png" class="rounded rounded-circle border shadow-sm" style="width: 60px; height: 60px; object-fit: cover;" alt="Patient Photo" onerror="this.src='/images/blank_photo.png'">
+                                    <div>
+                                        <h5 class="m-0 fw-bold" id="genname"></h5>
+                                        <div class="text-muted small">PIN: <span id="genpincode" class="fw-semibold">N/A</span> | Ref: <span id="genpxrefno" class="fw-semibold">N/A</span></div>
+                                    </div>
+                                </div>
                                 <div class="d-flex flex-column">
-                                    <p class="m-0">Name: <strong id="genname"></strong></p>
-                                    <p class="m-0">Sex: <strong id="gensex"></strong></p>
                                     <div class="d-flex">
-                                        <p class="m-0 w-50">Birthdate: <strong id="genbday"></strong></p>
-                                        <p class="m-0 w-50">Age: <strong id="genage"></strong></p>
+                                        <p class="m-0 w-50">Sex: <strong id="gensex"></strong></p>
+                                        <p class="m-0 w-50">Birthdate: <strong id="genbday"></strong> (Age: <strong id="genage"></strong>)</p>
                                     </div>
 
                                     <div class="d-flex">
-                                        <p class="m-0 w-50">Contact #: <strong id="gencellno"></strong></p>
+                                        <p class="m-0 w-50">Mobile: <strong id="gencellno"></strong></p>
+                                        <p class="m-0 w-50">Landline: <strong id="genlandline"></strong></p>
+                                    </div>
+
+                                    <div class="d-flex">
                                         <p class="m-0 w-50">Email: <strong id="genemail"></strong></p>
+                                        <p class="m-0 w-50">Address: <strong id="genaddress"></strong></p>
                                     </div>
 
-                                    <p class="m-0">Address: <strong id="genaddress"></strong></p>
-
-                                    <hr>
+                                    <hr class="my-2">
 
                                     <div class="d-flex justify-content-between">
                                         <p class="m-0 w-50">Weight: <strong id="genweight"></strong></p>
@@ -228,6 +236,7 @@
                                         <thead class="table-info">
                                             <tr>
                                                 <th scope="col">Medicine Name</th>
+                                                <th scope="col">Instructions / Sig</th>
                                                 <th scope="col">Quantity</th>
                                                 <th scope="col">Dispense Status</th>
                                             </tr>
@@ -472,6 +481,7 @@
                                     <tr>
                                         <th scope="col">Actions</th>
                                         <th scope="col">Medicine Name</th>
+                                        <th scope="col">Instructions / Sig</th>
                                         <th scope="col">Quantity</th>
                                     </tr>
                                 </thead>
@@ -480,24 +490,25 @@
                             </table>
                         </div>
 
-                        <form class="d-flex gap-2 m-0" id="myrx_form">
+                        <form class="d-flex flex-wrap gap-2 m-0" id="myrx_form">
                             @csrf
 
-                            <div class="d-flex flex-column flex-fill">
-                                <label class="form-label" for="mymed">Medicine</label>
+                            <div class="d-flex flex-column flex-fill" style="min-width: 250px;">
+                                <label class="form-label fw-bold" for="mymed">Medicine</label>
                                 <select class="form-select" name="mymed" id="mymed"></select>
                             </div>
 
-                            <div>
-                                <!-- <span class="input-group-text">Dosage</span>
-                                <input class="form-control" type="number" name="mydosage" id="mydosage" value="0" required>
-                                <span class="input-group-text">Duration</span>
-                                <input class="form-control" type="text" name="myduration" id="myduration" required> -->
-                                <label class="form-label" for="myquantity">Quantity</label>
-                                <input class="form-control" type="number" name="myquantity" id="myquantity" value="0" required>
+                            <div class="d-flex flex-column flex-fill" style="min-width: 250px;">
+                                <label class="form-label fw-bold" for="myinstructions">Instructions / Sig</label>
+                                <input class="form-control" type="text" name="myinstructions" id="myinstructions" placeholder="e.g. 1 tab 3x a day after meals">
                             </div>
 
-                            <button type="button" class="btn btn-primary w-25 align-self-end mt-2" id="add_rx">Add Medicine</button>
+                            <div style="width: 100px;">
+                                <label class="form-label fw-bold" for="myquantity">Quantity</label>
+                                <input class="form-control" type="number" name="myquantity" id="myquantity" value="1" min="1" required>
+                            </div>
+
+                            <button type="button" class="btn btn-primary align-self-end mt-2" id="add_rx">Add Medicine</button>
                         </form>
                     </div>
 

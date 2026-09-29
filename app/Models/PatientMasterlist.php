@@ -54,7 +54,9 @@ class PatientMasterlist extends Model
         'updated',
         'canaccess_online',
         'allow_emailnotification',
-        'allow_sms'
+        'allow_sms',
+        // Detailed Comment: File path to the captured or uploaded patient photo stored in storage/app/public/patient_photos
+        'photo_path'
     ];
 
     const CREATED_AT = 'recordeddate';

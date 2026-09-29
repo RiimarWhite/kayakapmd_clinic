@@ -131,8 +131,16 @@ $(function () {
         // minimumInputLength: 1
     });
 
-    // Detailed Comment: Add prescription medicine to patient ledger with button loading state
+    // Detailed Comment: Add prescription medicine to patient ledger with specific instructions and button loading state
     $("#add_rx").on("click", function () {
+        const prodcode = $("#mymed").val();
+        if (!prodcode) {
+            return Swal.fire({ title: "Validation Error", text: "Please select a medicine.", icon: "warning" });
+        }
+        const qty = $("#myquantity").val();
+        const instructions = $("#myinstructions").val();
+        const consultationrefno = $("#consultationrefno").val();
+
         const $btn = $(this);
         setBtnLoading($btn, "Adding...");
 
@@ -140,14 +148,31 @@ $(function () {
             url: "/api/add_medicine",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-            data: { consultationrefno: $("#consultationrefno").val(), prodcode: $("#mymed").val(), qty: $("#myquantity").val() },
+            data: {
+                consultationrefno: consultationrefno,
+                prodcode: prodcode,
+                qty: qty,
+                instructions: instructions
+            },
             success: function (response) {
                 if (response.success) {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Medicine added!', showConfirmButton: false, timer: 1500 });
                     loadRx();
+                    if (typeof window.loadDashboardRx === 'function') {
+                        window.loadDashboardRx();
+                    }
                     if ($.fn.DataTable.isDataTable("#charges_table")) {
                         $("#charges_table").DataTable().ajax.reload();
                     }
+                    $("#myinstructions").val('');
+                    $("#myquantity").val('1');
+                } else {
+                    Swal.fire({ title: "Error", text: response.message || "Failed to add medicine.", icon: "error" });
                 }
+            },
+            error: function (xhr) {
+                const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "Failed to add medicine.";
+                Swal.fire({ title: "Error", text: msg, icon: "error" });
             },
             complete: function () {
                 resetBtnLoading($btn);
@@ -186,6 +211,9 @@ $(function () {
                                 timer: 1500
                             });
                             loadRx();
+                            if (typeof window.loadDashboardRx === 'function') {
+                                window.loadDashboardRx();
+                            }
                             if ($.fn.DataTable.isDataTable("#charges_table")) {
                                 $("#charges_table").DataTable().ajax.reload();
                             }
@@ -200,7 +228,9 @@ $(function () {
     });
 
     function loadRx() {
-        $("#rx_table").DataTable().destroy().clear();
+        if ($.fn.DataTable.isDataTable("#rx_table")) {
+            $("#rx_table").DataTable().destroy().clear();
+        }
         $("#rx_table").DataTable({
             ajax: {
                 url: "/api/fetch_medicine_rx",
@@ -215,32 +245,34 @@ $(function () {
                 {
                     data: null,
                     render: function (data) {
-                        return `<button class="btn btn-sm btn-danger delete_rx" value="${data.prodcode}"><i class="fa-solid fa-trash"></i></button>`;
+                        return `<button class="btn btn-sm btn-danger delete_rx" value="${data.prodcode}" title="Delete medicine"><i class="fa-solid fa-trash"></i></button>`;
                     }
                 },
                 { data: 'item_dscr' },
+                {
+                    data: 'instructions',
+                    defaultContent: '<span class="text-muted fst-italic">None</span>',
+                    render: function (data) {
+                        return data ? `<span class="fw-semibold text-primary">${data}</span>` : '<span class="text-muted fst-italic">None</span>';
+                    }
+                },
                 { data: 'qty' },
             ],
             columnDefs: [
                 {
-                    target: 0,
+                    targets: [0, 3],
                     width: '1%',
-                    className: 'text-nowrap text-center items-align-center'
-                },
-                {
-                    targets: [0, 1],
                     orderable: false,
                     searchable: false,
-                    className: 'text-nowrap align-middle'
+                    className: 'text-nowrap text-center align-middle'
                 },
                 {
-                    target: 2,
-                    width: '1%',
-                    className: 'text-center text-nowrap'
+                    targets: [1, 2],
+                    className: 'align-middle'
                 }
             ],
             language: {
-                emptyTable: "No records yet."
+                emptyTable: "No prescription records yet."
             },
             pageLength: 5,
             info: false,

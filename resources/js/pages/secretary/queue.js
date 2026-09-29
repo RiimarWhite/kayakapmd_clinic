@@ -45,10 +45,41 @@ $(function () {
     loadPatients();
     loadSchedules(1);
     loadSchedules(2);
+    updateDoctorQueueBadges();
+
+    /**
+     * Detailed Comment: Fetches real-time patient queue counts grouped by assigned doctor
+     * and decorates each doctor option in #doctor_id with the live waiting queue count badge.
+     */
+    function updateDoctorQueueBadges() {
+        const queueDate = $("#queuedate").val() || new Date().toISOString().split('T')[0];
+        $.ajax({
+            url: "/api/fetch_doctors_queue_counts",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: { date: queueDate },
+            success: function (response) {
+                if (response && response.counts) {
+                    $("#doctor_id option").each(function () {
+                        const docref = $(this).val();
+                        if (!docref) return;
+                        let origText = $(this).data("orig-text");
+                        if (!origText) {
+                            origText = $(this).text().replace(/\s*\(\d+\s*queued\)/i, '').trim();
+                            $(this).data("orig-text", origText);
+                        }
+                        const count = response.counts[docref] || 0;
+                        $(this).text(`${origText} (${count} queued)`);
+                    });
+                }
+            }
+        });
+    }
 
     function loadPatients() {
         loadPatientTable();
         loadUnschedTable();
+        updateDoctorQueueBadges();
 
         if ($("#doctor_id").val() == "") {
             $("#questions_container").empty().append(`<p class="m-0 ms-4">No questions loaded.</p>`);
@@ -182,10 +213,22 @@ $(function () {
         });
     }
 
-    // Event bindings
-    $("#doctor_id").on("change", function () { loadPatients(); loadSchedules(1); });
+    // Detailed Comment: Event bindings with doctor queue synchronization and doctor count badges
+    $("#doctor_id").on("change", function () {
+        const selectedDoc = $(this).val();
+        if (selectedDoc) {
+            $("#doctor_for_consult").val(selectedDoc);
+        }
+        loadPatients();
+        loadSchedules(1);
+        loadSchedules(2);
+    });
     $("#doctor_for_consult").on("change", function () { loadSchedules(2); });
-    $("#queuedate").on("change", function () { loadSchedules(1); });
+    $("#queuedate").on("change", function () {
+        loadPatientTable();
+        loadSchedules(1);
+        updateDoctorQueueBadges();
+    });
     $("#stime").on("change", function () { loadPatientTable(); });
     $("#sched_date").on("change", function () { loadSchedules(2); });
     $("#resched_date").on("change", function () { loadSchedules(3); });
@@ -197,6 +240,7 @@ $(function () {
         $("#queuedate").val(d.toISOString().split("T")[0]);
         loadPatientTable();
         loadSchedules(1);
+        updateDoctorQueueBadges();
         setTimeout(() => resetBtnLoading($btn), 400);
     });
 
@@ -207,6 +251,7 @@ $(function () {
         $("#queuedate").val(d.toISOString().split("T")[0]);
         loadPatientTable();
         loadSchedules(1);
+        updateDoctorQueueBadges();
         setTimeout(() => resetBtnLoading($btn), 400);
     });
 
@@ -214,8 +259,178 @@ $(function () {
 
     $("#clear_form").on("click", function () {
         $("#consultation_form")[0].reset();
-        $("#pxconsultationrefno").text("");
+        $("#pxconsultationrefno").text("").val("");
+        $("#pxidno").text("").val("");
+        $("#photo_path").val("");
+        $("#photo_base64").val("");
         $("#patient_picture_preview").prop("src", "/images/blank_photo.png");
+        $("#sec_medhistory_table tbody").html('<tr><td colspan="6" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view medical history.</td></tr>');
+        $("#sec_medhistory_count").text('0 records');
+    });
+
+    /**
+     * Detailed Comment: Patient Photo Upload and Webcam capture integration.
+     * Allows uploading an image file from disk with FileReader preview,
+     * or capturing real-time camera frames via WebRTC MediaDevices into canvas.
+     */
+    $("#upload_patient_image").on("click", function () {
+        $("#patient_image").trigger("click");
+    });
+
+    $("#patient_image").on("change", function () {
+        const file = this.files && this.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                $("#patient_picture_preview").prop("src", e.target.result);
+                $("#photo_base64").val(e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    let cameraStream = null;
+
+    $("#take_photo").on("click", function () {
+        const modalEl = document.getElementById("takePhotoModal");
+        if (!modalEl) return;
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function (stream) {
+                    cameraStream = stream;
+                    const video = document.getElementById("camera_preview");
+                    if (video) {
+                        video.srcObject = stream;
+                        video.play();
+                    }
+                })
+                .catch(function (err) {
+                    console.error("Camera access error:", err);
+                    Swal.fire({
+                        title: "Camera Access Error",
+                        text: "Could not access camera. Please check device permissions.",
+                        icon: "error"
+                    });
+                });
+        }
+    });
+
+    function stopCameraStream() {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        }
+    }
+
+    $("#takePhotoModal").on("hidden.bs.modal", function () {
+        stopCameraStream();
+    });
+
+    $("#save_photo").on("click", function () {
+        const video = document.getElementById("camera_preview");
+        const canvas = document.getElementById("camera_canvas");
+        if (!video || !canvas) return;
+
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/png");
+
+        $("#patient_picture_preview").prop("src", dataUrl);
+        $("#photo_base64").val(dataUrl);
+
+        stopCameraStream();
+        const modalInstance = bootstrap.Modal.getInstance(document.getElementById("takePhotoModal"));
+        if (modalInstance) modalInstance.hide();
+
+        Swal.fire({
+            toast: true,
+            position: "top-end",
+            icon: "success",
+            title: "Photo captured!",
+            showConfirmButton: false,
+            timer: 1500
+        });
+    });
+
+    /**
+     * Detailed Comment: Loads medical and consultation history into the Secretary Medical History tab.
+     * Queries /api/fetch_patient_medhistory using multi-key lookup (pincode, pxrefno, consultationrefno).
+     */
+    function loadSecretaryMedhistory(pincode, pxrefno, consultationrefno) {
+        const $tbody = $("#sec_medhistory_table tbody");
+        $tbody.html('<tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading medical history...</td></tr>');
+
+        $.ajax({
+            url: "/api/fetch_patient_medhistory",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: {
+                pincode: pincode,
+                pxrefno: pxrefno,
+                consultationrefno: consultationrefno
+            },
+            success: function (res) {
+                $tbody.empty();
+                const history = res.medhistory || [];
+                $("#sec_medhistory_count").text(`${history.length} records`);
+
+                if (history.length === 0) {
+                    $tbody.append('<tr><td colspan="6" class="text-center text-muted py-3">No consultation history records found for this patient.</td></tr>');
+                    return;
+                }
+
+                const badges = {
+                    WAITING: "bg-warning text-white",
+                    IN_CONSULTATION: "bg-info text-white",
+                    FOR_BILLING: "bg-primary text-white",
+                    COMPLETED: "bg-success text-white",
+                    UNSCHEDULED: "bg-secondary text-white",
+                    CANCELLED: "bg-danger text-white",
+                    NO_SHOW: "bg-danger text-white"
+                };
+
+                history.forEach(item => {
+                    const photo = item.photo_path || '/images/blank_photo.png';
+                    const dateStr = item.consultation_date ? item.consultation_date.substring(0, 16) : 'N/A';
+                    const reason = item.reasonforconsultation || 'No chief complaint recorded.';
+                    const status = item.status || 'N/A';
+                    const recordedby = item.recordedby || 'N/A';
+                    const recordeddate = item.recordeddate ? item.recordeddate.substring(0, 10) : 'N/A';
+                    const badgeClass = badges[status] || "bg-secondary text-white";
+
+                    $tbody.append(`
+                        <tr>
+                            <td class="text-center">
+                                <img src="${photo}" alt="patient" class="rounded border" style="width: 36px; height: 36px; object-fit: cover;" onerror="this.src='/images/blank_photo.png'">
+                            </td>
+                            <td class="fw-semibold text-nowrap">${dateStr}</td>
+                            <td>${reason}</td>
+                            <td><span class="badge ${badgeClass}">${status}</span></td>
+                            <td class="text-nowrap">${recordedby}</td>
+                            <td class="text-nowrap">${recordeddate}</td>
+                        </tr>
+                    `);
+                });
+            },
+            error: function () {
+                $tbody.html('<tr><td colspan="6" class="text-center text-danger py-3">Failed to load medical history.</td></tr>');
+                $("#sec_medhistory_count").text('0 records');
+            }
+        });
+    }
+
+    $("#patient_medhistory_tab_btn").on("click", function () {
+        const pxrefno = String($("#pxidno").text() || $("#pxidno").val() || "").trim();
+        const pincode = String($("#pincode").val() || "").trim();
+        const cref = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
+        if (pxrefno || pincode || cref) {
+            loadSecretaryMedhistory(pincode, pxrefno, cref);
+        }
     });
 
     // Detailed Comment: Add Patient submit handler with button loading spinner and field validation
@@ -278,6 +493,7 @@ $(function () {
                     $("#pxbday").val(p.birthday || "");
                     $("#pxage").val(p.birthday ? getAge(p.birthday) : "");
                     $("#pxcellnumber").val(p.mobilenumber || "");
+                    $("#pxlandlinenumber").val(p.landlinenumber || "");
                     $("#pxemail").val(p.emailaddress || "");
                     $("#pxaddress").val(p.address || "");
                     $("#pxreasonforconsultation").val(p.reasonforconsultation || "");
@@ -296,6 +512,11 @@ $(function () {
                     }
                     loadSchedules(2);
                     $("#patient_picture_preview").prop("src", p.photo_path ?? '/images/blank_photo.png');
+                    $("#photo_path").val(p.photo_path || "");
+                    $("#photo_base64").val("");
+
+                    // Detailed Comment: Load patient's medical and consultation history into the newly added Medical History tab
+                    loadSecretaryMedhistory(p.pincode, p.pxrefno, p.consultationrefno);
                     if (response.answers && Array.isArray(response.answers)) {
                         response.answers.forEach(element => {
                             $(`textarea[name="answer[${element.questionrefno}]"]`).val(element.answer);
@@ -676,6 +897,8 @@ $(function () {
 
         const image = document.getElementById("patient_image");
         if (image && image.files.length > 0) formData.append("patient_photo", image.files[0]);
+        const photoBase64 = $("#photo_base64").val();
+        if (photoBase64) formData.append("photo_base64", photoBase64);
 
         $.ajax({
             url: "/api/save_patient_consultation",
@@ -693,8 +916,14 @@ $(function () {
                                 refreshQueue();
                                 loadPatients();
                                 loadSchedules(2);
+                                updateDoctorQueueBadges();
                                 $("#pxidno").val('').text('');
                                 $("#pxconsultationrefno").text('');
+                                $("#photo_path").val('');
+                                $("#photo_base64").val('');
+                                $("#patient_picture_preview").prop("src", "/images/blank_photo.png");
+                                $("#sec_medhistory_table tbody").html('<tr><td colspan="6" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view medical history.</td></tr>');
+                                $("#sec_medhistory_count").text('0 records');
                             }
                         });
                 } else {
@@ -747,6 +976,8 @@ $(function () {
 
         const image = document.getElementById("patient_image");
         if (image && image.files.length > 0) formData.append("patient_photo", image.files[0]);
+        const photoBase64 = $("#photo_base64").val();
+        if (photoBase64) formData.append("photo_base64", photoBase64);
 
         $.ajax({
             url: "/api/update_patient_consultation",
@@ -764,8 +995,14 @@ $(function () {
                                 $("#consultation_form")[0].reset();
                                 loadPatients();
                                 loadSchedules(2);
+                                updateDoctorQueueBadges();
                                 $("#pxidno").val('').text('');
                                 $("#pxconsultationrefno").text('');
+                                $("#photo_path").val('');
+                                $("#photo_base64").val('');
+                                $("#patient_picture_preview").prop("src", "/images/blank_photo.png");
+                                $("#sec_medhistory_table tbody").html('<tr><td colspan="6" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view medical history.</td></tr>');
+                                $("#sec_medhistory_count").text('0 records');
                             }
                         });
                 } else {

@@ -293,6 +293,7 @@
                                     id="patient_picture_preview">
                                 <div class="input-group justify-content-center">
                                     <input type="hidden" name="photo_path" id="photo_path">
+                                    <input type="hidden" name="photo_base64" id="photo_base64">
                                     <button type="button" class="btn btn-sm btn-primary text-nowrap fw-bold"
                                         id="upload_patient_image">
                                         <i class="fa-solid fa-upload"></i> Upload Image
@@ -313,7 +314,16 @@
                                     <button type="button" class="nav-link active" data-bs-toggle="tab"
                                         data-bs-target="#consul_info" role="tab" aria-controls="consul_info"
                                         aria-selected="true">
-                                        Consultation Details
+                                        <i class="fa-solid fa-notes-medical me-1"></i> Consultation Details
+                                    </button>
+                                </li>
+
+                                <!-- Detailed Comment: Medical History tab added immediately after Consultation Details per user request -->
+                                <li class="nav-item" role="presentation">
+                                    <button type="button" class="nav-link" data-bs-toggle="tab"
+                                        data-bs-target="#medhistory_info" role="tab" aria-controls="medhistory_info"
+                                        aria-selected="false" id="patient_medhistory_tab_btn">
+                                        <i class="fa-solid fa-clock-rotate-left me-1"></i> Medical History
                                     </button>
                                 </li>
 
@@ -321,7 +331,7 @@
                                     <button type="button" class="nav-link" data-bs-toggle="tab"
                                         data-bs-target="#payment_info" role="tab" aria-controls="payment_info"
                                         aria-selected="false" id="patient_charges_btn">
-                                        Payment Details
+                                        <i class="fa-solid fa-credit-card me-1"></i> Payment Details
                                     </button>
                                 </li>
                             </ul>
@@ -492,6 +502,33 @@
                                                 <i class="fa-solid fa-clipboard"></i> Update Consultation Details
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+
+                                <!-- Detailed Comment: Medical History tab pane rendering patient's historical consultations and SOAP notes -->
+                                <div class="tab-pane" id="medhistory_info" role="tabpanel">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h5 class="fw-bold m-0"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Patient Consultation &amp; Medical History</h5>
+                                        <span class="badge bg-secondary" id="sec_medhistory_count">0 records</span>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered table-hover align-middle caption-top w-100" id="sec_medhistory_table">
+                                            <thead class="table-info">
+                                                <tr>
+                                                    <th scope="col" class="text-center" style="width: 50px;">Photo</th>
+                                                    <th scope="col" style="width: 120px;">Consultation Date</th>
+                                                    <th scope="col">Reason for Consultation</th>
+                                                    <th scope="col" style="width: 100px;">Status</th>
+                                                    <th scope="col" style="width: 150px;">Recorded By</th>
+                                                    <th scope="col" style="width: 120px;">Recorded On</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td colspan="6" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view medical history.</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
 

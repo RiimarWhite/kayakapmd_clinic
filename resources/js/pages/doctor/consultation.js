@@ -166,18 +166,23 @@ $(function () {
                     $("#consulpulserate").text(p.pulserate);
                     $("#consulbp").text(p.bpnumerator != null && p.bpdenominator != null ? `${p.bpnumerator}/${p.bpdenominator}` : '');
                     $("#patient_instructions").val(p.instructions);
+                    $("#genphoto").prop("src", p.photo_path || '/images/blank_photo.png');
                     $("#genname").text(p.patientname);
+                    $("#genpincode").text(p.pincode || 'N/A');
+                    $("#genpxrefno").text(p.pxrefno || 'N/A');
                     $("#gensex").text(p.gender);
-                    $("#genbday").text(new Date(p.birthday.replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+                    $("#genbday").text(p.birthday ? new Date(p.birthday.replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : 'N/A');
                     $("#genage").text(calculateAge(p.birthday));
-                    $("#gencellno").text(p.mobilenumber);
-                    $("#genemail").text(p.emailaddress);
-                    $("#genaddress").text(p.address);
+                    $("#gencellno").text(p.mobilenumber || 'N/A');
+                    $("#genlandline").text(p.landlinenumber || 'N/A');
+                    $("#genemail").text(p.emailaddress || 'N/A');
+                    $("#genaddress").text(p.address || 'N/A');
                     $("#genweight").text(p.weight != null ? p.weight + p.wunit : '');
                     $("#genheight").text(p.height != null ? p.height + p.hunit : '');
                     $("#gentemp").text(p.temp != null ? p.temp + p.tempunit : '');
-                    $("#genresprate").text(p.respiratoryrate);
-                    $("#genpulserate").text(p.pulserate);
+                    $("#genresprate").text(p.respiratoryrate || 'N/A');
+                    $("#genpulserate").text(p.pulserate || 'N/A');
+                    $("#genbp").text(p.bpnumerator != null && p.bpdenominator != null ? `${p.bpnumerator}/${p.bpdenominator}` : 'N/A');
                     // Detailed Comment: Fix print button URLs to respect application subfolder base path (/kayakapmd_clinic)
                     const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
                     $("#print_rx_btn").attr("href", `${basePath}/print_pdf?type=rx&consultationrefno=${rowConsultationRefno}`);
@@ -201,7 +206,9 @@ $(function () {
     }
 
     function loadDashboardRx() {
-        $("#dashboard_rx_table").DataTable().destroy().clear();
+        if ($.fn.DataTable.isDataTable("#dashboard_rx_table")) {
+            $("#dashboard_rx_table").DataTable().destroy().clear();
+        }
         $("#dashboard_rx_table").DataTable({
             ajax: {
                 url: "/api/fetch_medicine_rx", type: "POST",
@@ -209,49 +216,85 @@ $(function () {
                 data: { consultationrefno: $("#consultationrefno").val() },
                 dataSrc: "rx"
             },
-            columns: [{ data: 'item_dscr' }, { data: 'qty' }, { data: 'dispensed_status' }],
-            columnDefs: [{ targets: [1, 2], width: '10%', orderable: false, searchable: false, className: 'text-nowrap text-center align-middle' }],
-            language: { emptyTable: "No records yet." },
+            columns: [
+                { data: 'item_dscr' },
+                {
+                    data: 'instructions',
+                    defaultContent: '<span class="text-muted fst-italic">None</span>',
+                    render: function (data) {
+                        return data ? `<span class="fw-semibold text-primary">${data}</span>` : '<span class="text-muted fst-italic">None</span>';
+                    }
+                },
+                { data: 'qty' },
+                {
+                    data: 'dispensed_status',
+                    defaultContent: '<span class="badge bg-secondary">Pending</span>',
+                    render: function (data) {
+                        return data ? `<span class="badge bg-info text-white">${data}</span>` : '<span class="badge bg-secondary">Pending</span>';
+                    }
+                }
+            ],
+            columnDefs: [
+                { targets: [2, 3], width: '10%', orderable: false, searchable: false, className: 'text-nowrap text-center align-middle' },
+                { targets: [0, 1], className: 'align-middle' }
+            ],
+            language: { emptyTable: "No prescription records yet." },
             pageLength: 5, lengthChange: false, info: false, paging: true, searching: false, ordering: false, responsive: true,
             initComplete: function (settings, json) { $("#pxinstructions").text(json.instructions ? json.instructions[0] : ''); }
         });
     }
+    window.loadDashboardRx = loadDashboardRx;
 
     $("#rx_modal").on("shown.bs.modal", function () {
         loadRx();
     });
 
     function loadRx() {
-        $("#rx_table").DataTable().destroy().clear();
+        if ($.fn.DataTable.isDataTable("#rx_table")) {
+            $("#rx_table").DataTable().destroy().clear();
+        }
         $("#rx_table").DataTable({
             ajax: {
                 url: "/api/fetch_medicine_rx",
                 type: "POST",
                 headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-                data: { consultationrefno: $("#consultationrefno").val() },
+                data: {
+                    consultationrefno: $("#consultationrefno").val()
+                },
                 dataSrc: 'rx'
             },
             columns: [
                 {
                     data: null,
                     render: function (data) {
-                        return `<button class="btn btn-sm btn-danger delete_rx" value="${data.prodcode}"><i class="fa-solid fa-trash"></i></button>`;
+                        return `<button class="btn btn-sm btn-danger delete_rx" value="${data.prodcode}" title="Delete medicine"><i class="fa-solid fa-trash"></i></button>`;
                     }
                 },
                 { data: 'item_dscr' },
+                {
+                    data: 'instructions',
+                    defaultContent: '<span class="text-muted fst-italic">None</span>',
+                    render: function (data) {
+                        return data ? `<span class="fw-semibold text-primary">${data}</span>` : '<span class="text-muted fst-italic">None</span>';
+                    }
+                },
                 { data: 'qty' }
             ],
             columnDefs: [
                 {
-                    targets: [0, 2],
+                    targets: [0, 3],
                     width: '1%',
                     orderable: false,
                     searchable: false,
                     className: 'text-nowrap text-center align-middle'
+                },
+                {
+                    targets: [1, 2],
+                    className: 'align-middle'
                 }
             ],
             language: {
-                emptyTable: "No records yet."
+                emptyTable: "No prescription records yet."
             },
             pageLength: 5,
             info: false,
@@ -263,6 +306,7 @@ $(function () {
         });
         $("#myrx_form")[0].reset();
     }
+    window.loadRx = loadRx;
 
     // Detailed Comment: Complete consultation session with button loading state and table refresh
     $("#save_consul").on("click", function () {

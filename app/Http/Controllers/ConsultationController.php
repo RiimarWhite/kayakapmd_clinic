@@ -11,7 +11,9 @@ use Illuminate\Http\Request;
 use App\Models\ConsultationAnswerModel;
 use App\Models\DoctorsProfileModel;
 use App\Models\ConsultationModel;
+use App\Models\Stocks\StocksLedgerModel;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class ConsultationController extends Controller
 {
@@ -72,26 +74,53 @@ class ConsultationController extends Controller
         return response()->json(['patients' => $data]);
     }
 
+    /**
+     * Detailed Comment: Fetches patients queued for a specific doctor, date, and optional time slot.
+     * Flexibly handles empty docrefno, consultime, and provides searchability across patient name and refno.
+     */
     public function fetchConsultationPatientsQueue(Request $request)
     {
         $start = $request->input('start', 0);
         $length = $request->input('length', 10);
+        $docrefno = $request->input('docrefno');
+        $consuldate = $request->input('consuldate');
+        $consultime = $request->input('consultime');
+        $search = $request->input('search.value');
 
-        $query = ConsultationModel::where(['docrefno' => $request->docrefno])
-            ->whereDate('consultation_date', $request->consuldate)
-            ->whereTime('consultation_date', $request->consultime)
-            ->select([
-                'consultationrefno',
-                'pxrefno',
-                'patientname',
-                'queueno',
-                'status'
-            ]);
+        $query = ConsultationModel::query();
 
-        $totalRecords = $query->count();
-        $filteredRecords = $query->count();
+        if (!empty($docrefno)) {
+            $query->where('docrefno', $docrefno);
+        }
 
-        $data = $query->orderBy('queueno')
+        if (!empty($consuldate)) {
+            $query->whereDate('consultation_date', $consuldate);
+        }
+
+        if (!empty($consultime)) {
+            $query->whereTime('consultation_date', $consultime);
+        }
+
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('patientname', 'LIKE', "%{$search}%")
+                  ->orWhere('pxrefno', 'LIKE', "%{$search}%")
+                  ->orWhere('consultationrefno', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $query->select([
+            'consultationrefno',
+            'pxrefno',
+            'patientname',
+            'queueno',
+            'status'
+        ]);
+
+        $totalRecords = (clone $query)->count();
+        $filteredRecords = $totalRecords;
+
+        $data = $query->orderBy('queueno', 'asc')
             ->offset($start)
             ->limit($length)
             ->get();
@@ -101,6 +130,25 @@ class ConsultationController extends Controller
             'recordsTotal' => $totalRecords,
             'recordsFiltered' => $filteredRecords,
             'data' => $data
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Returns real-time patient queue counts grouped by assigned doctor for a given date.
+     * Powers the real-time doctor queue count badges in the secretary and admin queue dropdowns.
+     */
+    public function fetchDoctorsQueueCounts(Request $request)
+    {
+        $date = $request->input('date', Carbon::today()->toDateString());
+        $counts = ConsultationModel::whereDate('consultation_date', $date)
+            ->whereIn('status', ['WAITING', 'IN_CONSULTATION', 'FOR_BILLING', 'PENDING'])
+            ->select('docrefno', DB::raw('count(*) as count'))
+            ->groupBy('docrefno')
+            ->pluck('count', 'docrefno');
+
+        return response()->json([
+            'success' => true,
+            'counts' => $counts
         ]);
     }
 
@@ -490,14 +538,21 @@ class ConsultationController extends Controller
                         'pxlastname' => $pxMaster->pxlastname,
                         'pxsuffix' => $pxMaster->pxsuffix,
                         'pincode' => $pxMaster->pincode,
-                        'bday' => $pxMaster->bday,
-                        'sex' => $pxMaster->gender ?: $pxMaster->sex,
-                        'adrs' => $pxMaster->adrs,
-                        'cellno' => $pxMaster->mobilenumber ?: $pxMaster->cellno,
-                        'emailadd' => $pxMaster->emailaddress ?: $pxMaster->emailadd,
+                        'birthday' => $pxMaster->birthday,
+                        'gender' => $pxMaster->gender ?: 'M',
+                        'mobilenumber' => $pxMaster->mobilenumber,
+                        'emailaddress' => $pxMaster->emailaddress,
+                        'photo_path' => $pxMaster->photo_path,
                         'status' => 'UNSCHEDULED',
                         'consultation_date' => null
                     ]);
+                    $consultation->address = $pxMaster->address ?: trim(implode(', ', array_filter([
+                        $pxMaster->streetadrs,
+                        $pxMaster->brgy,
+                        $pxMaster->muncity,
+                        $pxMaster->province
+                    ])));
+                    $consultation->landlinenumber = $pxMaster->landlinenumber ?? '';
                 }
             }
 
@@ -505,9 +560,48 @@ class ConsultationController extends Controller
                 return response()->json(['success' => false, 'message' => 'No record found'], 404);
             }
 
-            if ($consultation->photo_path) {
+            // Detailed Comment: Hydrate patient address, landline, and photo from PatientMasterlist if missing on consultation
+            $lookupKey = $consultation->pxrefno ?: $consultation->pincode;
+            if ($lookupKey) {
+                $pxMaster = PatientMasterlist::where('pxrefno', $lookupKey)
+                    ->orWhere('pincode', $lookupKey)
+                    ->first();
+
+                if ($pxMaster) {
+                    if (empty($consultation->address)) {
+                        $consultation->address = $pxMaster->address ?: trim(implode(', ', array_filter([
+                            $pxMaster->streetadrs,
+                            $pxMaster->brgy,
+                            $pxMaster->muncity,
+                            $pxMaster->province
+                        ])));
+                    }
+                    if (empty($consultation->landlinenumber)) {
+                        $consultation->landlinenumber = $pxMaster->landlinenumber ?? '';
+                    }
+                    if (empty($consultation->mobilenumber)) {
+                        $consultation->mobilenumber = $pxMaster->mobilenumber ?? '';
+                    }
+                    if (empty($consultation->emailaddress)) {
+                        $consultation->emailaddress = $pxMaster->emailaddress ?? '';
+                    }
+                    if (empty($consultation->photo_path) && !empty($pxMaster->photo_path)) {
+                        $consultation->photo_path = $pxMaster->photo_path;
+                    }
+                    if (empty($consultation->birthday) && !empty($pxMaster->birthday)) {
+                        $consultation->birthday = $pxMaster->birthday;
+                    }
+                    if (empty($consultation->gender) && !empty($pxMaster->gender)) {
+                        $consultation->gender = $pxMaster->gender;
+                    }
+                }
+            }
+
+            if (!empty($consultation->photo_path)) {
                 $filename = basename($consultation->photo_path);
                 $consultation->photo_path = url('/patient/photo/' . $filename);
+            } else {
+                $consultation->photo_path = url('/images/blank_photo.png');
             }
 
             $answers = !empty($consultation->consultationrefno)
@@ -531,18 +625,31 @@ class ConsultationController extends Controller
         }
     }
 
+    /**
+     * Detailed Comment: Serves patient photos safely across private and public storage disks.
+     * Gracefully falls back to blank_photo.png if file is absent to prevent broken image UI artifacts.
+     */
     public function fetchPatientPhoto($filename)
     {
-        if ($filename === "blank_photo.png")
+        if ($filename === "blank_photo.png" || empty($filename)) {
             return response()->file(public_path('images/blank_photo.png'));
-
-        $path = storage_path('app/private/patient_photo/' . $filename);
-
-        if (!file_exists($path)) {
-            abort(404);
         }
 
-        return response()->file($path);
+        $paths = [
+            storage_path('app/private/patient_photo/' . $filename),
+            storage_path('app/patient_photo/' . $filename),
+            storage_path('app/public/patient_photos/' . $filename),
+            storage_path('app/public/patient_photo/' . $filename),
+            public_path('patient_photo/' . $filename),
+        ];
+
+        foreach ($paths as $path) {
+            if (file_exists($path)) {
+                return response()->file($path);
+            }
+        }
+
+        return response()->file(public_path('images/blank_photo.png'));
     }
 
     /**
@@ -621,17 +728,90 @@ class ConsultationController extends Controller
             'consultation_date' => Carbon::parse($schedDate . ' ' . $schedTime),
             'requestedby' => $recordedby,
             'requesteddate' => now(),
-
-            'photo_path' => $request->hasFile('patient_photo') ? $request->file('patient_photo')->store('patient_photo', 'private') : (file_exists(public_path('images/blank_photo.png')) ? public_path('images/blank_photo.png') : ''),
-            'radiologypath' => $request->hasFile('radiology_file') ? $request->file('radiology_file')->store('radiology_results', 'private') : null,
-            'laboratorypath' => $request->hasFile('laboratory_file') ? $request->file('laboratory_file')->store('laboratory_results', 'private') : null,
-
-            'status' => 'PENDING',
-            'queueno' => $queueno
         ];
+
+        // Detailed Comment: Support image upload, webcam base64 capture, or fallback to existing masterlist photo
+        $photoPath = null;
+        if ($request->hasFile('patient_photo') || $request->hasFile('patient_image')) {
+            $photoFile = $request->file('patient_photo') ?: $request->file('patient_image');
+            $photoPath = $photoFile->store('patient_photo', 'private');
+        } elseif ($request->filled('photo_base64')) {
+            $base64Data = $request->input('photo_base64');
+            if (preg_match('/^data:image\/(\w+);base64,/', $base64Data, $type)) {
+                $data = substr($base64Data, strpos($base64Data, ',') + 1);
+                $type = strtolower($type[1]);
+                $data = base64_decode($data);
+                if ($data !== false) {
+                    $fileName = 'camera_' . uniqid() . '.' . $type;
+                    Storage::disk('private')->put('patient_photo/' . $fileName, $data);
+                    $photoPath = 'patient_photo/' . $fileName;
+                }
+            }
+        } elseif ($request->filled('photo_path') && !str_contains($request->input('photo_path'), 'blank_photo.png')) {
+            $photoPath = $request->input('photo_path');
+        }
+
+        $pxRef = $request->pxrefno ?? $this->generatePatientCode();
+        if (empty($photoPath) && !empty($pxRef)) {
+            $existingMaster = PatientMasterlist::where('pxrefno', $pxRef)->first();
+            if ($existingMaster && !empty($existingMaster->photo_path)) {
+                $photoPath = $existingMaster->photo_path;
+            }
+        }
+
+        $consultationData['photo_path'] = $photoPath;
+        $consultationData['radiologypath'] = $request->hasFile('radiology_file') ? $request->file('radiology_file')->store('radiology_results', 'private') : null;
+        $consultationData['laboratorypath'] = $request->hasFile('laboratory_file') ? $request->file('laboratory_file')->store('laboratory_results', 'private') : null;
+        $consultationData['status'] = 'PENDING';
+        $consultationData['queueno'] = $queueno;
 
         try {
             $consultation = ConsultationModel::create($consultationData);
+
+            // Detailed Comment: Synchronize captured/uploaded photo and demographic updates to PatientMasterlist
+            if (!empty($consultation->pxrefno)) {
+                $masterUpdates = [];
+                if (!empty($photoPath)) {
+                    $masterUpdates['photo_path'] = $photoPath;
+                }
+                if ($request->filled('pxaddress')) {
+                    $masterUpdates['address'] = $request->input('pxaddress');
+                }
+                if ($request->filled('pxlandlinenumber')) {
+                    $masterUpdates['landlinenumber'] = $request->input('pxlandlinenumber');
+                }
+                if ($request->filled('pxcellnumber')) {
+                    $masterUpdates['mobilenumber'] = $request->input('pxcellnumber');
+                }
+                if ($request->filled('pxemail')) {
+                    $masterUpdates['emailaddress'] = $request->input('pxemail');
+                }
+                if (!empty($masterUpdates)) {
+                    PatientMasterlist::where('pxrefno', $consultation->pxrefno)->update($masterUpdates);
+                }
+            }
+
+            // Detailed Comment: Auto-populate doctor consultation fee in stocks_ledger if doctor has a configured pfrate
+            if ($doctor && !empty($doctor->pfrate) && floatval($doctor->pfrate) > 0) {
+                StocksLedgerModel::firstOrCreate([
+                    'px_consultcode_cn' => $consultation->consultationrefno,
+                    'item_grouping' => 'PROFESSIONAL FEE'
+                ], [
+                    'dw_clientcode' => $doctor->dw_clientcode ?? 'HO1',
+                    'transactiontype' => 'CHARGES',
+                    'px_pin' => $consultation->pxrefno,
+                    'patient_name' => $consultation->patientname,
+                    'prodcode' => 'PF',
+                    'item_dscr' => 'Professional Fee - Dr. ' . ($doctor->docname ?: ($doctor->doclname . ', ' . $doctor->docfname)),
+                    'cost_ave' => floatval($doctor->pfrate),
+                    'retails' => floatval($doctor->pfrate),
+                    'qty' => 1,
+                    'totalamt' => floatval($doctor->pfrate),
+                    'remarks' => 'Default Doctor Consultation Fee',
+                    'updatedby' => $recordedby,
+                    'updated' => now()
+                ]);
+            }
 
             $answers = $request->input('answer', []);
             foreach ($answers as $questionRef => $answer) {
@@ -737,17 +917,60 @@ class ConsultationController extends Controller
 
             'secrefno' => $secrefno,
             'consultation_date' => Carbon::parse($schedDate . ' ' . $schedTime),
-
-            'photo_path' => $request->hasFile('patient_photo') ? $request->file('patient_photo')->store('patient_photo', 'private') : $record->photo_path,
-            'radiologypath' => $request->hasFile('radiologypath') ? $request->file('radiologypath')->store('radiology_results', 'private') : $record->radiologypath,
-            'laboratorypath' => $request->hasFile('laboratorypath') ? $request->file('laboratorypath')->store('laboratory_results', 'private') : $record->laboratorypath,
-
-            'status' => $record->status ?: 'PENDING',
-            'queueno' => $queueno
         ];
+
+        // Detailed Comment: Support photo update via file upload or camera capture base64
+        $photoPath = $record->photo_path;
+        if ($request->hasFile('patient_photo') || $request->hasFile('patient_image')) {
+            $photoFile = $request->file('patient_photo') ?: $request->file('patient_image');
+            $photoPath = $photoFile->store('patient_photo', 'private');
+        } elseif ($request->filled('photo_base64')) {
+            $base64Data = $request->input('photo_base64');
+            if (preg_match('/^data:image\/(\w+);base64,/', $base64Data, $type)) {
+                $data = substr($base64Data, strpos($base64Data, ',') + 1);
+                $type = strtolower($type[1]);
+                $data = base64_decode($data);
+                if ($data !== false) {
+                    $fileName = 'camera_' . uniqid() . '.' . $type;
+                    Storage::disk('private')->put('patient_photo/' . $fileName, $data);
+                    $photoPath = 'patient_photo/' . $fileName;
+                }
+            }
+        } elseif ($request->filled('photo_path') && !str_contains($request->input('photo_path'), 'blank_photo.png')) {
+            $photoPath = $request->input('photo_path');
+        }
+
+        $consultationData['photo_path'] = $photoPath;
+        $consultationData['radiologypath'] = $request->hasFile('radiologypath') ? $request->file('radiologypath')->store('radiology_results', 'private') : $record->radiologypath;
+        $consultationData['laboratorypath'] = $request->hasFile('laboratorypath') ? $request->file('laboratorypath')->store('laboratory_results', 'private') : $record->laboratorypath;
+        $consultationData['status'] = $record->status ?: 'PENDING';
+        $consultationData['queueno'] = $queueno;
 
         try {
             $update = $record->update($consultationData);
+
+            // Detailed Comment: Update patient demographic and photo changes in PatientMasterlist
+            if (!empty($record->pxrefno)) {
+                $masterUpdates = [];
+                if (!empty($photoPath)) {
+                    $masterUpdates['photo_path'] = $photoPath;
+                }
+                if ($request->filled('pxaddress')) {
+                    $masterUpdates['address'] = $request->input('pxaddress');
+                }
+                if ($request->filled('pxlandlinenumber')) {
+                    $masterUpdates['landlinenumber'] = $request->input('pxlandlinenumber');
+                }
+                if ($request->filled('pxcellnumber')) {
+                    $masterUpdates['mobilenumber'] = $request->input('pxcellnumber');
+                }
+                if ($request->filled('pxemail')) {
+                    $masterUpdates['emailaddress'] = $request->input('pxemail');
+                }
+                if (!empty($masterUpdates)) {
+                    PatientMasterlist::where('pxrefno', $record->pxrefno)->update($masterUpdates);
+                }
+            }
 
             $answers = $request->input('answer', []);
             foreach ($answers as $questionRef => $answer) {

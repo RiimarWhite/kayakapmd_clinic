@@ -185,7 +185,15 @@ $(function () {
                 }
                 $(cfg.timeEl).prop('disabled', false);
                 response.schedules.forEach(e => $(cfg.timeEl).append(`<option value="${e.start}">${formatTime(e.start)} - ${formatTime(e.end)}</option>`));
-                if (index === 1) $(cfg.timeEl).trigger("change");
+                if (index === 1) {
+                    $(cfg.timeEl).trigger("change");
+                }
+                // Detailed Comment: Match sched_time with stime if available in options
+                if (index === 2 && $("#stime").val()) {
+                    if ($(`#sched_time option[value="${$("#stime").val()}"]`).length > 0) {
+                        $("#sched_time").val($("#stime").val());
+                    }
+                }
             }
         });
     }
@@ -225,11 +233,20 @@ $(function () {
     });
     $("#doctor_for_consult").on("change", function () { loadSchedules(2); });
     $("#queuedate").on("change", function () {
+        // Detailed Comment: Default "Update or assign new consultation date" to match "Enter consultation date"
+        $("#sched_date").val($("#queuedate").val());
         loadPatientTable();
         loadSchedules(1);
+        loadSchedules(2);
         updateDoctorQueueBadges();
     });
-    $("#stime").on("change", function () { loadPatientTable(); });
+    $("#stime").on("change", function () { 
+        // Detailed Comment: Match the schedule time set with the selected consultation schedule
+        if ($("#stime").val()) {
+            $("#sched_time").val($("#stime").val());
+        }
+        loadPatientTable(); 
+    });
     $("#sched_date").on("change", function () { loadSchedules(2); });
     $("#resched_date").on("change", function () { loadSchedules(3); });
 
@@ -237,9 +254,13 @@ $(function () {
         const $btn = $(this);
         setBtnLoading($btn, "");
         let d = new Date($("#queuedate").val()); d.setDate(d.getDate() - 1);
-        $("#queuedate").val(d.toISOString().split("T")[0]);
+        const newDateStr = d.toISOString().split("T")[0];
+        $("#queuedate").val(newDateStr);
+        // Detailed Comment: Default sched_date on previous date navigation
+        $("#sched_date").val(newDateStr);
         loadPatientTable();
         loadSchedules(1);
+        loadSchedules(2);
         updateDoctorQueueBadges();
         setTimeout(() => resetBtnLoading($btn), 400);
     });
@@ -248,9 +269,13 @@ $(function () {
         const $btn = $(this);
         setBtnLoading($btn, "");
         let d = new Date($("#queuedate").val()); d.setDate(d.getDate() + 1);
-        $("#queuedate").val(d.toISOString().split("T")[0]);
+        const newDateStr = d.toISOString().split("T")[0];
+        $("#queuedate").val(newDateStr);
+        // Detailed Comment: Default sched_date on next date navigation
+        $("#sched_date").val(newDateStr);
         loadPatientTable();
         loadSchedules(1);
+        loadSchedules(2);
         updateDoctorQueueBadges();
         setTimeout(() => resetBtnLoading($btn), 400);
     });
@@ -508,7 +533,8 @@ $(function () {
                     if (p.consultation_date && p.consultation_date !== "1901-01-01 00:00:00") {
                         $("#sched_date").val(p.consultation_date.split(" ")[0]);
                     } else {
-                        $("#sched_date").val("");
+                        // Detailed Comment: Default "Update or assign new consultation date" to match current queue date
+                        $("#sched_date").val($("#queuedate").val() || todayStr);
                     }
                     loadSchedules(2);
                     $("#patient_picture_preview").prop("src", p.photo_path ?? '/images/blank_photo.png');
@@ -1163,7 +1189,8 @@ $(function () {
                     if (p.consultation_date && p.consultation_date !== "1901-01-01 00:00:00") {
                         $("#sched_date").val(p.consultation_date.split(" ")[0]);
                     } else {
-                        $("#sched_date").val("");
+                        // Detailed Comment: Default "Update or assign new consultation date" to match current queue date
+                        $("#sched_date").val($("#queuedate").val() || todayStr);
                     }
                     loadSchedules(2);
                     $("#patient_picture_preview").prop("src", p.photo_path || '/images/blank_photo.png');

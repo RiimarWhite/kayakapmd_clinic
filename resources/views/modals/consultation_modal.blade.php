@@ -414,43 +414,43 @@
 
             <div class="modal-body">
                 <div class="accordion mb-3">
-                    <!-- Patient Information -->
+                    <!-- Patient Information in Rx Modal -->
                     <div class="accordion-item">
                         <h2 class="accordion-header">
-                            <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#rx_patient_info" aria-expanded="false" aria-controls="rx_patient_info">
+                            <button class="accordion-button fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#rx_modal_patient_info" aria-expanded="true" aria-controls="rx_modal_patient_info">
                                 <i class="fa-solid fa-user me-2"></i> Patient Information
                             </button>
                         </h2>
 
-                        <div class="accordion-collapse collapse" id="rx_patient_info">
+                        <div class="accordion-collapse collapse show" id="rx_modal_patient_info">
                             <div class="accordion-body">
                                 <div class="d-flex flex-column">
-                                    <p class="m-0">Name: <strong id="genname"></strong></p>
-                                    <p class="m-0">Sex: <strong id="gensex"></strong></p>
+                                    <p class="m-0">Name: <strong id="rx_genname"></strong></p>
+                                    <p class="m-0">Sex: <strong id="rx_gensex"></strong></p>
                                     <div class="d-flex">
-                                        <p class="m-0 w-50">Birthdate: <strong id="genbday"></strong></p>
-                                        <p class="m-0 w-50">Age: <strong id="genage"></strong></p>
+                                        <p class="m-0 w-50">Birthdate: <strong id="rx_genbday"></strong></p>
+                                        <p class="m-0 w-50">Age: <strong id="rx_genage"></strong></p>
                                     </div>
 
                                     <div class="d-flex">
-                                        <p class="m-0 w-50">Contact #: <strong id="gencellno"></strong></p>
-                                        <p class="m-0 w-50">Email: <strong id="genemail"></strong></p>
+                                        <p class="m-0 w-50">Contact #: <strong id="rx_gencellno"></strong></p>
+                                        <p class="m-0 w-50">Email: <strong id="rx_genemail"></strong></p>
                                     </div>
 
-                                    <p class="m-0">Address: <strong id="genaddress"></strong></p>
+                                    <p class="m-0">Address: <strong id="rx_genaddress"></strong></p>
 
-                                    <hr>
+                                    <hr class="my-2">
 
                                     <div class="d-flex justify-content-between">
-                                        <p class="m-0 w-50">Weight: <strong id="genweight"></strong></p>
-                                        <p class="m-0 w-50">Height: <strong id="genheight"></strong></p>
-                                        <p class="m-0 w-50">Temperature: <strong id="gentemp"></strong></p>
+                                        <p class="m-0 w-50">Weight: <strong id="rx_genweight"></strong></p>
+                                        <p class="m-0 w-50">Height: <strong id="rx_genheight"></strong></p>
+                                        <p class="m-0 w-50">Temperature: <strong id="rx_gentemp"></strong></p>
                                     </div>
 
                                     <div class="d-flex justify-content-between">
-                                        <p class="m-0 w-50">Respiratory Rate: <strong id="genresprate"></strong></p>
-                                        <p class="m-0 w-50">Pulse Rate: <strong id="genpulserate"></strong></p>
-                                        <p class="m-0 w-50">Blood Pressure: <strong id="genbp"></strong></p>
+                                        <p class="m-0 w-50">Respiratory Rate: <strong id="rx_genresprate"></strong></p>
+                                        <p class="m-0 w-50">Pulse Rate: <strong id="rx_genpulserate"></strong></p>
+                                        <p class="m-0 w-50">Blood Pressure: <strong id="rx_genbp"></strong></p>
                                     </div>
                                 </div>
                             </div>
@@ -621,20 +621,23 @@
 </div>
 
 <!-- Preview File -->
+{{-- Detailed Comment: Preview modal supporting both PDF document viewer (iframe) and image previews (img) --}}
 <div class="modal fade overflow-hidden" data-bs-backdrop="static" id="preview_modal" tabindex="-1">
     <div class="modal-dialog modal-dialog-scrollable modal-xl">
         <div class="modal-content">
             <div class="modal-header" id="preview_title">
                 <h3 class="modal-title">Preview</h3>
-                <button type="button" class="btn-close" data-bs-target="#consultation_modal" data-bs-toggle="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
-            <div class="modal-body">
-                <iframe id="docPreview" width="100%" height="500px" style="display: none;"></iframe>
+            <div class="modal-body text-center p-3">
+                <iframe id="docPreview" width="100%" height="600px" style="display: none; border: none;"></iframe>
+                <img id="imgPreview" class="img-fluid mx-auto d-none rounded shadow-sm" style="max-height: 600px; object-fit: contain;" src="" alt="Document Preview">
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-target="#consultation_modal" data-bs-toggle="modal" id="preview_close_btn">Close</button>
+                <a id="preview_download_btn" href="#" target="_blank" download class="btn btn-outline-primary d-none"><i class="fa-solid fa-download me-1"></i> Download File</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="preview_close_btn">Close</button>
             </div>
         </div>
     </div>

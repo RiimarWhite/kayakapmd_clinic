@@ -399,14 +399,15 @@ $(function () {
             url: "/api/doctor/update_fee",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-            data: { pfrate: fee },
+            // Detailed Comment: Send all configured Rates, Tax & Billing fields
+            data: $("#doctor_fee_form").serialize(),
             success: function (response) {
                 if (response.success) {
                     Swal.fire({
                         toast: true,
                         position: "top-end",
                         icon: "success",
-                        title: "Default consultation fee updated!",
+                        title: "Default consultation fee and billing rates updated!",
                         showConfirmButton: false,
                         timer: 1500
                     });

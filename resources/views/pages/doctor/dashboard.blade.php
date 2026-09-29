@@ -57,27 +57,75 @@
             </div>
         </div>
 
-        <!-- Detailed Comment: Default Professional/Consultation Fee Configuration widget per user requirements -->
+        <!-- Detailed Comment: Default Professional/Consultation Fee & Billing Rates Configuration widget -->
         <div class="row g-3 mt-1">
-            <div class="col-md-6">
-                <div class="card shadow-sm h-100">
+            <div class="col-12">
+                <div class="card shadow-sm">
                     <div class="card-header text-bg-warning text-dark d-flex justify-content-between align-items-center py-2">
-                        <h5 class="card-title m-0 fw-bold"><i class="fa-solid fa-coins me-1"></i> Default Consultation Fee</h5>
-                        <span class="badge bg-dark text-white">Auto-charge</span>
+                        <h5 class="card-title m-0 fw-bold"><i class="fa-solid fa-coins me-1"></i> Default Consultation Fee &amp; Billing Rates</h5>
+                        <span class="badge bg-dark text-white">Auto-charge &amp; Settlement Default</span>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted small mb-3">Configure your default professional/consultation fee rate. This fee is automatically populated to the patient charges during consultation.</p>
-                        <form id="doctor_fee_form" class="d-flex align-items-end gap-3">
-                            <div class="flex-grow-1">
-                                <label class="form-label fw-bold mb-1" for="doctor_pfrate">Professional Fee Rate (PHP)</label>
-                                <div class="input-group">
-                                    <span class="input-group-text fw-bold">PHP</span>
-                                    <input type="number" step="0.01" min="0" class="form-control form-control-lg fw-bold text-success" id="doctor_pfrate" name="pfrate" value="{{ number_format((float)($doctor->pfrate ?? 0), 2, '.', '') }}">
+                        <p class="text-muted small mb-3">Configure your default consultation fee, rates, taxes, and billing preferences. These rates are automatically populated to patient charges and settlement during consultation.</p>
+                        <form id="doctor_fee_form">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small" for="doctor_pfrate">PF Rate / Consultation Fee (PHP)</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text fw-bold">PHP</span>
+                                        <input type="number" step="0.01" min="0" class="form-control fw-bold text-success" id="doctor_pfrate" name="pfrate" value="{{ number_format((float)($doctor->pfrate ?? 0), 2, '.', '') }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small" for="doctor_rodrate">ROD Rate (PHP)</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text fw-bold">PHP</span>
+                                        <input type="number" step="0.01" min="0" class="form-control" id="doctor_rodrate" name="rodrate" value="{{ number_format((float)($doctor->rodrate ?? 0), 2, '.', '') }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small" for="doctor_tax">Withholding Tax %</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="doctor_tax" name="tax" placeholder="e.g. 10.00" value="{{ number_format((float)($doctor->tax ?? 0), 2, '.', '') }}">
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold small" for="doctor_vatrate">VAT Rate %</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="doctor_vatrate" name="vatrate" placeholder="e.g. 12.00" value="{{ number_format((float)($doctor->vatrate ?? 0), 2, '.', '') }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold small" for="doctor_coacode">Chart of Accounts Code</label>
+                                    <input type="text" class="form-control" id="doctor_coacode" name="coacode" value="{{ $doctor->coacode ?? '' }}">
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label fw-bold small" for="doctor_accountno">Bank / Account No.</label>
+                                    <input type="text" class="form-control" id="doctor_accountno" name="accountno" value="{{ $doctor->accountno ?? '' }}">
+                                </div>
+
+                                <div class="col-md-4">
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" name="vatable" id="doctor_vatable" value="1" {{ !empty($doctor->vatable) ? 'checked' : '' }}>
+                                        <label class="form-check-label fw-bold small" for="doctor_vatable">VATable Entity</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" name="autoAddVAT" id="doctor_autoAddVAT" value="1" {{ !empty($doctor->autoAddVAT) ? 'checked' : '' }}>
+                                        <label class="form-check-label fw-bold small" for="doctor_autoAddVAT">Auto Add VAT</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" name="issuehospOR" id="doctor_issuehospOR" value="1" {{ !empty($doctor->issuehospOR) ? 'checked' : '' }}>
+                                        <label class="form-check-label fw-bold small" for="doctor_issuehospOR">Issue Hospital OR</label>
+                                    </div>
+                                </div>
+
+                                <div class="col-12 text-end mt-3">
+                                    <button type="button" class="btn btn-warning fw-bold px-4" id="save_doctor_fee_btn">
+                                        <i class="fa-solid fa-floppy-disk me-1"></i> Save Billing Rates &amp; Fee
+                                    </button>
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-warning fw-bold btn-lg text-nowrap" id="save_doctor_fee_btn">
-                                <i class="fa-solid fa-floppy-disk me-1"></i> Update Fee
-                            </button>
                         </form>
                     </div>
                 </div>

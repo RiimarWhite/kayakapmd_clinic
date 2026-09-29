@@ -167,22 +167,30 @@ $(function () {
                     $("#consulbp").text(p.bpnumerator != null && p.bpdenominator != null ? `${p.bpnumerator}/${p.bpdenominator}` : '');
                     $("#patient_instructions").val(p.instructions);
                     $("#genphoto").prop("src", p.photo_path || '/images/blank_photo.png');
-                    $("#genname").text(p.patientname);
+                    const bdayFormatted = p.birthday ? new Date(p.birthday.replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : 'N/A';
+                    const ageCalculated = calculateAge(p.birthday);
+                    const weightFormatted = p.weight != null ? p.weight + (p.wunit || '') : '';
+                    const heightFormatted = p.height != null ? p.height + (p.hunit || '') : '';
+                    const tempFormatted = p.temp != null ? p.temp + (p.tempunit || '') : '';
+                    const bpFormatted = (p.bpnumerator != null && p.bpdenominator != null) ? `${p.bpnumerator}/${p.bpdenominator}` : 'N/A';
+
+                    // Detailed Comment: Populate patient demographics in both sidebar and Generate Rx modal accordion
+                    $("#genname, #rx_genname").text(p.patientname || '');
                     $("#genpincode").text(p.pincode || 'N/A');
                     $("#genpxrefno").text(p.pxrefno || 'N/A');
-                    $("#gensex").text(p.gender);
-                    $("#genbday").text(p.birthday ? new Date(p.birthday.replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : 'N/A');
-                    $("#genage").text(calculateAge(p.birthday));
-                    $("#gencellno").text(p.mobilenumber || 'N/A');
+                    $("#gensex, #rx_gensex").text(p.gender || '');
+                    $("#genbday, #rx_genbday").text(bdayFormatted);
+                    $("#genage, #rx_genage").text(ageCalculated);
+                    $("#gencellno, #rx_gencellno").text(p.mobilenumber || 'N/A');
                     $("#genlandline").text(p.landlinenumber || 'N/A');
-                    $("#genemail").text(p.emailaddress || 'N/A');
-                    $("#genaddress").text(p.address || 'N/A');
-                    $("#genweight").text(p.weight != null ? p.weight + p.wunit : '');
-                    $("#genheight").text(p.height != null ? p.height + p.hunit : '');
-                    $("#gentemp").text(p.temp != null ? p.temp + p.tempunit : '');
-                    $("#genresprate").text(p.respiratoryrate || 'N/A');
-                    $("#genpulserate").text(p.pulserate || 'N/A');
-                    $("#genbp").text(p.bpnumerator != null && p.bpdenominator != null ? `${p.bpnumerator}/${p.bpdenominator}` : 'N/A');
+                    $("#genemail, #rx_genemail").text(p.emailaddress || 'N/A');
+                    $("#genaddress, #rx_genaddress").text(p.address || 'N/A');
+                    $("#genweight, #rx_genweight").text(weightFormatted);
+                    $("#genheight, #rx_genheight").text(heightFormatted);
+                    $("#gentemp, #rx_gentemp").text(tempFormatted);
+                    $("#genresprate, #rx_genresprate").text(p.respiratoryrate || 'N/A');
+                    $("#genpulserate, #rx_genpulserate").text(p.pulserate || 'N/A');
+                    $("#genbp, #rx_genbp").text(bpFormatted);
                     // Detailed Comment: Fix print button URLs to respect application subfolder base path (/kayakapmd_clinic)
                     const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
                     $("#print_rx_btn").attr("href", `${basePath}/print_pdf?type=rx&consultationrefno=${rowConsultationRefno}`);
@@ -245,8 +253,32 @@ $(function () {
     }
     window.loadDashboardRx = loadDashboardRx;
 
+    // Detailed Comment: Re-sync patient demographics whenever Generate Rx modal opens
+    $("#rx_modal").on("show.bs.modal", function () {
+        if (!$("#rx_genname").text() || $("#rx_genname").text().trim() === "") {
+            $("#rx_genname").text($("#genname").text());
+            $("#rx_gensex").text($("#gensex").text());
+            $("#rx_genbday").text($("#genbday").text());
+            $("#rx_genage").text($("#genage").text());
+            $("#rx_gencellno").text($("#gencellno").text());
+            $("#rx_genemail").text($("#genemail").text());
+            $("#rx_genaddress").text($("#genaddress").text());
+            $("#rx_genweight").text($("#genweight").text());
+            $("#rx_genheight").text($("#genheight").text());
+            $("#rx_gentemp").text($("#gentemp").text());
+            $("#rx_genresprate").text($("#genresprate").text());
+            $("#rx_genpulserate").text($("#genpulserate").text());
+            $("#rx_genbp").text($("#genbp").text());
+        }
+    });
+
     $("#rx_modal").on("shown.bs.modal", function () {
         loadRx();
+    });
+
+    // Detailed Comment: Auto-refresh Rx table on Rx & Instructions tab whenever Generate Rx modal is closed
+    $("#rx_modal").on("hidden.bs.modal", function () {
+        loadDashboardRx();
     });
 
     function loadRx() {

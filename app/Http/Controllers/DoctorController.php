@@ -39,6 +39,14 @@ class DoctorController extends Controller
         if ($doctor) {
             $profile = DoctorsProfileModel::where('docrefno', $doctor->docrefno)->first();
             $doctor->pfrate = $profile ? ($profile->pfrate ?: ($doctor->consultationfee ?? 0)) : ($doctor->consultationfee ?? 0);
+            $doctor->rodrate = $profile ? ($profile->rodrate ?: 0) : 0;
+            $doctor->tax = $profile ? ($profile->tax ?: ($doctor->taxpercent ?? 0)) : ($doctor->taxpercent ?? 0);
+            $doctor->vatrate = $profile ? ($profile->vatrate ?: 0) : 0;
+            $doctor->coacode = $profile ? ($profile->coacode ?: '') : '';
+            $doctor->accountno = $profile ? ($profile->accountno ?: ($doctor->bankacct ?? '')) : ($doctor->bankacct ?? '');
+            $doctor->vatable = $profile ? ($profile->vatable ?: 0) : 0;
+            $doctor->autoAddVAT = $profile ? ($profile->autoAddVAT ?: ($doctor->autoAddVAT ?? 0)) : ($doctor->autoAddVAT ?? 0);
+            $doctor->issuehospOR = $profile ? ($profile->issuehospOR ?: ($doctor->issuehospOR ?? 0)) : ($doctor->issuehospOR ?? 0);
         }
 
         // Detailed Comment: Structured log when doctor dashboard view is accessed
@@ -209,22 +217,49 @@ class DoctorController extends Controller
         }
 
         $pfrate = floatval($request->input('pfrate', $request->input('consultationfee', 0)));
+        $rodrate = floatval($request->input('rodrate', 0));
+        $tax = floatval($request->input('tax', 0));
+        $vatrate = floatval($request->input('vatrate', 0));
+        $coacode = $request->input('coacode', '');
+        $accountno = $request->input('accountno', '');
+        $vatable = $request->has('vatable') ? ($request->input('vatable') ? 1 : 0) : 0;
+        $autoAddVAT = $request->has('autoAddVAT') ? ($request->input('autoAddVAT') ? 1 : 0) : 0;
+        $issuehospOR = $request->has('issuehospOR') ? ($request->input('issuehospOR') ? 1 : 0) : 0;
+
+        // Detailed Comment: Update comprehensive rates, tax & billing fields in DoctorsProfileModel
         DoctorsProfileModel::where('docrefno', $doctorAuth->docrefno)->update([
-            'pfrate' => $pfrate
+            'pfrate' => $pfrate,
+            'rodrate' => $rodrate,
+            'tax' => $tax,
+            'vatrate' => $vatrate,
+            'coacode' => $coacode,
+            'accountno' => $accountno,
+            'vatable' => $vatable,
+            'autoAddVAT' => $autoAddVAT,
+            'issuehospOR' => $issuehospOR,
         ]);
 
+        // Detailed Comment: Mirror matching billing parameters on DoctorModel for unified access
         DoctorModel::where('docrefno', $doctorAuth->docrefno)->update([
-            'consultationfee' => $pfrate
+            'consultationfee' => $pfrate,
+            'taxpercent' => $tax,
+            'withholdingtax' => $tax,
+            'bankacct' => $accountno,
+            'autoAddVAT' => $autoAddVAT,
+            'issuehospOR' => $issuehospOR,
         ]);
 
-        Log::info('Doctor updated default consultation fee', [
+        Log::info('Doctor updated default consultation fee and billing rates', [
             'docrefno' => $doctorAuth->docrefno,
-            'pfrate' => $pfrate
+            'pfrate' => $pfrate,
+            'rodrate' => $rodrate,
+            'tax' => $tax,
+            'vatrate' => $vatrate
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Consultation fee updated successfully.',
+            'message' => 'Consultation fee and billing rates updated successfully.',
             'pfrate' => $pfrate
         ]);
     }
@@ -1060,16 +1095,26 @@ class DoctorController extends Controller
 
     public function deleteDiagnostic(Request $request)
     {
-        $req = DocRequestsModel::where([
+        $refno = $request->input('requestrefno') ?: $request->input('prodcode') ?: $request->input('diagnostic_id');
+        if (!$refno) {
+            return response()->json(['success' => false, 'message' => 'Missing diagnostic reference code.'], 400);
+        }
+
+        DocRequestsModel::where([
             'consultationrefno' => $request->consultationrefno,
-            'requestrefno' => $request->requestrefno
+            'requestrefno' => $refno
         ])->delete();
 
         // Detailed Comment: Also check and remove from stocks_ledger if recorded as diagnostic charge
         StocksLedgerModel::where([
             'px_consultcode_cn' => $request->consultationrefno,
-            'prodcode' => $request->requestrefno
+            'prodcode' => $refno
         ])->delete();
+
+        Log::info('Diagnostic request removed from consultation and ledger', [
+            'consultationrefno' => $request->consultationrefno,
+            'prodcode' => $refno
+        ]);
 
         return response()->json(['success' => true]);
     }
@@ -1348,25 +1393,90 @@ class DoctorController extends Controller
 
     }
 
+    /**
+     * Detailed Comment: Updates an existing patient charge (such as Professional Fee, procedure, or supply)
+     * in stocks_ledger by ID or prodcode + consultationrefno, updating unit prices, quantity, and total amount.
+     */
     public function updateCharge(Request $request)
     {
-        $charges = DocChargesModel::where([
-            'consultationrefno' => $request->consultationrefno,
-            'pxchargerefno' => $request->pxchargerefno
-        ])->update([
-                    'total' => $request->charge_fee,
-                    'discount' => $request->discount,
-                    'net_total' => $request->charge_fee - $request->discount
-                ]);
+        $consultationrefno = $request->input('consultationrefno');
+        $chargeId = $request->input('chargeid') ?? $request->input('charge_id') ?? $request->input('id') ?? $request->input('pxchargerefno');
+        $prodcode = $request->input('prodcode');
+        $chargeFee = floatval($request->input('charge_fee', 0));
+        $qty = floatval($request->input('charge_qty', 1));
+        if ($qty <= 0) {
+            $qty = 1;
+        }
+        $discount = floatval($request->input('discount', 0));
+        $totalAmt = max(0, ($chargeFee * $qty) - $discount);
 
-        if ($charges) {
+        // Defensive normalization: nullify 'null', 'undefined', or non-numeric IDs
+        if ($chargeId === 'null' || $chargeId === 'undefined' || empty($chargeId) || !is_numeric($chargeId)) {
+            $chargeId = null;
+        }
+
+        $query = StocksLedgerModel::query();
+        if ($consultationrefno) {
+            $query->where('px_consultcode_cn', $consultationrefno);
+        }
+
+        if ($chargeId) {
+            $query->where('id', (int)$chargeId);
+        } elseif (!empty($prodcode) && $prodcode !== 'null' && $prodcode !== 'undefined') {
+            $query->where('prodcode', $prodcode);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'No valid charge identifier provided for update.'
+            ], 422);
+        }
+
+        $updated = $query->update([
+            'cost_ave' => $chargeFee,
+            'retails' => $chargeFee,
+            'qty' => $qty,
+            'totalamt' => $totalAmt,
+            'updated' => now()
+        ]);
+
+        // Also update legacy DocChargesModel if matching record exists
+        if ($consultationrefno && $chargeId) {
+            DocChargesModel::where([
+                'consultationrefno' => $consultationrefno,
+                'pxchargerefno' => $chargeId
+            ])->update([
+                'total' => $chargeFee * $qty,
+                'discount' => $discount,
+                'net_total' => $totalAmt
+            ]);
+        }
+
+        Log::info('Patient charge updated', [
+            'consultationrefno' => $consultationrefno,
+            'chargeid' => $chargeId,
+            'prodcode' => $prodcode,
+            'charge_fee' => $chargeFee,
+            'qty' => $qty,
+            'discount' => $discount,
+            'totalamt' => $totalAmt,
+            'updated' => $updated
+        ]);
+
+        if ($updated) {
             return response()->json(['success' => true]);
         }
 
-        return response()->json(['success' => false]);
+        return response()->json(['success' => false, 'message' => 'Charge not found or failed to update.'], 404);
     }
 
     // Files
+    /**
+     * Detailed Comment: Fetches radiology and laboratory files for a consultation.
+     * Generates full, absolute URL links using Laravel's route('preview.file', ...) method so that
+     * any application subfolder paths (e.g., Apache aliases or APP_URL base paths) and schemes/hosts
+     * are properly included in the response, preventing broken asset links in subfolder deployments.
+     * Returns both original relative storage paths and dedicated full link keys for maximum compatibility.
+     */
     public function fetchRadLabFiles(Request $request)
     {
         $files = ConsultationModel::select(['radiologypath', 'laboratorypath'])->where([
@@ -1374,10 +1484,61 @@ class DoctorController extends Controller
         ])->first();
 
         if ($files) {
-            return response()->json(['files' => $files]);
+            // Detailed Comment: Detect project folder prefix dynamically (e.g. /kayakapmd_clinic)
+            // for Apache subfolder/alias deployments (e.g. XAMPP or Docker /kayakapmd_clinic).
+            // We check the request base URL, request URI, referer header, and APP_URL.
+            $projectPrefix = '';
+            $baseUrl = trim($request->getBaseUrl(), '/');
+            if (!empty($baseUrl)) {
+                $projectPrefix = '/' . $baseUrl;
+            } elseif (preg_match('#/(kayakapmd_clinic|EConsultationv2)[^/]*#i', $request->getRequestUri(), $m)) {
+                $projectPrefix = '/' . trim($m[1], '/');
+            } elseif ($request->header('referer') && preg_match('#https?://[^/]+/([^/]+)#', $request->header('referer'), $m) && !in_array($m[1], ['api', 'preview-file', 'login', 'doctor', 'secretary', 'admin'])) {
+                $projectPrefix = '/' . $m[1];
+            } elseif (!empty(env('APP_URL')) && $appPath = parse_url(env('APP_URL'), PHP_URL_PATH)) {
+                $projectPrefix = '/' . trim($appPath, '/');
+            }
+
+            // Detailed Comment: Generate full URLs. If projectPrefix is detected, ensure the route includes the project subfolder.
+            $generateUrl = function ($path) use ($projectPrefix) {
+                if (empty($path)) {
+                    return null;
+                }
+                if ($projectPrefix) {
+                    return url($projectPrefix . '/preview-file/' . $path);
+                }
+                return route('preview.file', ['path' => $path]);
+            };
+
+            $radiologyUrl = $generateUrl($files->radiologypath);
+            $laboratoryUrl = $generateUrl($files->laboratorypath);
+
+            $filesData = [
+                'radiologypath' => $files->radiologypath,
+                'laboratorypath' => $files->laboratorypath,
+                'radiology_url' => $radiologyUrl,
+                'laboratory_url' => $laboratoryUrl,
+                'radiology_link' => $radiologyUrl,
+                'laboratory_link' => $laboratoryUrl,
+            ];
+
+            return response()->json([
+                'files' => $filesData,
+                'links' => [
+                    'radiology' => $radiologyUrl,
+                    'laboratory' => $laboratoryUrl,
+                ],
+                'radiology_url' => $radiologyUrl,
+                'laboratory_url' => $laboratoryUrl,
+            ]);
         }
 
-        return response()->json(['files' => null]);
+        return response()->json([
+            'files' => null,
+            'links' => null,
+            'radiology_url' => null,
+            'laboratory_url' => null,
+        ]);
     }
 
     public function uploadConsultationFiles(Request $request)

@@ -312,6 +312,16 @@ mkdir -p storage/app/private/patient_photo storage/app/public/patients/photos st
 # This prevents permission denied crashes on storage/logs/laravel.log and compiled blade templates.
 chmod -R 777 storage bootstrap/cache 2>/dev/null || true
 
+# Detailed Comment: Ensure Apache configuration in container or host environment has aliases
+# for /preview-file, /patient/photo, and print routes so they can be accessed both with and without the project subfolder.
+if [ -d "/etc/apache2/conf-available" ] && [ -f "/etc/apache2/conf-available/kayakapmd.conf" ]; then
+    if ! grep -q "Alias /preview-file" /etc/apache2/conf-available/kayakapmd.conf; then
+        sed -i '/Alias \/generate_new_codes/a Alias /preview-file /var/www/html/kayakapmd_clinic/public\nAlias /patient/photo /var/www/html/kayakapmd_clinic/public\nAlias /print_pdf /var/www/html/kayakapmd_clinic/public\nAlias /print_diagnostics /var/www/html/kayakapmd_clinic/public\nAlias /print_transactions /var/www/html/kayakapmd_clinic/public' /etc/apache2/conf-available/kayakapmd.conf 2>/dev/null || true
+        command -v apache2ctl >/dev/null 2>&1 && apache2ctl graceful 2>/dev/null || true
+    fi
+fi
+
+
 # ==============================================================================
 # SECTION 9: Start Development Servers Concurrently (php artisan serve & npm run dev)
 # Starts php artisan serve in the background and npm run dev in the foreground.

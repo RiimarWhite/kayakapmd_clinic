@@ -513,5 +513,88 @@ class PatientManagementAndPrintFixesTest extends TestCase
         $response->assertStatus(422);
         $response->assertJson(['success' => false]);
     }
+
+    /**
+     * Detailed Comment: Verify fetchRadLabFiles returns full route URL links for radiology and laboratory files
+     * using route('preview.file', ...), preventing broken links in subfolder deployments.
+     */
+    public function test_fetch_radlab_files_returns_full_route_links(): void
+    {
+        $doctor = DoctorModel::first();
+        $this->actingAs($doctor, 'doctor');
+
+        $consultation = ConsultationModel::create([
+            'consultationrefno' => 'CON_RADLAB_TEST_01',
+            'caseno' => 'CASE_RADLAB_01',
+            'pincode' => 'PIN_RADLAB_01',
+            'pxrefno' => 'PTN_RADLAB_01',
+            'patientname' => 'DOE, JANE',
+            'radiologypath' => 'radiology_results/sample_xray.png',
+            'laboratorypath' => 'laboratory_results/sample_blood_test.pdf',
+            'status' => 'IN_CONSULTATION'
+        ]);
+
+        $response = $this->postJson('/api/fetch_radlab_files', [
+            'consultationrefno' => 'CON_RADLAB_TEST_01'
+        ]);
+
+        $response->assertStatus(200);
+
+        $expectedRadUrl = route('preview.file', ['path' => 'radiology_results/sample_xray.png']);
+        $expectedLabUrl = route('preview.file', ['path' => 'laboratory_results/sample_blood_test.pdf']);
+
+        $response->assertJson([
+            'files' => [
+                'radiologypath' => 'radiology_results/sample_xray.png',
+                'laboratorypath' => 'laboratory_results/sample_blood_test.pdf',
+                'radiology_url' => $expectedRadUrl,
+                'laboratory_url' => $expectedLabUrl,
+                'radiology_link' => $expectedRadUrl,
+                'laboratory_link' => $expectedLabUrl,
+            ],
+            'links' => [
+                'radiology' => $expectedRadUrl,
+                'laboratory' => $expectedLabUrl,
+            ],
+            'radiology_url' => $expectedRadUrl,
+            'laboratory_url' => $expectedLabUrl,
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Verify that /preview-file/{path} and /{project}/preview-file/{path}
+     * both successfully preview files inline, avoiding 404s in Apache subfolder setups.
+     */
+    public function test_preview_file_serves_inline_both_with_and_without_project_prefix(): void
+    {
+        $doctor = DoctorModel::first();
+        $this->actingAs($doctor, 'doctor');
+
+        // Create a dummy file in storage/app/private/radiology_results/test_sample.png
+        $dir = storage_path('app/private/radiology_results');
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        $filePath = $dir . '/test_sample.png';
+        file_put_contents($filePath, 'fake-image-content');
+
+        try {
+            // 1. Without project prefix
+            $resp1 = $this->get('/preview-file/radiology_results/test_sample.png');
+            $resp1->assertStatus(200);
+            $resp1->assertHeader('Content-Disposition', 'inline; filename="test_sample.png"');
+
+            // 2. With project prefix (kayakapmd_clinic)
+            $resp2 = $this->get('/kayakapmd_clinic/preview-file/radiology_results/test_sample.png');
+            $resp2->assertStatus(200);
+            $resp2->assertHeader('Content-Disposition', 'inline; filename="test_sample.png"');
+        } finally {
+            if (file_exists($filePath)) {
+                unlink($filePath);
+            }
+        }
+    }
 }
+
+
 

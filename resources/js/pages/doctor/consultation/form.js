@@ -289,8 +289,14 @@ $(function () {
         loadDashboardRx();
     });
 
+    // Detailed Comment: Fix column count mismatch by defining 4 columns matching table header in consultation_modal
     function loadDashboardRx() {
-        $("#dashboard_rx_table").DataTable().destroy().clear();
+        if (typeof window.loadDashboardRx === 'function' && window.loadDashboardRx !== loadDashboardRx) {
+            return window.loadDashboardRx();
+        }
+        if ($.fn.DataTable.isDataTable("#dashboard_rx_table")) {
+            $("#dashboard_rx_table").DataTable().destroy().clear();
+        }
         $("#dashboard_rx_table").DataTable({
             ajax: {
                 url: "/api/fetch_medicine_rx",
@@ -301,20 +307,24 @@ $(function () {
             },
             columns: [
                 { data: 'item_dscr' },
+                {
+                    data: 'instructions',
+                    defaultContent: '<span class="text-muted fst-italic">None</span>',
+                    render: function (data) {
+                        return data ? `<span class="fw-semibold text-primary">${data}</span>` : '<span class="text-muted fst-italic">None</span>';
+                    }
+                },
                 { data: 'qty' },
                 { data: 'dispensed_status' },
             ],
             columnDefs: [
                 {
-                    targets: [0, 1, 2],
-                    width: '10%',
-                    orderable: false,
-                    searchable: false,
-                    className: 'text-nowrap text-center align-middle'
+                    targets: [0, 1, 2, 3],
+                    className: 'text-nowrap align-middle'
                 }
             ],
             language: {
-                emptyTable: "No records yet."
+                emptyTable: "No prescription records yet."
             },
             pageLength: 5,
             lengthChange: false,
@@ -378,7 +388,9 @@ $(function () {
                 {
                     data: null,
                     render: function (data) {
-                        return `<button class="btn btn-sm btn-danger remove_request" value="${data.diagnostic_id}"><i class="fa-solid fa-trash"></i> Remove</button>`;
+                        // Detailed Comment: Bind prodcode or diagnosticrefno so deletion operates on the correct stocks_ledger code
+                        const code = data.prodcode || data.diagnostic_id || data.diagnosticrefno || '';
+                        return `<button class="btn btn-sm btn-danger remove_request" data-code="${code}" value="${code}"><i class="fa-solid fa-trash"></i> Remove</button>`;
                     }
                 },
                 { data: 'prod_itemdscr' }
@@ -498,7 +510,7 @@ $(function () {
 
     // Detailed Comment: Save diagnostic requests with button loading spinner
     $("#save_requests").on("click", function () {
-        if (diagnostics.length === 0) return Swal.fire({title: "No updated changes", text: "No changes were made.", icon: "success"});
+        if (diagnostics.length === 0) return Swal.fire({ title: "No updated changes", text: "No changes were made.", icon: "success" });
 
         const $btn = $(this);
         setBtnLoading($btn, "Saving...");
@@ -544,7 +556,8 @@ $(function () {
                     },
                     data: {
                         consultationrefno: $("#consultationrefno").val(),
-                        requestrefno: $btn.val()
+                        requestrefno: $btn.data("code") || $btn.val(),
+                        prodcode: $btn.data("code") || $btn.val()
                     },
                     success: function (response) {
                         if (response.success) {
@@ -552,11 +565,14 @@ $(function () {
                                 toast: true,
                                 position: 'top-end',
                                 icon: 'success',
-                                title: 'Status updated',
+                                title: 'Diagnostic request removed',
                                 showConfirmButton: false,
                                 timer: 2000
                             }).then(() => {
                                 $("#diagnostics_table").DataTable().ajax.reload();
+                                if ($.fn.DataTable.isDataTable("#charges_table")) {
+                                    $("#charges_table").DataTable().ajax.reload();
+                                }
                             });
                         }
                     },
@@ -592,18 +608,22 @@ $(function () {
                 consultationrefno: $("#consultationrefno").val()
             },
             success: function (response) {
-                if (response.files.radiologypath) {
-                    $("#radiology_hasfile").removeClass("d-none").addClass("d-inline-block");
+                if (response && response.files) {
+                    if (response.files.radiologypath) {
+                        $("#radiology_hasfile").removeClass("d-none").addClass("d-inline-block");
+                        $("#preview_radiology").prop("disabled", false);
+                        // Detailed Comment: Use the generated full URL link if available, falling back to relative storage path
+                        const radLink = response.files.radiology_url || response.files.radiology_link || (response.links ? response.links.radiology : null) || response.files.radiologypath;
+                        $("#preview_radiology").attr("data-filepath", radLink);
+                    }
 
-                    $("#preview_radiology").prop("disabled", false);
-                    $("#preview_radiology").attr("data-filepath", response.files.radiologypath);
-                }
-
-                if (response.files.laboratorypath) {
-                    $("#laboratory_hasfile").removeClass("d-none").addClass("d-inline-block");
-
-                    $("#preview_laboratory").prop("disabled", false);
-                    $("#preview_laboratory").attr("data-filepath", response.files.laboratorypath);
+                    if (response.files.laboratorypath) {
+                        $("#laboratory_hasfile").removeClass("d-none").addClass("d-inline-block");
+                        $("#preview_laboratory").prop("disabled", false);
+                        // Detailed Comment: Use the generated full URL link if available, falling back to relative storage path
+                        const labLink = response.files.laboratory_url || response.files.laboratory_link || (response.links ? response.links.laboratory : null) || response.files.laboratorypath;
+                        $("#preview_laboratory").attr("data-filepath", labLink);
+                    }
                 }
             }
         });
@@ -632,10 +652,12 @@ $(function () {
                         toast: true,
                         position: 'top-end',
                         icon: 'success',
-                        title: 'Status updated',
+                        title: 'Files saved successfully',
                         showConfirmButton: false,
                         timer: 2000
                     });
+                    // Detailed Comment: Reload medical files metadata to enable preview buttons with updated paths
+                    loadMedicalFiles();
                 }
             },
             complete: function () {
@@ -645,47 +667,135 @@ $(function () {
     });
 
     $("#radiology_result").on("change", function () {
-        $("#preview_radiology").prop("disabled", false);
+        if (this.files && this.files.length) {
+            $("#preview_radiology").prop("disabled", false);
+        }
     });
 
     $("#laboratory_result").on("change", function () {
-        $("#preview_laboratory").prop("disabled", false);
+        if (this.files && this.files.length) {
+            $("#preview_laboratory").prop("disabled", false);
+        }
     });
 
+    // Detailed Comment: Handle preview modal show event, switching between image preview and iframe document viewer
     $("#preview_modal").on("show.bs.modal", function () {
-        const src = this.dataset.src;
-        document.getElementById("docPreview").src = src;
-        document.getElementById("docPreview").style.display = "block";
+        const src = this.dataset.src || "";
+        const isImage = this.dataset.isimage === "1";
+        const fileName = this.dataset.filename || "Document Preview";
+
+        $("#preview_modal .modal-title").text(fileName);
+
+        const docPreview = document.getElementById("docPreview");
+        const imgPreview = document.getElementById("imgPreview");
+        const downloadBtn = document.getElementById("preview_download_btn");
+
+        if (downloadBtn) {
+            downloadBtn.href = src;
+            downloadBtn.download = fileName;
+            downloadBtn.classList.remove("d-none");
+        }
+
+        if (isImage) {
+            if (docPreview) {
+                docPreview.src = "";
+                docPreview.style.display = "none";
+            }
+            if (imgPreview) {
+                imgPreview.src = src;
+                imgPreview.classList.remove("d-none");
+            }
+        } else {
+            if (imgPreview) {
+                imgPreview.src = "";
+                imgPreview.classList.add("d-none");
+            }
+            if (docPreview) {
+                docPreview.src = src;
+                docPreview.style.display = "block";
+            }
+        }
     });
 
+    // Detailed Comment: Reset preview modal contents and restore consultation modal upon closing
     $("#preview_modal").on("hidden.bs.modal", function () {
-        document.getElementById("docPreview").src = "";
-        document.getElementById("docPreview").style.display = "none";
+        const docPreview = document.getElementById("docPreview");
+        if (docPreview) {
+            docPreview.src = "";
+            docPreview.style.display = "none";
+        }
+        const imgPreview = document.getElementById("imgPreview");
+        if (imgPreview) {
+            imgPreview.src = "";
+            imgPreview.classList.add("d-none");
+        }
 
-        const consulModal = bootstrap.Modal.getInstance(document.getElementById("consultation_modal"));
+        const consulModal = bootstrap.Modal.getOrCreateInstance(document.getElementById("consultation_modal"));
         consulModal.show();
     });
 
+    // Detailed Comment: Preview Radiology or Laboratory file (local file or server-stored path)
     $("[id^=preview_]").on("click", function () {
         const type = this.id.replace("preview_", "");
         const fileInput = document.getElementById(type + "_result");
-        const storedPath = this.dataset.filepath;
+        const storedPath = $(this).attr("data-filepath") || this.dataset.filepath;
 
         let fileURL = "";
+        let fileName = "";
+        let isImage = false;
 
-        if (fileInput && fileInput.files.length) {
-            fileURL = URL.createObjectURL(fileInput.files[0]);
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            fileURL = URL.createObjectURL(file);
+            fileName = file.name;
+            isImage = (file.type && file.type.startsWith("image/")) || /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(file.name);
         } else if (storedPath && storedPath.trim() !== "") {
-            fileURL = "/preview-file/" + storedPath;
+            // Detailed Comment: Detect if the application is running under an Apache project subfolder (e.g. /kayakapmd_clinic)
+            const pathSegments = window.location.pathname.split("/").filter(Boolean);
+            const knownRoutes = ["doctor", "secretary", "admin", "login", "register", "home", "preview-file"];
+            let projectPrefix = "";
+            if (pathSegments.length > 0 && !knownRoutes.includes(pathSegments[0])) {
+                projectPrefix = "/" + pathSegments[0];
+            }
+
+            if (storedPath.startsWith("http://") || storedPath.startsWith("https://")) {
+                try {
+                    const urlObj = new URL(storedPath);
+                    // If on an Apache subfolder and the URL path lacks the project prefix, inject it
+                    if (projectPrefix && !urlObj.pathname.startsWith(projectPrefix)) {
+                        urlObj.pathname = projectPrefix + urlObj.pathname;
+                    }
+                    fileURL = urlObj.toString();
+                } catch (e) {
+                    fileURL = storedPath;
+                }
+            } else if (storedPath.startsWith("/")) {
+                fileURL = (projectPrefix && !storedPath.startsWith(projectPrefix)) ? (projectPrefix + storedPath) : storedPath;
+            } else {
+                fileURL = (projectPrefix ? projectPrefix : "") + "/preview-file/" + encodeURIComponent(storedPath).replace(/%2F/g, '/');
+            }
+            fileName = storedPath.split("/").pop().split("?")[0];
+            isImage = /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(fileName);
         }
 
-        if (!fileURL) return;
+        if (!fileURL) {
+            Swal.fire({
+                title: "No Document",
+                text: "No file selected or uploaded to preview.",
+                icon: "info"
+            });
+            return;
+        }
 
         const consulModal = bootstrap.Modal.getInstance(document.getElementById("consultation_modal"));
-        consulModal.hide();
+        if (consulModal) {
+            consulModal.hide();
+        }
 
         const previewModalEl = document.getElementById("preview_modal");
         previewModalEl.dataset.src = fileURL;
+        previewModalEl.dataset.isimage = isImage ? "1" : "0";
+        previewModalEl.dataset.filename = fileName;
         const previewModal = bootstrap.Modal.getOrCreateInstance(previewModalEl);
         previewModal.show();
     });
@@ -704,8 +814,8 @@ $(function () {
                     results: $.map(response.charges, function (i) {
                         return {
                             id: i.prodcode,
-                            text:i.prod_itemdscr,
-                            price:i.price_regular
+                            text: i.prod_itemdscr,
+                            price: i.price_regular
                         }
                     })
                 }
@@ -970,7 +1080,8 @@ $(function () {
                         });
                     }
 
-                    $("#charges_total").text('₱' + total.toFixed(2));
+                    // Detailed Comment: Set total formatted to 2 decimals without prepending ₱ symbol, as the header template already provides ₱
+                    $("#charges_total").text(total.toFixed(2));
 
                     return response.charges || [];
                 }
@@ -998,14 +1109,14 @@ $(function () {
                 },
                 { data: 'item_dscr' },
                 { data: 'qty' },
-                { 
+                {
                     data: 'cost_ave',
                     render: function (data) {
                         const price = parseFloat(data || 0);
                         return isNaN(price) ? '0.00' : price.toFixed(2);
                     }
                 },
-                { 
+                {
                     data: 'totalamt',
                     render: function (data) {
                         const amt = parseFloat(data || 0);
@@ -1095,58 +1206,90 @@ $(function () {
         });
     });
 
+    // Detailed Comment: Edit Patient Charge (Professional Fee, procedure, supplies, etc.)
+    // Captures current row data from DataTable, populates Swal form, and posts updates to /api/update_charge
     $(document).on("click", ".edit_charge_btn", function () {
-        const consulModal = bootstrap.Modal.getInstance(document.getElementById("consultation_modal"));
-        consulModal.hide();
+        const $btn = $(this);
+        const chargeId = $btn.data("id") || $btn.val() || "";
+        const prodcode = $btn.data("prodcode") || "";
+        const $row = $btn.closest("tr");
+        const rowData = $("#charges_table").DataTable().row($row).data() || {};
+
+        const currentItemName = rowData.item_dscr || "Item / Service";
+        const currentQty = parseFloat(rowData.qty || 1) || 1;
+        const currentPrice = parseFloat(rowData.cost_ave || rowData.retails || 0) || 0;
+        const currentDiscount = parseFloat(rowData.discount || 0) || 0;
+
+        const consulModalEl = document.getElementById("consultation_modal");
+        const consulModal = bootstrap.Modal.getInstance(consulModalEl);
+        if (consulModal) {
+            consulModal.hide();
+        }
 
         Swal.fire({
-            title: "Edit Charge",
+            title: `Edit Charge`,
             html: `
-                <div class="d-flex gap-2">
-                    <div>
-                        <label class="form-label" for="charge_qty">Quantity</label>
-                        <input class="form-control" type="number" name="charge_qty" id="charge_qty">
+                <div class="mb-3 text-start">
+                    <span class="fw-bold text-primary">${currentItemName}</span>
+                </div>
+                <div class="row g-2 text-start">
+                    <div class="col-4">
+                        <label class="form-label fw-bold small" for="charge_qty">Quantity</label>
+                        <input class="form-control" type="number" step="any" min="0.01" name="charge_qty" id="charge_qty" value="${currentQty}">
                     </div>
 
-                    <div>
-                        <label class="form-label" for="charge_input_sw">Charge Fee</label>
-                        <input class="form-control" type="number" name="charge_input_sw" id="charge_input_sw">
+                    <div class="col-4">
+                        <label class="form-label fw-bold small" for="charge_input_sw">Unit Price (₱)</label>
+                        <input class="form-control" type="number" step="0.01" min="0" name="charge_input_sw" id="charge_input_sw" value="${currentPrice.toFixed(2)}">
                     </div>
 
-                    <div>
-                        <label class="form-label" for="charge_input_sw">Charge Discount</label>
-                        <input class="form-control" type="number" name="discount_input_sw" id="discount_input_sw">
+                    <div class="col-4">
+                        <label class="form-label fw-bold small" for="discount_input_sw">Discount (₱)</label>
+                        <input class="form-control" type="number" step="0.01" min="0" name="discount_input_sw" id="discount_input_sw" value="${currentDiscount.toFixed(2)}">
                     </div>
                 </div>
             `,
-            confirmButtonText: "Update",
+            confirmButtonText: "Update Charge",
             showCancelButton: true,
+            cancelButtonText: "Cancel",
             preConfirm: () => {
                 const charge = document.getElementById("charge_input_sw").value;
-                // const discount = document.getElementById("discount_input_sw").value;
+                const qty = document.getElementById("charge_qty").value;
 
-                if (!charge) {
-                    Swal.showValidationMessage("Input field is empty.");
+                if (!charge || isNaN(parseFloat(charge)) || parseFloat(charge) < 0) {
+                    Swal.showValidationMessage("Please enter a valid unit price/fee.");
+                    return false;
+                }
+                if (!qty || isNaN(parseFloat(qty)) || parseFloat(qty) <= 0) {
+                    Swal.showValidationMessage("Please enter a valid quantity greater than zero.");
                     return false;
                 }
 
-                return true;
+                return {
+                    charge_fee: parseFloat(charge),
+                    charge_qty: parseFloat(qty),
+                    discount: parseFloat(document.getElementById("discount_input_sw").value || 0)
+                };
             }
         }).then((result) => {
-            if (result.isConfirmed) {
-                consulModal.show();
+            if (result.isConfirmed && result.value) {
+                if (consulModal) {
+                    consulModal.show();
+                }
 
                 $.ajax({
-                    url: "update_charge",
+                    url: "/api/update_charge",
                     type: "POST",
                     headers: {
                         "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content")
                     },
                     data: {
                         consultationrefno: $("#consultationrefno").val(),
-                        pxchargerefno: $(this).val(),
-                        charge_fee: $("#charge_input_sw").val(),
-                        discount: $("#discount_input_sw").val()
+                        chargeid: chargeId,
+                        prodcode: prodcode,
+                        charge_fee: result.value.charge_fee,
+                        charge_qty: result.value.charge_qty,
+                        discount: result.value.discount
                     },
                     success: function (response) {
                         if (response.success) {
@@ -1154,17 +1297,32 @@ $(function () {
                                 toast: true,
                                 position: 'top-end',
                                 icon: 'success',
-                                title: 'Charge updated',
+                                title: 'Charge updated successfully',
                                 showConfirmButton: false,
                                 timer: 2000
                             });
 
                             $("#charges_table").DataTable().ajax.reload();
+                        } else {
+                            Swal.fire({
+                                title: "Update Failed",
+                                text: response.message || "Failed to update charge.",
+                                icon: "error"
+                            });
                         }
+                    },
+                    error: function (xhr) {
+                        Swal.fire({
+                            title: "Error",
+                            text: (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "An error occurred while updating charge.",
+                            icon: "error"
+                        });
                     }
                 });
             } else {
-                consulModal.show();
+                if (consulModal) {
+                    consulModal.show();
+                }
             }
         });
     });

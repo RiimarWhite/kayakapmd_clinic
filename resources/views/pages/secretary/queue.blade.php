@@ -354,8 +354,9 @@
 
                                         <div class="d-flex flex-column ms-auto">
                                             <div class="input-group">
+                                                {{-- Detailed Comment: Default sched_date to current date per secretary/admin queue requirements --}}
                                                 <input type="date" class="form-control form-control-sm" name="sched_date"
-                                                    id="sched_date">
+                                                    id="sched_date" value="{{ now()->toDateString() }}">
                                                 <select class="form-select form-select-sm" name="sched_time"
                                                     id="sched_time"></select>
                                             </div>

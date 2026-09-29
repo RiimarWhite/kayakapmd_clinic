@@ -442,6 +442,13 @@ $(function () {
                     $("#edit_followupdate").val(p.followupdate ? p.followupdate.split(' ')[0] : '');
                     $("#edit_followupcheckup").val(p.followupcheckup || '');
 
+                    // Detailed Comment: Populate existing patient photo preview in edit modal
+                    const photoSrc = response.photo_url || (p.photo_path ? `/patient/photo/${p.photo_path.split('/').pop()}` : '/images/blank_photo.png');
+                    $("#edit_patient_picture_preview").prop("src", photoSrc);
+                    $("#edit_photo_path").val(p.photo_path || '');
+                    $("#edit_photo_base64").val('');
+                    $("#edit_patient_image").val('');
+
                     const editModal = new bootstrap.Modal(document.getElementById("editPatientModal"));
                     editModal.show();
                 } else {
@@ -473,11 +480,16 @@ $(function () {
         const $btn = $("#save_edit_patient_btn");
         setBtnLoading($btn, "Saving...");
 
+        // Detailed Comment: Use FormData so binary patient image uploads and base64 payloads are sent reliably
+        const formData = new FormData(form);
+
         $.ajax({
             url: "/api/admin/update_patient",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-            data: $(form).serialize(),
+            data: formData,
+            processData: false,
+            contentType: false,
             success: function (response) {
                 if (response.success) {
                     Swal.fire({
@@ -571,6 +583,11 @@ $(function () {
         const form = document.getElementById("add_patient_form");
         if (form) form.reset();
         addPatientAddressCascade.reset();
+        // Detailed Comment: Reset photo preview and hidden fields when opening Add Patient modal
+        $("#add_patient_picture_preview").prop("src", "/images/blank_photo.png");
+        $("#add_photo_path").val("");
+        $("#add_photo_base64").val("");
+        $("#add_patient_image").val("");
         const modal = new bootstrap.Modal(document.getElementById("add_patient_modal"));
         modal.show();
     });
@@ -584,11 +601,16 @@ $(function () {
         const $btn = $(this);
         setBtnLoading($btn, "Saving...");
 
+        // Detailed Comment: Use FormData to send photo binary/base64 along with demographic fields
+        const formData = new FormData(form);
+
         $.ajax({
             url: "/api/add_patient",
             type: "POST",
             headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-            data: $(form).serialize(),
+            data: formData,
+            processData: false,
+            contentType: false,
             success: function (response) {
                 if (response.success) {
                     Swal.fire({
@@ -607,6 +629,9 @@ $(function () {
                     }
 
                     form.reset();
+                    $("#add_patient_picture_preview").prop("src", "/images/blank_photo.png");
+                    $("#add_photo_path").val("");
+                    $("#add_photo_base64").val("");
                     $("#masterlist_table").DataTable().ajax.reload(null, false);
                 } else {
                     Swal.fire({ title: "Error", text: response.message || "Failed to register patient.", icon: "error" });
@@ -620,6 +645,114 @@ $(function () {
                 resetBtnLoading($btn);
             }
         });
+    });
+
+    // Detailed Comment: Patient Photo upload and webcam capture handlers for Add and Edit Modals
+    let activeCameraTarget = 'add'; // 'add' or 'edit'
+    let cameraStream = null;
+
+    $("#add_upload_patient_image").on("click", function () {
+        $("#add_patient_image").trigger("click");
+    });
+    $("#add_patient_image").on("change", function () {
+        handleImageFileSelect(this, "#add_patient_picture_preview", "#add_photo_base64", "#add_photo_path");
+    });
+
+    $("#edit_upload_patient_image").on("click", function () {
+        $("#edit_patient_image").trigger("click");
+    });
+    $("#edit_patient_image").on("change", function () {
+        handleImageFileSelect(this, "#edit_patient_picture_preview", "#edit_photo_base64", "#edit_photo_path");
+    });
+
+    function handleImageFileSelect(input, previewEl, base64El, pathEl) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                $(previewEl).prop("src", e.target.result);
+                $(base64El).val(e.target.result);
+                $(pathEl).val("");
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    $("#add_take_photo").on("click", function () {
+        activeCameraTarget = 'add';
+        openCameraModal();
+    });
+    $("#edit_take_photo").on("click", function () {
+        activeCameraTarget = 'edit';
+        openCameraModal();
+    });
+
+    function openCameraModal() {
+        const modalEl = document.getElementById("takePhotoModal");
+        if (!modalEl) return;
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function (stream) {
+                    cameraStream = stream;
+                    const video = document.getElementById("camera_preview");
+                    if (video) {
+                        video.srcObject = stream;
+                        video.play();
+                    }
+                })
+                .catch(function (err) {
+                    console.error("Camera access error:", err);
+                    Swal.fire({
+                        title: "Camera Access Error",
+                        text: "Could not access camera. Please check device permissions.",
+                        icon: "error"
+                    });
+                });
+        }
+    }
+
+    $("#save_photo").on("click", function () {
+        const video = document.getElementById("camera_preview");
+        const canvas = document.getElementById("camera_canvas");
+        if (!video || !canvas) return;
+
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/png");
+
+        if (activeCameraTarget === 'add') {
+            $("#add_patient_picture_preview").prop("src", dataUrl);
+            $("#add_photo_base64").val(dataUrl);
+            $("#add_photo_path").val("");
+            $("#add_patient_image").val("");
+        } else {
+            $("#edit_patient_picture_preview").prop("src", dataUrl);
+            $("#edit_photo_base64").val(dataUrl);
+            $("#edit_photo_path").val("");
+            $("#edit_patient_image").val("");
+        }
+
+        stopCameraStream();
+        const modalEl = document.getElementById("takePhotoModal");
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+    });
+
+    function stopCameraStream() {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        }
+    }
+
+    $("#takePhotoModal").on("hidden.bs.modal", function () {
+        stopCameraStream();
     });
 
     // Detailed Comment: Self-service Doctor Profile modal lifecycle

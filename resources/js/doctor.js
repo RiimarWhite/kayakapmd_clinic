@@ -1488,7 +1488,8 @@ $(function () {
                         total += parseFloat(charge.net_total);
                     });
 
-                    $("#charges_total").text('₱' + total.toFixed(2));
+                    // Detailed Comment: Set total formatted to 2 decimals without prepending ₱ symbol, as the header template already provides ₱
+                    $("#charges_total").text(total.toFixed(2));
 
                     return response.charges;
                 }
@@ -1688,18 +1689,24 @@ $(function () {
                 consultationrefno: $("#consultationrefno").val()
             },
             success: function (response) {
-                if (response.files.radiologypath) {
-                    $("#radiology_hasfile").removeClass("d-none").addClass("d-inline-block");
+                if (response && response.files) {
+                    if (response.files.radiologypath) {
+                        $("#radiology_hasfile").removeClass("d-none").addClass("d-inline-block");
 
-                    $("#preview_radiology").prop("disabled", false);
-                    $("#preview_radiology").attr("data-filepath", response.files.radiologypath);
-                }
+                        $("#preview_radiology").prop("disabled", false);
+                        // Detailed Comment: Use the generated full URL link if available, falling back to relative storage path
+                        const radLink = response.files.radiology_url || response.files.radiology_link || (response.links ? response.links.radiology : null) || response.files.radiologypath;
+                        $("#preview_radiology").attr("data-filepath", radLink);
+                    }
 
-                if (response.files.laboratorypath) {
-                    $("#laboratory_hasfile").removeClass("d-none").addClass("d-inline-block");
+                    if (response.files.laboratorypath) {
+                        $("#laboratory_hasfile").removeClass("d-none").addClass("d-inline-block");
 
-                    $("#preview_laboratory").prop("disabled", false);
-                    $("#preview_laboratory").attr("data-filepath", response.files.laboratorypath);
+                        $("#preview_laboratory").prop("disabled", false);
+                        // Detailed Comment: Use the generated full URL link if available, falling back to relative storage path
+                        const labLink = response.files.laboratory_url || response.files.laboratory_link || (response.links ? response.links.laboratory : null) || response.files.laboratorypath;
+                        $("#preview_laboratory").attr("data-filepath", labLink);
+                    }
                 }
             }
         });
@@ -1724,7 +1731,29 @@ $(function () {
         if (fileInput && fileInput.files.length) {
             fileURL = URL.createObjectURL(fileInput.files[0]);
         } else if (storedPath && storedPath.trim() !== "") {
-            fileURL = "/preview-file/" + storedPath;
+            // Detailed Comment: Detect if running on an Apache subfolder like /kayakapmd_clinic
+            const pathSegments = window.location.pathname.split("/").filter(Boolean);
+            const knownRoutes = ["doctor", "secretary", "admin", "login", "register", "home", "preview-file"];
+            let projectPrefix = "";
+            if (pathSegments.length > 0 && !knownRoutes.includes(pathSegments[0])) {
+                projectPrefix = "/" + pathSegments[0];
+            }
+
+            if (storedPath.startsWith("http://") || storedPath.startsWith("https://")) {
+                try {
+                    const urlObj = new URL(storedPath);
+                    if (projectPrefix && !urlObj.pathname.startsWith(projectPrefix)) {
+                        urlObj.pathname = projectPrefix + urlObj.pathname;
+                    }
+                    fileURL = urlObj.toString();
+                } catch (e) {
+                    fileURL = storedPath;
+                }
+            } else if (storedPath.startsWith("/")) {
+                fileURL = (projectPrefix && !storedPath.startsWith(projectPrefix)) ? (projectPrefix + storedPath) : storedPath;
+            } else {
+                fileURL = (projectPrefix ? projectPrefix : "") + "/preview-file/" + storedPath;
+            }
         }
 
         if (!fileURL) return;

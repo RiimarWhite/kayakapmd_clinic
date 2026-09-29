@@ -35,6 +35,7 @@ use App\Models\SecretaryModel;
 use App\Models\SettlementsModel;
 use App\Models\AdminModel;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Log;
 
 class ManagementController extends Controller
@@ -2300,6 +2301,27 @@ class ManagementController extends Controller
             $request->pxsuffix
         ])));
 
+        // Detailed Comment: Process updated patient photo if uploaded as file or sent as webcam base64
+        $photoPath = null;
+        if ($request->hasFile('patient_photo') || $request->hasFile('patient_image')) {
+            $photoFile = $request->file('patient_photo') ?: $request->file('patient_image');
+            $photoPath = $photoFile->store('patient_photo', 'private');
+        } elseif ($request->filled('photo_base64')) {
+            $base64Data = $request->input('photo_base64');
+            if (preg_match('/^data:image\/(\w+);base64,/', $base64Data, $type)) {
+                $data = substr($base64Data, strpos($base64Data, ',') + 1);
+                $type = strtolower($type[1]);
+                $data = base64_decode($data);
+                if ($data !== false) {
+                    $fileName = 'camera_' . uniqid() . '.' . $type;
+                    Storage::disk('private')->put('patient_photo/' . $fileName, $data);
+                    $photoPath = 'patient_photo/' . $fileName;
+                }
+            }
+        } elseif ($request->filled('photo_path') && !str_contains($request->input('photo_path'), 'blank_photo.png')) {
+            $photoPath = $request->input('photo_path');
+        }
+
         $data = [
             'patientname' => $fullName,
             'pxfirstname' => $request->pxfirstname,
@@ -2330,12 +2352,16 @@ class ManagementController extends Controller
             'followupcheckup' => $request->followupcheckup,
         ];
 
+        if ($photoPath) {
+            $data['photo_path'] = $photoPath;
+        }
+
         $patient->update(array_filter($data, function ($val) {
             return $val !== null;
         }));
 
-        // Propagate demographic changes to walk-in consultations for consistency
-        ConsultationModel::where('pxrefno', $patient->pxrefno)->update([
+        // Propagate demographic and photo changes to walk-in consultations for consistency
+        $consultUpdates = [
             'patientname' => $fullName,
             'pxfirstname' => $request->pxfirstname,
             'pxmidname' => $request->pxmidname,
@@ -2346,7 +2372,11 @@ class ManagementController extends Controller
             'age' => $patient->age,
             'mobilenumber' => $request->mobilenumber,
             'emailaddress' => $request->emailaddress
-        ]);
+        ];
+        if ($photoPath) {
+            $consultUpdates['photo_path'] = $photoPath;
+        }
+        ConsultationModel::where('pxrefno', $patient->pxrefno)->update($consultUpdates);
 
         Log::info('Patient masterlist updated by admin', [
             'pxrefno' => $patient->pxrefno,

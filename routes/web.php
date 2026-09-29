@@ -99,6 +99,33 @@ Route::middleware('auth:admin')->group(function () {
 });
 
 // Fetch secured files
-Route::get('/preview-file/{path}', function ($path) {
-    return response()->file(storage_path('app/private/' . $path));
-})->where('path', '.*')->middleware('auth:doctor');
+// Detailed Comment: Handler closure for secured file previews, serving storage/app/private files inline
+$previewFileHandler = function ($path) {
+    // Detailed Comment: Securely preview files from storage/app/private, preventing directory traversal and serving with inline headers
+    $cleanPath = str_replace(['..', "\0"], '', $path);
+    $storagePath = storage_path('app/private/' . $cleanPath);
+    if (!file_exists($storagePath) || is_dir($storagePath)) {
+        abort(404, 'File not found');
+    }
+
+    return response()->file($storagePath, [
+        'Content-Disposition' => 'inline; filename="' . basename($storagePath) . '"',
+    ]);
+};
+
+// Route matching direct /preview-file/{path}
+Route::get('/preview-file/{path}', $previewFileHandler)
+    ->where('path', '.*')
+    ->middleware('auth:web,doctor,secretary,admin')
+    ->name('preview.file');
+
+// Detailed Comment: Support Apache server subfolder deployments where the project name (e.g. /kayakapmd_clinic)
+// is included in the route request URI, avoiding 404 errors.
+Route::get('/{project}/preview-file/{path}', function ($project, $path) use ($previewFileHandler) {
+    return $previewFileHandler($path);
+})->where('project', 'kayakapmd_clinic|EConsultationv2|[a-zA-Z0-9_-]+')
+  ->where('path', '.*')
+  ->middleware('auth:web,doctor,secretary,admin')
+  ->name('preview.file.project');
+
+

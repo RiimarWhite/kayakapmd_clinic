@@ -228,7 +228,28 @@ class ConsultationController extends Controller
 
         $pincode = 'PIN' . Carbon::now()->year . '-' . str_pad(PatientMasterlist::count() + 1, 5, '0', STR_PAD_LEFT);
 
-        // Detailed Comment: Create patient record into PatientMasterlist with comprehensive demographic and PhilHealth fields
+        // Detailed Comment: Process patient photo upload or webcam base64 capture
+        $photoPath = null;
+        if ($request->hasFile('patient_photo') || $request->hasFile('patient_image')) {
+            $photoFile = $request->file('patient_photo') ?: $request->file('patient_image');
+            $photoPath = $photoFile->store('patient_photo', 'private');
+        } elseif ($request->filled('photo_base64')) {
+            $base64Data = $request->input('photo_base64');
+            if (preg_match('/^data:image\/(\w+);base64,/', $base64Data, $type)) {
+                $data = substr($base64Data, strpos($base64Data, ',') + 1);
+                $type = strtolower($type[1]);
+                $data = base64_decode($data);
+                if ($data !== false) {
+                    $fileName = 'camera_' . uniqid() . '.' . $type;
+                    Storage::disk('private')->put('patient_photo/' . $fileName, $data);
+                    $photoPath = 'patient_photo/' . $fileName;
+                }
+            }
+        } elseif ($request->filled('photo_path') && !str_contains($request->input('photo_path'), 'blank_photo.png')) {
+            $photoPath = $request->input('photo_path');
+        }
+
+        // Detailed Comment: Create patient record into PatientMasterlist with comprehensive demographic, PhilHealth, and photo fields
         $record = PatientMasterlist::create([
             'pxrefno' => $patientCode,
             'pincode' => $pincode,
@@ -259,6 +280,7 @@ class ConsultationController extends Controller
             'classification' => $request->classification,
             'followupdate' => $request->followupdate,
             'followupcheckup' => $request->followupcheckup,
+            'photo_path' => $photoPath,
         ]);
 
         $consultation = ConsultationModel::create([
@@ -275,7 +297,8 @@ class ConsultationController extends Controller
             'age' => $record->age,
             'mobilenumber' => $record->mobilenumber,
             'emailaddress' => $record->emailaddress,
-            'status' => 'UNSCHEDULED'
+            'status' => 'UNSCHEDULED',
+            'photo_path' => $photoPath
         ]);
 
         if ($record && $consultation) {

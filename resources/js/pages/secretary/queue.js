@@ -20,13 +20,16 @@ $(function () {
     }
 
     /**
-     * Detailed Comment: Helper functions to toggle button loading spinners and disabled state
+     * Detailed Comment: Helper functions to toggle button loading spinners and disabled state.
      * Stores original button HTML in data attribute and restores upon operation completion.
+     * Prevents overwriting already active spinners if called consecutively.
      */
     function setBtnLoading($btn, loadingText = "") {
         if (!$btn || $btn.length === 0) return;
-        const originalHtml = $btn.html();
-        $btn.data('original-html', originalHtml).prop('disabled', true);
+        if (!$btn.data('original-html')) {
+            $btn.data('original-html', $btn.html());
+        }
+        $btn.prop('disabled', true);
         const text = loadingText ? ` ${loadingText}` : '';
         $btn.html(`<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>${text}`);
     }
@@ -36,6 +39,7 @@ $(function () {
         const originalHtml = $btn.data('original-html');
         if (originalHtml) {
             $btn.html(originalHtml);
+            $btn.removeData('original-html');
         }
         $btn.prop('disabled', false);
     }
@@ -128,7 +132,7 @@ $(function () {
                     return `
                         <div class="d-flex gap-1 justify-content-center align-items-center">
                             <!-- Show Info button: preserves .import-queue class and existing behavior with eye icon -->
-                            <button class="btn btn-sm btn-primary import-queue" value="${data.pxrefno}" data-consultationrefno="${data.consultationrefno || ''}" title="Show Info"><i class="fa-solid fa-eye"></i></button>
+                            <button class="btn btn-sm btn-primary import-queue" value="${data.pxrefno || ''}" data-pxrefno="${data.pxrefno || ''}" data-consultationrefno="${data.consultationrefno || ''}" title="Show Info"><i class="fa-solid fa-eye"></i></button>
                             
                             <!-- Merged Action Dropdown: Change Status, Reschedule, and Admin-Protected Delete -->
                             <div class="dropdown d-inline-block">
@@ -199,10 +203,10 @@ $(function () {
                     render: function (data) {
                         return `
                             <div class="d-flex gap-1 justify-content-center align-items-center">
-                                <button class="btn btn-sm btn-info text-white btn_px_history" value="${data.pxrefno}" data-pincode="${data.pincode || ''}" data-name="${(data.formatted_name || data.patientname || '').replace(/"/g, '&quot;')}" title="Consultation History">
+                                <button class="btn btn-sm btn-info text-white btn_px_history" value="${data.pxrefno || ''}" data-pxrefno="${data.pxrefno || ''}" data-pincode="${data.pincode || ''}" data-name="${(data.formatted_name || data.patientname || '').replace(/"/g, '&quot;')}" title="Consultation History">
                                     <i class="fa-solid fa-clock-rotate-left"></i>
                                 </button>
-                                <button class="btn btn-sm btn-primary btn_px_import" value="${data.pxrefno}" data-pincode="${data.pincode || ''}" title="Import Patient">
+                                <button class="btn btn-sm btn-primary btn_px_import" value="${data.pxrefno || ''}" data-pxrefno="${data.pxrefno || ''}" data-pincode="${data.pincode || ''}" title="Import Patient">
                                     <i class="fa-solid fa-file-import"></i>
                                 </button>
                                 <div class="dropdown d-inline-block">
@@ -211,13 +215,13 @@ $(function () {
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                                         <li>
-                                            <button class="dropdown-item btn_px_edit text-primary" type="button" value="${data.pxrefno}" data-pincode="${data.pincode || ''}">
+                                            <button class="dropdown-item btn_px_edit text-primary" type="button" value="${data.pxrefno || ''}" data-pxrefno="${data.pxrefno || ''}" data-pincode="${data.pincode || ''}">
                                                 <i class="fa-solid fa-pen-to-square me-2"></i> Edit
                                             </button>
                                         </li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li>
-                                            <button class="dropdown-item btn_px_delete text-danger" type="button" value="${data.pxrefno}" data-name="${(data.formatted_name || data.patientname || '').replace(/"/g, '&quot;')}">
+                                            <button class="dropdown-item btn_px_delete text-danger" type="button" value="${data.pxrefno || ''}" data-pxrefno="${data.pxrefno || ''}" data-pincode="${data.pincode || ''}" data-name="${(data.formatted_name || data.patientname || '').replace(/"/g, '&quot;')}">
                                                 <i class="fa-solid fa-trash me-2"></i> Delete
                                             </button>
                                         </li>
@@ -605,12 +609,18 @@ $(function () {
         });
     });
 
-    // Detailed Comment: Import patient queue record with button loading state and multi-key fallback
+    // Detailed Comment: Import patient queue record with button loading state, tab activation, and multi-key fallback
     $(document).on("click", ".import-queue", function () {
         const $btn = $(this);
         setBtnLoading($btn, "");
-        const pxrefno = $btn.val();
-        const consultationrefno = $btn.data("consultationrefno");
+        const pxrefno = $btn.val() || $btn.data("pxrefno") || "";
+        const consultationrefno = $btn.data("consultationrefno") || "";
+
+        // Detailed Comment: Automatically switch to Consultation Details tab when Show Info is clicked
+        const consulTabBtn = document.querySelector('button[data-bs-target="#consul_info"]');
+        if (consulTabBtn) {
+            bootstrap.Tab.getInstance(consulTabBtn)?.show() || new bootstrap.Tab(consulTabBtn).show();
+        }
 
         $.ajax({
             url: "/api/fetch_consultation", type: "POST",
@@ -621,6 +631,7 @@ $(function () {
                     const p = response.patient;
 
                     $("#pincode").val(p.pincode || "");
+                    $("#hidden_consultationrefno").val(p.consultationrefno || "");
                     $("#pxconsultationrefno").text(p.consultationrefno || "").val(p.consultationrefno || "");
                     // Detailed Comment: Set both text and val on pxidno span element so patient reference displays in UI and is readable
                     $("#pxidno").text(p.pxrefno || "").val(p.pxrefno || "");
@@ -655,8 +666,13 @@ $(function () {
                     $("#photo_path").val(p.photo_path || "");
                     $("#photo_base64").val("");
 
-                    // Detailed Comment: Load patient's medical and consultation history into the newly added Medical History tab
-                    loadSecretaryMedhistory(p.pincode, p.pxrefno, p.consultationrefno);
+                    // Detailed Comment: Safely load patient's medical and consultation history into the Medical History tab
+                    try {
+                        loadSecretaryMedhistory(p.pincode, p.pxrefno, p.consultationrefno);
+                    } catch (err) {
+                        console.warn("Error loading secretary medhistory:", err);
+                    }
+
                     if (response.answers && Array.isArray(response.answers)) {
                         response.answers.forEach(element => {
                             $(`textarea[name="answer[${element.questionrefno}]"]`).val(element.answer);
@@ -682,9 +698,17 @@ $(function () {
                         $("#patient_type").trigger("change");
                     }
 
-                    loadPatientCharges();
-                    // Detailed Comment: Load past consultation payments and update current consultation badges
-                    loadPatientPaymentHistory(p.pincode, p.pxrefno, p.consultationrefno);
+                    // Detailed Comment: Safely refresh charges table and payment history
+                    try {
+                        loadPatientCharges();
+                    } catch (err) {
+                        console.warn("Error loading patient charges:", err);
+                    }
+                    try {
+                        loadPatientPaymentHistory(p.pincode, p.pxrefno, p.consultationrefno);
+                    } catch (err) {
+                        console.warn("Error loading patient payment history:", err);
+                    }
                 } else {
                     Swal.fire({ title: "Error", text: (response && response.message) || "Failed to import patient details.", icon: "error" });
                 }
@@ -738,13 +762,46 @@ $(function () {
     // Patient charges
     $("#patient_charges_btn").on("click", function () { loadPatientCharges(); });
 
+    /**
+     * Detailed Comment: Load and display patient charges for the selected consultation.
+     * Safely checks and destroys any existing DataTable instance before re-initializing.
+     * Handles missing consultation reference gracefully by resetting total to 0.00 and clearing records.
+     */
     function loadPatientCharges() {
         const refno = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
         const consulDate = $("#sched_date").val() || $("#queuedate").val() || todayStr;
         $("#pay_tab_consultdate_badge").text(`Date: ${consulDate}`);
         $("#pay_tab_consultref_badge").text(`Ref: ${refno || 'None'}`);
 
-        $("#pxcharges_table").DataTable().destroy().clear();
+        // Detailed Comment: Safely destroy existing DataTable instance in DataTables 2 (clear then destroy)
+        if ($.fn.DataTable.isDataTable("#pxcharges_table")) {
+            $("#pxcharges_table").DataTable().clear().destroy();
+        }
+        $("#pxcharges_table tbody").empty();
+
+        if (!refno) {
+            $("#charges_total").text("0.00");
+            $("#pxcharges_table").DataTable({
+                data: [],
+                columns: [
+                    { data: null, defaultContent: "" },
+                    { data: 'item_dscr', defaultContent: "" },
+                    { data: 'qty', defaultContent: "" },
+                    { data: 'totalamt', defaultContent: "" }
+                ],
+                columnDefs: [
+                    { target: 0, width: '1%', orderable: false, className: 'text-nowrap text-center align-middle' },
+                    { target: '_all', orderable: false, className: 'text-nowrap align-middle' }
+                ],
+                layout: {
+                    bottomStart: 'paging',
+                    bottomEnd: null
+                },
+                searching: false, lengthChange: false, pageLength: 5, paging: true, order: [[1, 'asc']]
+            });
+            return;
+        }
+
         $("#pxcharges_table").DataTable({
             ajax: {
                 url: "/api/fetch_pxcharges", type: "POST",
@@ -791,9 +848,9 @@ $(function () {
                         `;
                     }
                 },
-                { data: 'item_dscr' },
-                { data: 'qty' },
-                { data: 'totalamt' }
+                { data: 'item_dscr', defaultContent: '' },
+                { data: 'qty', defaultContent: '' },
+                { data: 'totalamt', defaultContent: '' }
             ],
             columnDefs: [
                 { target: 0, width: '1%', orderable: false, className: 'text-nowrap text-center align-middle' },
@@ -1278,7 +1335,11 @@ $(function () {
         setBtnLoading($btn, "Loading...");
 
         new bootstrap.Modal("#patientMasterlistModal").show();
-        $("#patientMasterlistTable").DataTable().destroy().clear();
+        // Detailed Comment: Safely destroy existing DataTable instance in DataTables 2 (clear then destroy)
+        if ($.fn.DataTable.isDataTable("#patientMasterlistTable")) {
+            $("#patientMasterlistTable").DataTable().clear().destroy();
+        }
+        $("#patientMasterlistTable tbody").empty();
         $("#patientMasterlistTable").DataTable({
             processing: true, serverSide: true,
             ajax: {
@@ -2131,7 +2192,7 @@ $(function () {
     // Displays button loading feedback, loads right-hand tab, opens #patientMedhistoryModal, and loads #medhistorytable
     $(document).on("click", ".btn_px_history", function () {
         const $btn = $(this);
-        const pxrefno = $btn.val();
+        const pxrefno = $btn.val() || $btn.data("pxrefno") || '';
         const pincode = $btn.data("pincode") || '';
         const pxName = $btn.data("name") || '';
         if (!pxrefno && !pincode) return;
@@ -2158,8 +2219,13 @@ $(function () {
             modalInstance.show();
         }
 
-        // Also update inline medical history tab
-        loadSecretaryMedhistory(pincode, pxrefno);
+        // Also update inline medical history tab safely
+        try {
+            loadSecretaryMedhistory(pincode, pxrefno);
+        } catch (err) {
+            console.warn("Error loading secretary medhistory:", err);
+        }
+
         const medTabBtn = document.getElementById("patient_medhistory_tab_btn");
         if (medTabBtn) {
             bootstrap.Tab.getInstance(medTabBtn)?.show() || new bootstrap.Tab(medTabBtn).show();
@@ -2174,12 +2240,13 @@ $(function () {
     // Detailed Comment: Import patient record from Patient Masterlist card into Consultation Form with loading state feedback
     $(document).on("click", ".btn_px_import", function () {
         const $btn = $(this);
-        const pxrefno = $btn.val();
-        if (!pxrefno) return;
+        const pxrefno = $btn.val() || $btn.data("pxrefno") || "";
+        const pincode = $btn.data("pincode") || "";
+        if (!pxrefno && !pincode) return;
 
         setBtnLoading($btn, "");
 
-        // Activate Consultation Details tab
+        // Detailed Comment: Activate Consultation Details tab immediately
         const consulTabBtn = document.querySelector('button[data-bs-target="#consul_info"]');
         if (consulTabBtn) {
             bootstrap.Tab.getInstance(consulTabBtn)?.show() || new bootstrap.Tab(consulTabBtn).show();
@@ -2189,11 +2256,12 @@ $(function () {
             url: "/api/fetch_consultation",
             type: "POST",
             headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-            data: { pxrefno: pxrefno },
+            data: { pxrefno: pxrefno, pincode: pincode },
             success: function (response) {
                 if (response.success && response.patient) {
                     const p = response.patient;
                     $("#pincode").val(p.pincode || "");
+                    $("#hidden_consultationrefno").val(p.consultationrefno || "");
                     $("#pxconsultationrefno").text(p.consultationrefno || "").val(p.consultationrefno || "");
                     $("#pxidno").text(p.pxrefno || "").val(p.pxrefno || "");
                     $("#pxfname").val(p.pxfirstname || p.patientname || "");
@@ -2221,9 +2289,41 @@ $(function () {
                     $("#patient_picture_preview").prop("src", p.photo_path ?? '/images/blank_photo.png');
                     $("#photo_path").val(p.photo_path || "");
                     $("#photo_base64").val("");
-                    loadSecretaryMedhistory(p.pincode, p.pxrefno, p.consultationrefno);
-                    loadPatientCharges();
-                    loadPatientPaymentHistory(p.pincode, p.pxrefno, p.consultationrefno);
+
+                    // Detailed Comment: Safely execute auxiliary loaders
+                    try {
+                        loadSecretaryMedhistory(p.pincode, p.pxrefno, p.consultationrefno);
+                    } catch (err) {
+                        console.warn("Error loading secretary medhistory:", err);
+                    }
+                    try {
+                        loadPatientCharges();
+                    } catch (err) {
+                        console.warn("Error loading patient charges:", err);
+                    }
+                    try {
+                        loadPatientPaymentHistory(p.pincode, p.pxrefno, p.consultationrefno);
+                    } catch (err) {
+                        console.warn("Error loading patient payment history:", err);
+                    }
+
+                    // Detailed Comment: Update secretary 1-click printable document links with imported consultation reference
+                    const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
+                    const cref = p.consultationrefno || '';
+                    if (cref) {
+                        $("#sec_print_rx_btn").attr("href", `${basePath}/print_pdf?type=rx&consultationrefno=${cref}`);
+                        $("#sec_print_diag_btn").attr("href", `${basePath}/print_pdf?type=diagnostics&consultationrefno=${cref}`);
+                        $("#sec_print_admit_btn").attr("href", `${basePath}/print_pdf?type=admission&consultationrefno=${cref}`);
+                        $("#sec_print_soa_btn").attr("href", `${basePath}/print_pdf?type=soa&consultationrefno=${cref}`);
+                    } else {
+                        $("#sec_print_rx_btn, #sec_print_diag_btn, #sec_print_admit_btn, #sec_print_soa_btn").attr("href", "#");
+                    }
+
+                    if (p.hmocode != null) {
+                        $("#patient_type").val("hmo");
+                        $("#hmo_input").val(p.hmocode);
+                        $("#patient_type").trigger("change");
+                    }
 
                     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Patient data imported', showConfirmButton: false, timer: 1500 });
                 } else {
@@ -2247,7 +2347,7 @@ $(function () {
      */
     $(document).on("click", ".btn_px_edit", function () {
         const $btn = $(this);
-        const pxrefno = $btn.val();
+        const pxrefno = $btn.val() || $btn.data("pxrefno") || "";
         const pincode = $btn.data("pincode");
         if (!pxrefno && !pincode) return;
 
@@ -2363,7 +2463,7 @@ $(function () {
      * Confirms deletion intent and invokes /api/delete_patient_sec, then refreshes table.
      */
     $(document).on("click", ".btn_px_delete", function () {
-        const pxrefno = $(this).val();
+        const pxrefno = $(this).val() || $(this).data("pxrefno") || "";
         const pxName = $(this).data("name") || "this patient";
         if (!pxrefno) return;
 

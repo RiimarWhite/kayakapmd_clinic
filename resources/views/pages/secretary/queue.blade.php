@@ -187,6 +187,8 @@
                         <div class="d-flex gap-3">
                             <div class="d-flex flex-column gap-2 w-100">
                                 <div class="d-flex flex-column gap-0 ms-1">
+                                    <input type="hidden" name="pincode" id="pincode">
+                                    <input type="hidden" name="consultationrefno" id="hidden_consultationrefno">
                                     <p class="text-secondary m-0"><span class="fw-bold">Consultation Reference #:</span>
                                         <span id="pxconsultationrefno"></span>
                                     </p>
@@ -549,11 +551,7 @@
                                                             <th scope="col" style="width: 20%;">Amount</th>
                                                         </tr>
                                                     </thead>
-                                                    <tbody>
-                                                        <tr>
-                                                            <td colspan="4" class="text-center text-muted">No charges recorded yet.</td>
-                                                        </tr>
-                                                    </tbody>
+                                                    <tbody></tbody>
                                                 </table>
                                             </div>
 

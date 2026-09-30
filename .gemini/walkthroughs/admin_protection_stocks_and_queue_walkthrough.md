@@ -73,6 +73,20 @@ This walkthrough documents the design, implementation, and test verification for
   - `.remove_charge`: Displays `Swal.showLoading()` during `POST /api/delete_patient_charge` fee deletion.
   - `#refresh_payment_history_btn`: Displays rotating icon `<i class="fa-solid fa-arrows-rotate fa-spin"></i>` and disables button until `POST /api/fetch_patient_payment_history` completes.
 
+### 1.7 Patient Masterlist Import & DataTables Destruction Ordering Fixes
+- **Root Cause Identified**:
+  - In `resources/js/pages/secretary/queue.js`, `loadPatientCharges()` and `#view_masterlist_btn` called `.DataTable().destroy().clear()`.
+  - In DataTables 2, calling `.destroy()` on a DataTable instance destroys the API and returns the jQuery object (`$`). Calling `.clear()` on the jQuery object threw `Uncaught TypeError: $(...).DataTable(...).destroy(...).clear is not a function`.
+  - Because `loadPatientCharges()` was invoked inside the `success` handler of both Show Info (`.import-queue`) and Import (`.btn_px_import`), this uncaught exception aborted execution midway, leaving subsequent form setup unexecuted, button spinners unreset, and raising DataTables console errors.
+- **DataTables Destruction & Empty Guard Fix**:
+  - Updated both instances to safely check `$.fn.DataTable.isDataTable(table)` and execute `table.DataTable().clear().destroy()` followed by `table.find('tbody').empty()`.
+  - Added a defensive check to `loadPatientCharges()`: if no consultation reference exists (`refno` is null/empty), it initializes an empty DataTable (`data: []`) with `defaultContent: ""` for all columns, avoiding unnecessary AJAX network calls or DataTables errors.
+- **Multi-Key Fallback & Form Population**:
+  - In `app/Http/Controllers/ConsultationController.php` (`fetchConsultation`), added support for `pincode` alongside `consultationrefno`, `pxrefno`, and `casecode`. When patients without existing consultations are selected from the Masterlist, it falls back to `PatientMasterlist` records seamlessly.
+  - In `queue.js`, updated both `.import-queue` and `.btn_px_import` click handlers to extract both `pxrefno` and `pincode`, pass them in the payload, populate `#pincode` and `#hidden_consultationrefno`, activate `#consul_info`, and safely wrap auxiliary loaders (`loadSecretaryMedhistory`, `loadPatientCharges`, `loadPatientPaymentHistory`) in `try ... catch` blocks.
+- **Button Loading Idempotency**:
+  - In `queue.js`, updated `setBtnLoading` to only capture `data("original-html")` if not already set, preventing multiple invocations from locking in a spinner. Updated `resetBtnLoading` to clear the `original-html` data attribute.
+
 ---
 
 ## 2. Verification & Automated Test Results

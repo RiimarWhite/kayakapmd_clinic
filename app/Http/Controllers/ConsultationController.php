@@ -527,9 +527,10 @@ class ConsultationController extends Controller
     public function fetchConsultation(Request $request)
     {
         try {
-            // Detailed Comment: Support multi-key patient consultation lookup with graceful fallback to prevent 500/404 on import
+            // Detailed Comment: Support multi-key patient consultation lookup (consultationrefno, pxrefno, pincode, casecode) with graceful fallback to prevent 500/404 on import
             $consultationrefno = $request->input('consultationrefno');
             $pxrefno = $request->input('pxrefno');
+            $pincode = $request->input('pincode');
             $casecode = $request->input('casecode');
 
             $query = ConsultationModel::query();
@@ -538,6 +539,8 @@ class ConsultationController extends Controller
                 $query->where('consultationrefno', $consultationrefno);
             } elseif (!empty($pxrefno) && $pxrefno !== 'undefined') {
                 $query->where('pxrefno', $pxrefno)->orderBy('id', 'desc');
+            } elseif (!empty($pincode) && $pincode !== 'undefined') {
+                $query->where('pincode', $pincode)->orderBy('id', 'desc');
             } elseif (!empty($casecode) && $casecode !== 'undefined') {
                 $query->where(function ($q) use ($casecode) {
                     $q->where('consultationrefno', $casecode)
@@ -549,12 +552,19 @@ class ConsultationController extends Controller
             $consultation = $query->first();
 
             // Detailed Comment: If no walk-in consultation exists, fallback to pxmasterlist to allow pre-filling import form
-            if (!$consultation && (!empty($pxrefno) || !empty($casecode))) {
-                $lookupKey = (!empty($pxrefno) && $pxrefno !== 'undefined') ? $pxrefno : $casecode;
-                // Detailed Comment: pxmasterlist does not have a casecode column; match on pxrefno or pincode
-                $pxMaster = PatientMasterlist::where('pxrefno', $lookupKey)
-                    ->orWhere('pincode', $lookupKey)
-                    ->first();
+            if (!$consultation && (!empty($pxrefno) || !empty($pincode) || !empty($casecode))) {
+                $pxMaster = null;
+                if (!empty($pxrefno) && $pxrefno !== 'undefined') {
+                    $pxMaster = PatientMasterlist::where('pxrefno', $pxrefno)->first();
+                }
+                if (!$pxMaster && !empty($pincode) && $pincode !== 'undefined') {
+                    $pxMaster = PatientMasterlist::where('pincode', $pincode)->first();
+                }
+                if (!$pxMaster && !empty($casecode) && $casecode !== 'undefined') {
+                    $pxMaster = PatientMasterlist::where('pxrefno', $casecode)
+                        ->orWhere('pincode', $casecode)
+                        ->first();
+                }
 
                 if ($pxMaster) {
                     $consultation = new ConsultationModel([

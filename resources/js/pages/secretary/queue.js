@@ -199,7 +199,7 @@ $(function () {
                     render: function (data) {
                         return `
                             <div class="d-flex gap-1 justify-content-center align-items-center">
-                                <button class="btn btn-sm btn-info text-white btn_px_history" value="${data.pxrefno}" data-pincode="${data.pincode || ''}" title="Consultation History">
+                                <button class="btn btn-sm btn-info text-white btn_px_history" value="${data.pxrefno}" data-pincode="${data.pincode || ''}" data-name="${(data.formatted_name || data.patientname || '').replace(/"/g, '&quot;')}" title="Consultation History">
                                     <i class="fa-solid fa-clock-rotate-left"></i>
                                 </button>
                                 <button class="btn btn-sm btn-primary btn_px_import" value="${data.pxrefno}" data-pincode="${data.pincode || ''}" title="Import Patient">
@@ -1396,7 +1396,7 @@ $(function () {
 
     // Detailed Comment: Populate Patient Medical History DataTable when modal opens
     $("#patientMedhistoryModal").on("show.bs.modal", function () {
-        const pincode = $("#mpincode").val();
+        const pincode = $("#mpincode").val() || $(this).data('pincode') || '';
         const pxrefno = $(this).data('pxrefno') || '';
         const consultationrefno = $(this).data('consultationrefno') || '';
 
@@ -1415,7 +1415,9 @@ $(function () {
                     pxrefno: pxrefno,
                     consultationrefno: consultationrefno
                 },
-                dataSrc: 'history'
+                dataSrc: function (json) {
+                    return json.history || json.medhistory || json.data || [];
+                }
             },
             columns: [
                 {
@@ -1744,6 +1746,7 @@ $(function () {
                 confirmButtonColor: "#d33"
             }).then((result) => {
                 if (result.isConfirmed) {
+                    Swal.showLoading();
                     setBtnLoading($btn, "");
                     const payload = { consultationrefno: refno, prodcode: prodcode };
                     if (chargeId && chargeId !== 'null' && chargeId !== 'undefined') {
@@ -1983,6 +1986,7 @@ $(function () {
                 confirmButtonColor: "#d33"
             }).then((result) => {
                 if (result.isConfirmed) {
+                    Swal.showLoading();
                     $.ajax({
                         url: "/api/delete_patient_queue",
                         type: "POST",
@@ -2023,12 +2027,13 @@ $(function () {
     /**
      * Detailed Comment: Loads past consultation payment history for the active patient.
      * Fetches historical settlement records via /api/fetch_patient_payment_history
-     * and renders into #px_previous_payments_table.
+     * and renders into #px_previous_payments_table. Accepts optional onComplete callback for loader toggling.
      */
-    function loadPatientPaymentHistory(pincode, pxrefno, consultationrefno) {
+    function loadPatientPaymentHistory(pincode, pxrefno, consultationrefno, onComplete = null) {
         const $tbody = $("#px_previous_payments_table tbody");
         if (!pincode && !pxrefno && !consultationrefno) {
             $tbody.html('<tr><td colspan="7" class="text-center text-muted">Select or import a patient consultation to view past payment history.</td></tr>');
+            if (typeof onComplete === 'function') onComplete();
             return;
         }
 
@@ -2081,16 +2086,27 @@ $(function () {
             },
             error: function () {
                 $tbody.html('<tr><td colspan="7" class="text-center text-danger">Failed to load payment history.</td></tr>');
+            },
+            complete: function () {
+                if (typeof onComplete === 'function') onComplete();
             }
         });
     }
 
-    // Refresh payment history button
+    // Detailed Comment: Refresh payment history button with icon spin animation feedback
     $("#refresh_payment_history_btn").on("click", function () {
+        const $btn = $(this);
+        const $icon = $btn.find("i");
+        $icon.addClass("fa-spin");
+        $btn.prop("disabled", true);
+
         const pincode = $("#pincode").val();
         const pxrefno = $("#pxidno").text() || $("#pxidno").val();
         const consultationrefno = $("#pxconsultationrefno").text() || $("#pxconsultationrefno").val();
-        loadPatientPaymentHistory(pincode, pxrefno, consultationrefno);
+        loadPatientPaymentHistory(pincode, pxrefno, consultationrefno, function () {
+            $icon.removeClass("fa-spin");
+            $btn.prop("disabled", false);
+        });
     });
 
     // Detailed Comment: Refresh charges and past payments whenever Payment Details tab is shown
@@ -2112,26 +2128,61 @@ $(function () {
     });
 
     // Detailed Comment: View consultation history from Patient Masterlist card
+    // Displays button loading feedback, loads right-hand tab, opens #patientMedhistoryModal, and loads #medhistorytable
     $(document).on("click", ".btn_px_history", function () {
-        const pxrefno = $(this).val();
-        const pincode = $(this).data("pincode");
+        const $btn = $(this);
+        const pxrefno = $btn.val();
+        const pincode = $btn.data("pincode") || '';
+        const pxName = $btn.data("name") || '';
         if (!pxrefno && !pincode) return;
 
+        setBtnLoading($btn, "");
+
+        // Set patient name badge in modal title
+        if (pxName) {
+            $("#medhistory_patient_name").text(`- ${pxName}`);
+        } else {
+            $("#medhistory_patient_name").text('');
+        }
+
+        // Set modal data attributes and hidden inputs
+        $("#mpincode").val(pincode);
+        const $modal = $("#patientMedhistoryModal");
+        $modal.data('pxrefno', pxrefno);
+        $modal.data('pincode', pincode);
+
+        // Open dedicated consultation history modal
+        const modalEl = document.getElementById("patientMedhistoryModal");
+        if (modalEl) {
+            const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modalInstance.show();
+        }
+
+        // Also update inline medical history tab
         loadSecretaryMedhistory(pincode, pxrefno);
-        const medTabBtn = document.getElementById("medhistory-tab");
+        const medTabBtn = document.getElementById("patient_medhistory_tab_btn");
         if (medTabBtn) {
             bootstrap.Tab.getInstance(medTabBtn)?.show() || new bootstrap.Tab(medTabBtn).show();
         }
+
+        // Restore button state after modal activation
+        setTimeout(function () {
+            resetBtnLoading($btn);
+        }, 400);
     });
 
-    // Detailed Comment: Import patient record from Patient Masterlist card into Consultation Form
+    // Detailed Comment: Import patient record from Patient Masterlist card into Consultation Form with loading state feedback
     $(document).on("click", ".btn_px_import", function () {
-        const pxrefno = $(this).val();
+        const $btn = $(this);
+        const pxrefno = $btn.val();
         if (!pxrefno) return;
 
-        const genTabBtn = document.getElementById("general-info-tab");
-        if (genTabBtn) {
-            bootstrap.Tab.getInstance(genTabBtn)?.show() || new bootstrap.Tab(genTabBtn).show();
+        setBtnLoading($btn, "");
+
+        // Activate Consultation Details tab
+        const consulTabBtn = document.querySelector('button[data-bs-target="#consul_info"]');
+        if (consulTabBtn) {
+            bootstrap.Tab.getInstance(consulTabBtn)?.show() || new bootstrap.Tab(consulTabBtn).show();
         }
 
         $.ajax({
@@ -2175,7 +2226,16 @@ $(function () {
                     loadPatientPaymentHistory(p.pincode, p.pxrefno, p.consultationrefno);
 
                     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Patient data imported', showConfirmButton: false, timer: 1500 });
+                } else {
+                    Swal.fire({ title: "Error", text: (response && response.message) || "Failed to import patient details.", icon: "error" });
                 }
+            },
+            error: function (xhr) {
+                const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "Failed to import patient details.";
+                Swal.fire({ title: "Error", text: msg, icon: "error" });
+            },
+            complete: function () {
+                resetBtnLoading($btn);
             }
         });
     });
@@ -2183,14 +2243,16 @@ $(function () {
     /**
      * Detailed Comment: Edit Patient Masterlist record with administrator credential elevation protection.
      * Checks session elevation, fetches patient details via /api/fetch_patient_details,
-     * populates #editPatientModal tabbed inputs, and shows modal.
+     * populates #editPatientModal tabbed inputs, and shows modal with button loader feedback.
      */
     $(document).on("click", ".btn_px_edit", function () {
-        const pxrefno = $(this).val();
-        const pincode = $(this).data("pincode");
+        const $btn = $(this);
+        const pxrefno = $btn.val();
+        const pincode = $btn.data("pincode");
         if (!pxrefno && !pincode) return;
 
         requireAdminAuth(function () {
+            setBtnLoading($btn, "Loading...");
             $.ajax({
                 url: "/api/fetch_patient_details",
                 type: "POST",
@@ -2241,6 +2303,9 @@ $(function () {
                 },
                 error: function (xhr) {
                     Swal.fire({ title: "Error", text: xhr.responseJSON?.message || "Failed to load patient details.", icon: "error" });
+                },
+                complete: function () {
+                    resetBtnLoading($btn);
                 }
             });
         });
@@ -2312,6 +2377,7 @@ $(function () {
                 confirmButtonColor: "#d33"
             }).then((result) => {
                 if (result.isConfirmed) {
+                    Swal.showLoading();
                     $.ajax({
                         url: "/api/delete_patient_sec",
                         type: "POST",

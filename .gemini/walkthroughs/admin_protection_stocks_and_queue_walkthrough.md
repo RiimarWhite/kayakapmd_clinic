@@ -59,6 +59,20 @@ This walkthrough documents the design, implementation, and test verification for
 - Header displays consultation date and reference badges (`#doctor_modal_consultdate_badge`, `#doctor_modal_consultref_badge`).
 - All 5 consultation tabs (Patient Charges, Radiology & Laboratory, Diagnostics Requests, Rx & Instructions, Impressions & Diagnosis) synchronize and display contents strictly for the current consultation date and reference upon tab activation.
 
+### 1.6 Consultation History Modal & Button Loading Feedback Enhancements
+- **Consultation History Modal Fix (`#patientMedhistoryModal`)**:
+  - Fixed `.btn_px_history` click handler in `resources/js/pages/secretary/queue.js` to populate patient name on `#medhistory_patient_name`, set hidden inputs, open the dedicated `#patientMedhistoryModal` using Bootstrap 5 Modal API, and synchronize the inline Medical History tab (`#patient_medhistory_tab_btn` / `#sec_medhistory_table`).
+  - Added resilient `dataSrc` handler to `#medhistorytable` DataTable configuration in `queue.js` to seamlessly parse `json.history`, `json.medhistory`, or `json.data`.
+  - Added modal header patient badge and close button in footer of `resources/views/modals/patient_masterlist.blade.php`.
+- **Button Loading States Added Across Secretary Queue & Masterlist**:
+  - `.btn_px_history`: Shows spinner during modal trigger and history loading, with auto-restore.
+  - `.btn_px_import`: Shows spinner during `POST /api/fetch_consultation`, correctly activates `#consul_info` tab, and restores upon completion.
+  - `.btn_px_edit`: Shows spinner during `POST /api/fetch_patient_details` within the elevated admin session, and restores upon completion.
+  - `.btn_px_delete`: Displays `Swal.showLoading()` during `POST /api/delete_patient_sec` deletion.
+  - `.delete-queue-item`: Displays `Swal.showLoading()` during `POST /api/delete_patient_queue` deletion.
+  - `.remove_charge`: Displays `Swal.showLoading()` during `POST /api/delete_patient_charge` fee deletion.
+  - `#refresh_payment_history_btn`: Displays rotating icon `<i class="fa-solid fa-arrows-rotate fa-spin"></i>` and disables button until `POST /api/fetch_patient_payment_history` completes.
+
 ---
 
 ## 2. Verification & Automated Test Results

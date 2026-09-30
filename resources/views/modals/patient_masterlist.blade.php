@@ -43,42 +43,32 @@
 	aria-hidden="true">
 	<div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
 		<div class="modal-content">
-			<div class="modal-header">
-				<h2 class="modal-title"><i class="fa-solid fa-people-group"></i> Patient Consultation History</h2>
+			<div class="modal-header bg-light">
+				<h2 class="modal-title fs-5"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Patient Consultation History <span id="medhistory_patient_name" class="fs-6 text-muted fw-normal ms-2"></span></h2>
 				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 			</div>
 
-			<div class="modal-body">
+			<div class="modal-body p-3">
 				<input type="hidden" name="mpincode" id="mpincode">
 				<div class="table-responsive">
-					<table class="table table-bordered" id="medhistorytable">
-						<thead class="table-danger">
+					<table class="table table-sm table-bordered table-hover align-middle w-100" id="medhistorytable">
+						<thead class="table-info">
 							<tr>
-								<th scope="col">Photo</th>
-								<th scope="col">Consultation Date</th>
+								<th scope="col" class="text-center" style="width: 50px;">Photo</th>
+								<th scope="col" style="width: 120px;">Consultation Date</th>
 								<th scope="col">Reason for Consultation</th>
-								<th scope="col">Status</th>
-								<th scope="col">Recorded By</th>
-								<th scope="col">Recorded On</th>
+								<th scope="col" style="width: 110px;" class="text-center">Status</th>
+								<th scope="col" style="width: 150px;">Recorded By</th>
+								<th scope="col" style="width: 120px;">Recorded On</th>
 							</tr>
 						</thead>
-
-						<tbody>
-							<tr>
-								<td></td>
-								<td></td>
-								<td></td>
-								<td></td>
-								<td></td>
-								<td></td>
-							</tr>
-						</tbody>
+						<tbody></tbody>
 					</table>
 				</div>
 			</div>
 
-			<div class="modal-footer">
-
+			<div class="modal-footer bg-light py-2">
+				<button type="button" class="btn btn-secondary fw-semibold" data-bs-dismiss="modal">Close</button>
 			</div>
 		</div>
 	</div>

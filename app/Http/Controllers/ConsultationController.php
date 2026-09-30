@@ -11,9 +11,13 @@ use Illuminate\Http\Request;
 use App\Models\ConsultationAnswerModel;
 use App\Models\DoctorsProfileModel;
 use App\Models\ConsultationModel;
+use App\Models\DocRequestsModel;
+use App\Models\DocChargesModel;
 use App\Models\Stocks\StocksLedgerModel;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Http\Controllers\Api\AdminVerificationController;
 
 class ConsultationController extends Controller
 {
@@ -1282,5 +1286,191 @@ class ConsultationController extends Controller
 
         $hmo = $query->get();
         return response()->json(['success' => true, 'hmo' => $hmo]);
+    }
+
+    /**
+     * Detailed Comment: Deletes a patient queue entry from pxwalkinconsultation, along with associated
+     * requests, charges, and answers. Protected by admin elevation check for non-admin users.
+     */
+    public function deletePatientQueue(Request $request)
+    {
+        if (!Auth::guard('admin')->check()) {
+            if (!AdminVerificationController::isUserElevated($request)) {
+                return response()->json([
+                    'success' => false,
+                    'elevated' => false,
+                    'require_admin_auth' => true,
+                    'message' => 'Administrator verification is required to delete patient queue records.'
+                ], 403);
+            }
+        }
+
+        $request->validate([
+            'consultationrefno' => 'required|string',
+        ]);
+
+        $consultation = ConsultationModel::where('consultationrefno', $request->consultationrefno)->first();
+
+        if (!$consultation) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Consultation queue record not found.'
+            ], 404);
+        }
+
+        // Clean up linked records
+        ConsultationAnswerModel::where('consultationrefno', $request->consultationrefno)->delete();
+        DocRequestsModel::where('consultationrefno', $request->consultationrefno)->delete();
+        DocChargesModel::where('consultationrefno', $request->consultationrefno)->delete();
+        StocksLedgerModel::where('px_consultcode_cn', $request->consultationrefno)->delete();
+
+        $deleted = $consultation->delete();
+
+        Log::info('Patient consultation queue record deleted', [
+            'consultationrefno' => $request->consultationrefno,
+            'pxrefno' => $consultation->pxrefno,
+            'deleted_by' => Auth::guard('admin')->user()->username ?? session()->get('admin_verified_username') ?? 'secretary'
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Patient removed from queue successfully.'
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Deletes a patient masterlist record (pxmasterlist) and optionally its unscheduled
+     * consultations. Protected by admin elevation check for non-admin users.
+     */
+    public function deletePatient(Request $request)
+    {
+        if (!Auth::guard('admin')->check()) {
+            if (!AdminVerificationController::isUserElevated($request)) {
+                return response()->json([
+                    'success' => false,
+                    'elevated' => false,
+                    'require_admin_auth' => true,
+                    'message' => 'Administrator verification is required to delete patient records.'
+                ], 403);
+            }
+        }
+
+        $pxrefno = $request->input('pxrefno') ?? $request->input('patient_id');
+        if (empty($pxrefno)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Patient reference number is required.'
+            ], 422);
+        }
+
+        $patient = PatientMasterlist::where('pxrefno', $pxrefno)->first();
+        if (!$patient) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Patient masterlist record not found.'
+            ], 404);
+        }
+
+        $deletedName = $patient->patientname;
+        // Clean up any UNSCHEDULED consultations for this patient
+        ConsultationModel::where('pxrefno', $pxrefno)->where('status', 'UNSCHEDULED')->delete();
+
+        $patient->delete();
+
+        Log::info('Patient masterlist record deleted', [
+            'pxrefno' => $pxrefno,
+            'patientname' => $deletedName,
+            'deleted_by' => Auth::guard('admin')->user()->username ?? session()->get('admin_verified_username') ?? 'secretary'
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Patient '{$deletedName}' deleted successfully."
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Fetches patient masterlist specifically formatted for the Secretary Queue's
+     * Patient Masterlist card. Returns 2-column format (Actions, Patient Name [Last, First, Middle, Suffix]).
+     */
+    public function fetchQueuePatientMasterlist(Request $request)
+    {
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+        $search = $request->input('search.value');
+
+        $query = PatientMasterlist::query();
+
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('patientname', 'like', "%{$search}%")
+                  ->orWhere('pxlastname', 'like', "%{$search}%")
+                  ->orWhere('pxfirstname', 'like', "%{$search}%")
+                  ->orWhere('pxmidname', 'like', "%{$search}%")
+                  ->orWhere('pxrefno', 'like', "%{$search}%")
+                  ->orWhere('pincode', 'like', "%{$search}%");
+            });
+        }
+
+        $recordsTotal = PatientMasterlist::count();
+        $recordsFiltered = (clone $query)->count();
+
+        $patients = $query->orderBy('pxlastname', 'asc')
+            ->orderBy('pxfirstname', 'asc')
+            ->offset($start)
+            ->limit($length)
+            ->get();
+
+        $data = $patients->map(function ($p) {
+            $parts = [];
+            if (!empty($p->pxlastname)) {
+                $parts[] = $p->pxlastname . ',';
+            }
+            if (!empty($p->pxfirstname)) {
+                $parts[] = $p->pxfirstname;
+            }
+            if (!empty($p->pxmidname)) {
+                $parts[] = $p->pxmidname;
+            }
+            if (!empty($p->pxsuffix)) {
+                $parts[] = $p->pxsuffix;
+            }
+            $formattedName = !empty($parts) ? implode(' ', $parts) : ($p->patientname ?? 'N/A');
+
+            return [
+                'id' => $p->id,
+                'pxrefno' => $p->pxrefno,
+                'pincode' => $p->pincode,
+                'formatted_name' => $formattedName,
+                'patientname' => $p->patientname,
+                'pxlastname' => $p->pxlastname,
+                'pxfirstname' => $p->pxfirstname,
+                'pxmidname' => $p->pxmidname,
+                'pxsuffix' => $p->pxsuffix,
+                'gender' => $p->gender,
+                'birthday' => $p->birthday,
+                'age' => $p->age,
+                'mobilenumber' => $p->mobilenumber,
+                'emailaddress' => $p->emailaddress,
+                'address' => $p->address,
+                'streetadrs' => $p->streetadrs,
+                'brgy' => $p->brgy,
+                'muncity' => $p->muncity,
+                'province' => $p->province,
+                'zipcode' => $p->zipcode,
+                'region' => $p->region,
+                'phic_pin' => $p->phic_pin,
+                'ispwd' => $p->ispwd,
+                'senior_idno' => $p->senior_idno,
+                'photo_path' => $p->photo_path ? (str_starts_with($p->photo_path, 'http') ? $p->photo_path : url('/patient/photo/' . basename($p->photo_path))) : null,
+            ];
+        });
+
+        return response()->json([
+            'draw' => intval($request->input('draw')),
+            'recordsTotal' => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'data' => $data
+        ]);
     }
 }

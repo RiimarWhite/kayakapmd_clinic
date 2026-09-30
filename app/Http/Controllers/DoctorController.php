@@ -23,8 +23,10 @@ use App\Models\ScheduleModel;
 use App\Models\SettlementsModel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Api\AdminVerificationController;
 
 class DoctorController extends Controller
 {
@@ -1340,6 +1342,19 @@ class DoctorController extends Controller
      */
     public function deleteCharge(Request $request)
     {
+        // Detailed Comment: Admin credential protection for fee deletion
+        // Logged-in doctors and admins are allowed; secretaries and other sessions require valid admin elevation
+        if (!Auth::guard('admin')->check() && !Auth::guard('doctor')->check()) {
+            if (!AdminVerificationController::isUserElevated($request)) {
+                return response()->json([
+                    'success' => false,
+                    'elevated' => false,
+                    'require_admin_auth' => true,
+                    'message' => 'Administrator verification is required to delete fee records.'
+                ], 403);
+            }
+        }
+
         $request->validate([
             'consultationrefno' => 'required|string',
         ]);
@@ -1399,6 +1414,19 @@ class DoctorController extends Controller
      */
     public function updateCharge(Request $request)
     {
+        // Detailed Comment: Admin credential protection for fee editing
+        // Logged-in doctors and admins are allowed; secretaries and other sessions require valid admin elevation
+        if (!Auth::guard('admin')->check() && !Auth::guard('doctor')->check()) {
+            if (!AdminVerificationController::isUserElevated($request)) {
+                return response()->json([
+                    'success' => false,
+                    'elevated' => false,
+                    'require_admin_auth' => true,
+                    'message' => 'Administrator verification is required to edit fee records.'
+                ], 403);
+            }
+        }
+
         $consultationrefno = $request->input('consultationrefno');
         $chargeId = $request->input('chargeid') ?? $request->input('charge_id') ?? $request->input('id') ?? $request->input('pxchargerefno');
         $prodcode = $request->input('prodcode');

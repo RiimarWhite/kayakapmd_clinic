@@ -152,6 +152,10 @@ $(function () {
                 if (response.patient != null) {
                     const p = response.patient;
                     $("#consultationrefno").val(p.consultationrefno);
+                    // Detailed Comment: Populate modal header badges with active consultation date and reference
+                    const activeConsulDate = p.consultation_date ? p.consultation_date.split(' ')[0] : ($("#consul_date").val() || new Date().toISOString().split('T')[0]);
+                    $("#doctor_modal_consultdate_badge").text(`Date: ${activeConsulDate}`);
+                    $("#doctor_modal_consultref_badge").text(`Ref: ${p.consultationrefno || 'N/A'}`);
                     $("#consulname").text([p.patientname, p.pxmidname, p.pxlastname, p.pxsuffix].filter(v => v).join(' '));
                     $("#consulsex").text(p.gender);
                     $("#consulbday").text(new Date(p.birthday.replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));

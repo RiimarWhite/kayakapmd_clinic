@@ -4,8 +4,13 @@
 <div class="modal fade" data-bs-backdrop="static" id="consultation_modal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl" style="min-width: 90rem;">
         <div class="modal-content" style="height: 50rem;">
-            <div class="modal-header">
-                <h2 class="modal-title"><i class="fa-solid fa-stethoscope"></i> Consultation</h2>
+            <div class="modal-header d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <h2 class="modal-title m-0"><i class="fa-solid fa-stethoscope text-primary me-2"></i> Consultation</h2>
+                    <!-- Detailed Comment: Badges displaying the active consultation date and consultation reference -->
+                    <span class="badge bg-primary fs-6" id="doctor_modal_consultdate_badge">Date: Today</span>
+                    <span class="badge bg-secondary fs-6" id="doctor_modal_consultref_badge">Ref: --</span>
+                </div>
                 <button type="button" class="btn-close" id="close-consultation-modal"></button>
             </div>
 

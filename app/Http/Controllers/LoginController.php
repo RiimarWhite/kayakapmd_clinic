@@ -146,6 +146,9 @@ class LoginController extends Controller
             }
         }
 
+        // Detailed Comment: Explicitly forget admin elevation session attributes upon logout
+        $request->session()->forget(['admin_verified', 'admin_verified_username', 'admin_verified_expires_at']);
+
         // Detailed Comment: Clear all session attributes and regenerate CSRF token
         $request->session()->invalidate();
         $request->session()->regenerateToken();

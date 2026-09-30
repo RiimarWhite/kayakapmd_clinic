@@ -70,6 +70,32 @@ $(function () {
         });
     }
 
+    /**
+     * Detailed Comment: Load and refresh chief complaints, impressions, and diagnosis
+     * strictly for the active consultation record whenever the Impressions & Diagnosis tab is opened.
+     */
+    $("#impDiagBtn").on("click", function () {
+        const refno = $("#consultationrefno").val();
+        if (!refno) return;
+
+        $.ajax({
+            url: "/api/fetch_patient_data",
+            type: "POST",
+            headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+            data: { consultationrefno: refno },
+            success: function (res) {
+                if (res && res.patient) {
+                    const p = res.patient;
+                    $("#reasonforconsultation").val(p.reasonforconsultation || "");
+                    $("#impressions").val(p.impression || "");
+                    $("#diagnosis").val(p.finadiagnosis || p.diagnosis || "");
+                    $("#foradmit").prop("checked", p.foradmit == 1);
+                    $("#foradmit_instructions").val(p.foradmit_instructions || "");
+                }
+            }
+        });
+    });
+
     // Detailed Comment: Save chief complaints, impressions, and diagnosis with button loading spinner
     $("#save_impressions_diagnosis").on("click", function () {
         const $btn = $(this);
@@ -294,6 +320,23 @@ $(function () {
         if (typeof window.loadDashboardRx === 'function' && window.loadDashboardRx !== loadDashboardRx) {
             return window.loadDashboardRx();
         }
+
+        // Detailed Comment: Refresh instructions for the active consultation record
+        const activeRef = $("#consultationrefno").val();
+        if (activeRef) {
+            $.ajax({
+                url: "/api/fetch_patient_data",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                data: { consultationrefno: activeRef },
+                success: function (res) {
+                    if (res && res.patient) {
+                        $("#patient_instructions").val(res.patient.instructions || "");
+                    }
+                }
+            });
+        }
+
         if ($.fn.DataTable.isDataTable("#dashboard_rx_table")) {
             $("#dashboard_rx_table").DataTable().destroy().clear();
         }

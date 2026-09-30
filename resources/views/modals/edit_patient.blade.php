@@ -1,9 +1,10 @@
 {{--
-  Detailed Comment: Admin Edit Patient Details Modal.
-  Allows administrators to edit all pxmasterlist fields including demographic, address,
-  PhilHealth, senior/PWD attributes, and clinical follow-up markers.
+  Detailed Comment: Admin Edit Patient Details Modal with Clean Tabbed UI.
+  Structured into Personal & Identity, Contact & Address, and Follow-up & Classification.
+  Fixes div nesting discrepancies, properly places PWD and Senior ID fields within row grid,
+  and matches pxmasterlist schema.
 --}}
-<div class="modal fade" id="editPatientModal" tabindex="-1" aria-labelledby="editPatientModalLabel" aria-hidden="true">
+<div class="modal fade" id="editPatientModal" tabindex="-1" aria-labelledby="editPatientModalLabel" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <form class="modal-content" id="editPatientForm">
             @csrf
@@ -20,13 +21,19 @@
                 <!-- Tabs Navigation -->
                 <ul class="nav nav-tabs mb-3" id="editPatientTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active fw-semibold" id="edit-personal-tab" data-bs-toggle="tab" data-bs-target="#edit-personal" type="button" role="tab"><i class="fa-solid fa-user me-1"></i> Personal & Identity</button>
+                        <button class="nav-link active fw-semibold" id="edit-personal-tab" data-bs-toggle="tab" data-bs-target="#edit-personal" type="button" role="tab">
+                            <i class="fa-solid fa-user me-1"></i> Personal & Identity
+                        </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link fw-semibold" id="edit-contact-tab" data-bs-toggle="tab" data-bs-target="#edit-contact" type="button" role="tab"><i class="fa-solid fa-location-dot me-1"></i> Contact & Address</button>
+                        <button class="nav-link fw-semibold" id="edit-contact-tab" data-bs-toggle="tab" data-bs-target="#edit-contact" type="button" role="tab">
+                            <i class="fa-solid fa-location-dot me-1"></i> Contact & Address
+                        </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link fw-semibold" id="edit-clinic-tab" data-bs-toggle="tab" data-bs-target="#edit-clinic" type="button" role="tab"><i class="fa-solid fa-calendar-check me-1"></i> Follow-up & Classification</button>
+                        <button class="nav-link fw-semibold" id="edit-clinic-tab" data-bs-toggle="tab" data-bs-target="#edit-clinic" type="button" role="tab">
+                            <i class="fa-solid fa-calendar-check me-1"></i> Follow-up & Classification
+                        </button>
                     </li>
                 </ul>
 
@@ -34,7 +41,7 @@
                     <!-- Tab 1: Personal & Identity -->
                     <div class="tab-pane fade show active" id="edit-personal" role="tabpanel">
                         <div class="row g-3">
-                            {{-- Detailed Comment: Patient Photo preview, upload, and camera capture controls for Edit Patient --}}
+                            {{-- Patient Photo preview, upload, and camera capture controls --}}
                             <div class="col-md-3 d-flex flex-column align-items-center justify-content-start text-center border-end">
                                 <label class="form-label fw-bold small mb-1">Patient Photo</label>
                                 <img class="border border-secondary rounded shadow-sm mb-2"
@@ -110,20 +117,19 @@
                                         <label class="form-label small fw-bold" for="edit_nationality">Nationality</label>
                                         <input class="form-control" type="text" name="nationality" id="edit_nationality" value="FILIPINO">
                                     </div>
-                                </div>
-                            </div>
-                        </div>
 
-                            <div class="col-md-6">
-                                <label class="form-label small fw-bold" for="edit_ispwd">PWD Status</label>
-                                <select class="form-select" name="ispwd" id="edit_ispwd">
-                                    <option value="0">No (Non-PWD)</option>
-                                    <option value="1">Yes (Person with Disability)</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label small fw-bold" for="edit_senior_idno">Senior Citizen ID No.</label>
-                                <input class="form-control" type="text" name="senior_idno" id="edit_senior_idno" placeholder="OSCA / Senior Citizen ID">
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold" for="edit_ispwd">PWD Status</label>
+                                        <select class="form-select" name="ispwd" id="edit_ispwd">
+                                            <option value="0">No (Non-PWD)</option>
+                                            <option value="1">Yes (Person with Disability)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-bold" for="edit_senior_idno">Senior Citizen ID No.</label>
+                                        <input class="form-control" type="text" name="senior_idno" id="edit_senior_idno" placeholder="OSCA / Senior Citizen ID">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -140,7 +146,7 @@
                                 <input class="form-control" type="email" name="emailaddress" id="edit_emailaddress" placeholder="patient@example.com">
                             </div>
 
-                            <!-- Detailed Comment: Patient edit address section integrated with PSGC cascading reference dropdowns -->
+                            <!-- PSGC Address cascading selects -->
                             <div class="col-md-3">
                                 <label class="form-label small fw-bold" for="edit_region">Region</label>
                                 <select class="form-select form-select-sm" name="region" id="edit_region">

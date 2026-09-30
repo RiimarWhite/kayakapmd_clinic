@@ -71,6 +71,10 @@
                     style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.stocks.management') }}">
                     Management
                 </a>
+                <a class="nav-link text-dark {{ request()->routeIs('admin.stocks.groupings') ? 'active' : '' }}"
+                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.stocks.groupings') }}">
+                    Grouping Management
+                </a>
                 <a class="nav-link text-dark {{ request()->routeIs('admin.stocks.ledger') ? 'active' : '' }}"
                     style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.stocks.ledger') }}">
                     Stocks Ledger

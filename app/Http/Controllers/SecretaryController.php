@@ -811,4 +811,58 @@ class SecretaryController extends Controller
         $hmo = $query->get();
         return response()->json(['hmo' => $hmo]);
     }
+
+    /**
+     * Detailed Comment: Fetches payment and settlement history for a patient based on consultation history.
+     * Resolves all past consultations for this patient by pincode or pxrefno, joins with pxsettlements,
+     * and returns historical payment records, deductions, and payment status.
+     */
+    public function fetchPatientPaymentHistory(Request $request)
+    {
+        $pincode = $request->input('pincode');
+        $pxrefno = $request->input('pxrefno');
+        $consultationrefno = $request->input('consultationrefno');
+
+        $query = SettlementsModel::query();
+
+        if ($pxrefno || $pincode) {
+            $consulRefs = ConsultationModel::where(function ($q) use ($pxrefno, $pincode) {
+                if ($pxrefno) $q->where('pxrefno', $pxrefno);
+                if ($pincode) $q->orWhere('pincode', $pincode);
+            })->pluck('consultationrefno')->filter()->toArray();
+
+            $query->where(function ($q) use ($consulRefs, $pincode) {
+                if (!empty($consulRefs)) {
+                    $q->whereIn('consultationrefno', $consulRefs);
+                }
+                if ($pincode) {
+                    $q->orWhere('pincode', $pincode);
+                }
+            });
+        } elseif ($consultationrefno) {
+            $query->where('consultationrefno', $consultationrefno);
+        } else {
+            return response()->json(['success' => true, 'payments' => []]);
+        }
+
+        $payments = $query->orderBy('id', 'desc')->get();
+
+        $consultations = ConsultationModel::whereIn('consultationrefno', $payments->pluck('consultationrefno')->filter()->toArray())
+            ->pluck('consultation_date', 'consultationrefno');
+
+        $payments->transform(function ($payment) use ($consultations) {
+            $rawDate = $consultations[$payment->consultationrefno] ?? $payment->created;
+            $payment->consultation_date = $rawDate ? date('Y-m-d', strtotime($rawDate)) : 'N/A';
+            $totalPaid = (float)($payment->payment_cash ?? 0) + (float)($payment->payment_card ?? 0);
+            $net = (float)($payment->net_payable ?? $payment->total_gross ?? 0);
+            $payment->payment_status = ($totalPaid >= $net && $net > 0) ? 'PAID' : (($totalPaid > 0) ? 'PARTIAL' : 'UNPAID');
+            return $payment;
+        });
+
+        return response()->json([
+            'success' => true,
+            'payments' => $payments
+        ]);
+    }
 }
+

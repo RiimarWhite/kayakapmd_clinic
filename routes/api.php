@@ -8,6 +8,7 @@ use App\Http\Controllers\ConsultationController;
 use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\ManagementController;
 use App\Http\Controllers\SecretaryController;
+use App\Http\Controllers\Api\AdminVerificationController;
 use Illuminate\Support\Facades\Route;
 
 // Secretary API Routes
@@ -62,6 +63,9 @@ Route::middleware(['web', 'auth:secretary,admin'])->group(function () {
     Route::post('update_queue_status', [ConsultationController::class, 'updateQueueStatus'])->name('consultation.update_queue_status');
     Route::post('fetch_latest_patient_details', [ConsultationController::class, 'fetchLatestPatientDetails'])->name('consultation.fetch_latest_patient_details');
     Route::post('reschedule_patient', [ConsultationController::class, 'reschedulePatient']);
+    Route::post('delete_patient_queue', [ConsultationController::class, 'deletePatientQueue'])->name('queue.delete_patient');
+    Route::post('delete_patient_sec', [ConsultationController::class, 'deletePatient'])->name('consultation.delete_patient');
+    Route::post('fetch_queue_patient_masterlist', [ConsultationController::class, 'fetchQueuePatientMasterlist'])->name('queue.patient_masterlist');
     Route::post('fetch_doctors_queue_counts', [ConsultationController::class, 'fetchDoctorsQueueCounts'])->name('queue.doctors_counts');
 
     Route::post('fetch_hmo', [ConsultationController::class, 'fetchHMO']);
@@ -69,9 +73,10 @@ Route::middleware(['web', 'auth:secretary,admin'])->group(function () {
     // Patient charges
     Route::post('fetch_pxcharges', [DoctorController::class, 'fetchPatientCharges']);
 
-    // Patient settlements
+    // Patient settlements & payment history
     Route::post('save_settlements', [SecretaryController::class, 'saveSettlements']);
     Route::post('fetch_settlements', [SecretaryController::class, 'fetchSettlements']);
+    Route::post('fetch_patient_payment_history', [SecretaryController::class, 'fetchPatientPaymentHistory'])->name('secretary.payment_history');
 });
 
 // Doctor API Routes
@@ -156,6 +161,10 @@ Route::middleware(['web', 'auth:secretary,doctor,admin'])->group(function () {
     Route::post('address/municipalities', [ManagementController::class, 'getMunicipalities']);
     Route::post('address/barangays', [ManagementController::class, 'getBarangays']);
     Route::post('address/zipcode', [ManagementController::class, 'getZipcode']);
+
+    // Stocks Groupings lookup
+    Route::post('stocks/fetch_groupings', [ManagementController::class, 'fetchGroupings'])->name('stocks.fetch_groupings');
+    Route::get('stocks/fetch_groupings', [ManagementController::class, 'fetchGroupings']);
 });
 
 // Admin API Routes
@@ -322,4 +331,14 @@ Route::middleware(['web', 'auth:admin'])->group(function () {
     Route::post('admin/add_settlement', [ManagementController::class, 'addAdminSettlement'])->name('admin.add_settlement');
     Route::post('admin/edit_settlement', [ManagementController::class, 'editAdminSettlement'])->name('admin.edit_settlement');
     Route::post('admin/delete_settlement', [ManagementController::class, 'deleteAdminSettlement'])->name('admin.delete_settlement');
+    // Detailed Comment: Admin Stocks Groupings CRUD endpoints
+    Route::post('stocks/save_grouping', [ManagementController::class, 'saveGrouping'])->name('admin.stocks.save_grouping');
+    Route::post('stocks/update_grouping', [ManagementController::class, 'updateGrouping'])->name('admin.stocks.update_grouping');
+    Route::post('stocks/delete_grouping', [ManagementController::class, 'deleteGrouping'])->name('admin.stocks.delete_grouping');
+});
+
+// Admin Credential Verification Endpoints (Accessible across secretary and doctor sessions)
+Route::middleware(['web'])->group(function () {
+    Route::post('check_admin_elevation', [AdminVerificationController::class, 'checkAdminElevation'])->name('admin.check_elevation');
+    Route::post('verify_admin_credentials', [AdminVerificationController::class, 'verifyAdminCredentials'])->name('admin.verify_credentials');
 });

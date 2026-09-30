@@ -45,15 +45,38 @@
                         </div>
                     </div>
 
-                    <div class="row g-2">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold" for="edrug_group">Group</label>
-                            <select class="form-select" name="edrug_group" id="edrug_group">
-                                <option value="" disabled selected>-- Select Group --</option>
-                                <option value="DRUGS AND MEDS">Drugs & Medicine</option>
-                                <option value="MEDICAL SUPPLIES">Medical Supplies</option>
+                    <!-- Detailed Comment: PhilHealth Gamot Essential (PGE) checkbox and Dosage Form dropdown with Custom option -->
+                    <div class="row g-2 align-items-center">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold" for="edosage_form">Dosage Form</label>
+                            <select class="form-select" name="edosage_form" id="edosage_form">
+                                <option value="N/A" selected>N/A</option>
+                                <option value="Capsule">Capsule</option>
+                                <option value="IV">IV</option>
+                                <option value="Tablet">Tablet</option>
+                                <option value="Custom">Custom Field</option>
                             </select>
+                            <input type="text" class="form-control mt-2 d-none" name="ecustom_dosage_form" id="ecustom_dosage_form" placeholder="Enter custom dosage form">
                         </div>
+
+                        <div class="col-md-4 pt-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="ephilhealth_gamot_essential" id="ephilhealth_gamot_essential" value="1">
+                                <label class="form-check-label fw-bold" for="ephilhealth_gamot_essential">
+                                    <i class="fa-solid fa-shield-halved text-success me-1"></i> PhilHealth Gamot Essential
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Comment: Category Group container dynamically populated from stocks_groupings table -->
+                <div class="d-none row g-2" id="egroup_container">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold" for="edrug_group">Group <span class="text-muted small fw-normal">(from Grouping Management)</span></label>
+                        <select class="form-select" name="edrug_group" id="edrug_group">
+                            <option value="" disabled selected>-- Select Group --</option>
+                        </select>
                     </div>
                 </div>
 

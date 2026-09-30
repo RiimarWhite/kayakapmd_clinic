@@ -12,6 +12,7 @@ use App\Models\PhilHealthMedsModel;
 use App\Models\SOAPModel;
 use App\Models\Stocks\StocksLedgerModel;
 use App\Models\Stocks\StocksListingModel;
+use App\Models\Stocks\StocksGroupingModel;
 use App\Models\StocksLedger;
 use App\Models\XmlTransModel;
 use App\Services\Admin\AdminService;
@@ -118,6 +119,15 @@ class ManagementController extends Controller
     public function stocksManagementPage()
     {
         return view('pages.admin.stocks.management');
+    }
+
+    /**
+     * Detailed Comment: Serves the standalone Grouping Management page under Stocks & Services.
+     * Manages category-specific grouping options stored in stocks_groupings.
+     */
+    public function stocksGroupingsPage()
+    {
+        return view('pages.admin.stocks.groupings');
     }
 
     public function stocksLedgerPage()
@@ -310,17 +320,34 @@ class ManagementController extends Controller
 
         $add_array = [];
 
+        // Detailed Comment: Dosage Form handling (supporting standard dropdown items and custom user input)
+        $dosageForm = $request->input('dosage_form');
+        if ($dosageForm === 'Custom') {
+            $dosageForm = $request->input('custom_dosage_form');
+        }
+
+        // Detailed Comment: PhilHealth Gamot Essential tinyint flag
+        $pge = $request->boolean('philhealth_gamot_essential') || $request->input('philhealth_gamot_essential') == '1' ? 1 : 0;
+        $group = $request->input('drug_group') ?? $request->input('group_name') ?? $request->input('drug_grouping');
+
         if ($request->item_group == "DRUGS AND MEDS") {
             $add_array = [
                 'phic_reference_code' => $request->ref_code,
                 'drug_generic' => $request->drug_generic,
                 'drug_brand' => $request->drug_brand,
                 'drug_dosage' => $request->drug_dosage,
-                'drug_grouping' => $request->drug_group ?? $request->drug_grouping
+                'drug_grouping' => $group,
+                'dosage_form' => $dosageForm,
+                'philhealth_gamot_essential' => $pge
             ];
         } else if ($request->item_group == "DIAGNOSTIC") {
             $add_array = [
-                'phic_reference_code' => $request->ref_code
+                'phic_reference_code' => $request->ref_code,
+                'drug_grouping' => $group
+            ];
+        } else if ($request->item_group == "IMAGING" || !empty($group)) {
+            $add_array = [
+                'drug_grouping' => $group
             ];
         }
 
@@ -331,6 +358,13 @@ class ManagementController extends Controller
         $result = StocksListingModel::create($item);
 
         if ($result) {
+            Log::info('Admin created new stock item', [
+                'prodcode' => $item['prodcode'],
+                'item_grouping' => $item['item_grouping'],
+                'drug_grouping' => $group,
+                'dosage_form' => $dosageForm,
+                'pge' => $pge
+            ]);
             return response()->json(['success' => true]);
         }
 
@@ -350,17 +384,33 @@ class ManagementController extends Controller
 
         $add_array = [];
 
+        // Detailed Comment: Dosage Form handling for edit form
+        $edosageForm = $request->input('edosage_form') ?? $request->input('dosage_form');
+        if ($edosageForm === 'Custom') {
+            $edosageForm = $request->input('ecustom_dosage_form') ?? $request->input('custom_dosage_form');
+        }
+
+        $epge = $request->boolean('ephilhealth_gamot_essential') || $request->boolean('philhealth_gamot_essential') || $request->input('ephilhealth_gamot_essential') == '1' || $request->input('philhealth_gamot_essential') == '1' ? 1 : 0;
+        $egroup = $request->input('edrug_group') ?? $request->input('drug_group') ?? $request->input('group_name') ?? $request->input('drug_grouping');
+
         if ($request->eitem_group == "DRUGS AND MEDS") {
             $add_array = [
                 'phic_reference_code' => $request->eref_code,
                 'drug_generic' => $request->edrug_generic,
                 'drug_brand' => $request->edrug_brand,
                 'drug_dosage' => $request->edrug_dosage,
-                'drug_grouping' => $request->edrug_group
+                'drug_grouping' => $egroup,
+                'dosage_form' => $edosageForm,
+                'philhealth_gamot_essential' => $epge
             ];
         } else if ($request->eitem_group == "DIAGNOSTIC") {
             $add_array = [
-                'phic_reference_code' => $request->eref_code
+                'phic_reference_code' => $request->eref_code,
+                'drug_grouping' => $egroup
+            ];
+        } else if ($request->eitem_group == "IMAGING" || !empty($egroup)) {
+            $add_array = [
+                'drug_grouping' => $egroup
             ];
         }
 
@@ -371,6 +421,13 @@ class ManagementController extends Controller
         $item = StocksListingModel::where(['prodcode' => $request->prodcode])->update($data);
 
         if ($item) {
+            Log::info('Admin updated stock item', [
+                'prodcode' => $request->prodcode,
+                'item_grouping' => $data['item_grouping'],
+                'drug_grouping' => $egroup,
+                'dosage_form' => $edosageForm,
+                'pge' => $epge
+            ]);
             return response()->json(['success' => true]);
         }
 
@@ -382,10 +439,182 @@ class ManagementController extends Controller
         $item = StocksListingModel::where(['prodcode' => $request->prodcode])->delete();
 
         if ($item) {
+            Log::info('Admin deleted stock item', ['prodcode' => $request->prodcode]);
             return response()->json(['success' => true]);
         }
 
         return response()->json(['success' => false]);
+    }
+
+    /**
+     * Detailed Comment: Fetches category-specific grouping options from stocks_groupings table.
+     * Supports DataTables server-side pagination or JSON list for dropdown selection.
+     */
+    public function fetchGroupings(Request $request)
+    {
+        $category = $request->input('category');
+        $query = StocksGroupingModel::query();
+
+        if (!empty($category) && $category !== 'ALL') {
+            $query->where('category', $category);
+        }
+
+        if ($request->has('draw')) {
+            $draw = intval($request->input('draw'));
+            $start = intval($request->input('start', 0));
+            $length = intval($request->input('length', 25));
+            $search = $request->input('search.value');
+
+            if (!empty($search)) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('group_name', 'like', "%{$search}%")
+                      ->orWhere('category', 'like', "%{$search}%")
+                      ->orWhere('description', 'like', "%{$search}%");
+                });
+            }
+
+            $recordsTotal = StocksGroupingModel::count();
+            $recordsFiltered = (clone $query)->count();
+
+            $data = $query->orderBy('category', 'asc')
+                ->orderBy('group_name', 'asc')
+                ->offset($start)
+                ->limit($length)
+                ->get();
+
+            return response()->json([
+                'draw' => $draw,
+                'recordsTotal' => $recordsTotal,
+                'recordsFiltered' => $recordsFiltered,
+                'data' => $data
+            ]);
+        }
+
+        // Detailed Comment: If status column exists, filter by ACTIVE or null; otherwise return all groupings
+        if (\Illuminate\Support\Facades\Schema::hasColumn('stocks_groupings', 'status')) {
+            $query->where(function ($q) {
+                $q->where('status', 'ACTIVE')->orWhereNull('status');
+            });
+        }
+
+        $groupings = $query->orderBy('group_name', 'asc')->get();
+
+        return response()->json([
+            'success' => true,
+            'groupings' => $groupings,
+            'data' => $groupings
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Creates a new category grouping entry in stocks_groupings table.
+     */
+    public function saveGrouping(Request $request)
+    {
+        $request->validate([
+            'category' => 'required|string|max:80',
+            'group_name' => 'required|string|max:120',
+            'description' => 'nullable|string|max:255',
+            'status' => 'nullable|string|in:ACTIVE,INACTIVE'
+        ]);
+
+        $groupCode = 'GRP' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $request->category), 0, 4)) . now()->format('ymdHis');
+
+        $grouping = StocksGroupingModel::create([
+            'group_code' => $groupCode,
+            'category' => trim($request->category),
+            'group_name' => trim($request->group_name),
+            'description' => $request->description,
+            'status' => $request->input('status', 'ACTIVE'),
+            'created_by' => auth()->guard('admin')->user()->username ?? 'admin'
+        ]);
+
+        Log::info('New stock grouping created by admin', [
+            'group_code' => $groupCode,
+            'category' => $request->category,
+            'group_name' => $request->group_name
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Grouping created successfully.',
+            'grouping' => $grouping
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Updates an existing category grouping entry in stocks_groupings table.
+     */
+    public function updateGrouping(Request $request)
+    {
+        $request->validate([
+            'group_name' => 'required|string|max:120',
+            'category' => 'required|string|max:80',
+        ]);
+
+        $query = StocksGroupingModel::query();
+        if ($request->filled('id')) {
+            $query->where('id', $request->id);
+        } elseif ($request->filled('group_code')) {
+            $query->where('group_code', $request->group_code);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Grouping ID or code required.'], 422);
+        }
+
+        $grouping = $query->first();
+        if (!$grouping) {
+            return response()->json(['success' => false, 'message' => 'Grouping not found.'], 404);
+        }
+
+        $grouping->update([
+            'category' => trim($request->category),
+            'group_name' => trim($request->group_name),
+            'description' => $request->description ?? $grouping->description,
+            'status' => $request->input('status', $grouping->status),
+        ]);
+
+        Log::info('Stock grouping updated by admin', [
+            'id' => $grouping->id,
+            'group_code' => $grouping->group_code,
+            'group_name' => $grouping->group_name
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Grouping updated successfully.'
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Deletes an existing category grouping from stocks_groupings table.
+     */
+    public function deleteGrouping(Request $request)
+    {
+        $query = StocksGroupingModel::query();
+        if ($request->filled('id')) {
+            $query->where('id', $request->id);
+        } elseif ($request->filled('group_code')) {
+            $query->where('group_code', $request->group_code);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Grouping ID or code required.'], 422);
+        }
+
+        $grouping = $query->first();
+        if (!$grouping) {
+            return response()->json(['success' => false, 'message' => 'Grouping not found.'], 404);
+        }
+
+        $grouping->delete();
+
+        Log::info('Stock grouping deleted by admin', [
+            'id' => $grouping->id,
+            'group_code' => $grouping->group_code
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Grouping deleted successfully.'
+        ]);
     }
 
     public function fetchInventory(Request $request)

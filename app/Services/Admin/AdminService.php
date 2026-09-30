@@ -29,11 +29,13 @@ class AdminService
         $query = StocksListingModel::query();
         $recordsTotal = $query->count();
 
-        // Global search across description, category, and PhilHealth code
+        // Global search across description, category, dosage form, and PhilHealth code
         if (!empty($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('prod_itemdscr', 'like', "%{$search}%")
                   ->orWhere('item_grouping', 'like', "%{$search}%")
+                  ->orWhere('drug_grouping', 'like', "%{$search}%")
+                  ->orWhere('dosage_form', 'like', "%{$search}%")
                   ->orWhere('phic_reference_code', 'like', "%{$search}%");
             });
         }
@@ -59,32 +61,64 @@ class AdminService
                 });
             }
 
-            // Column 3: PhilHealth Reference Code
-            $phicFilter = $filter['columns'][3]['search']['value'] ?? '';
+            // Column 3: Group / Subgroup
+            $subgroupFilter = $filter['columns'][3]['search']['value'] ?? '';
+            if (!empty($subgroupFilter)) {
+                $query->where('drug_grouping', 'like', "%{$subgroupFilter}%");
+            }
+
+            // Column 4: Dosage Form (Picklist or text match)
+            $dosageFilter = $filter['columns'][4]['search']['value'] ?? '';
+            if (!empty($dosageFilter)) {
+                $cleanedDosage = trim($dosageFilter, '^$()');
+                $dosages = array_filter(explode('|', $cleanedDosage));
+                $query->where(function ($q) use ($dosageFilter, $dosages) {
+                    if (!empty($dosages)) {
+                        $q->whereIn('dosage_form', $dosages);
+                    }
+                    $q->orWhere('dosage_form', 'like', "%{$dosageFilter}%");
+                });
+            }
+
+            // Column 5: PhilHealth Gamot Essential (PGE)
+            $pgeFilter = $filter['columns'][5]['search']['value'] ?? '';
+            if ($pgeFilter !== '' && $pgeFilter !== null) {
+                if ($pgeFilter === 'YES' || $pgeFilter === '1') {
+                    $query->where('philhealth_gamot_essential', 1);
+                } elseif ($pgeFilter === 'NO' || $pgeFilter === '0') {
+                    $query->where(function ($q) {
+                        $q->where('philhealth_gamot_essential', 0)
+                          ->orWhereNull('philhealth_gamot_essential');
+                    });
+                }
+            }
+
+            // Column 6: PhilHealth Reference Code
+            $phicFilter = $filter['columns'][6]['search']['value'] ?? '';
             if (!empty($phicFilter)) {
                 $query->where('phic_reference_code', 'like', "%{$phicFilter}%");
             }
 
-            // Column 4: Price (Regular)
-            $regFilter = $filter['columns'][4]['search']['value'] ?? '';
+            // Column 7: Price (Regular)
+            $regFilter = $filter['columns'][7]['search']['value'] ?? '';
             if (!empty($regFilter)) {
                 $query->where('price_regular', 'like', "%{$regFilter}%");
             }
 
-            // Column 5: Price (PHIC)
-            $phicPriceFilter = $filter['columns'][5]['search']['value'] ?? '';
+            // Column 8: Price (PHIC)
+            $phicPriceFilter = $filter['columns'][8]['search']['value'] ?? '';
             if (!empty($phicPriceFilter)) {
                 $query->where('price_phic', 'like', "%{$phicPriceFilter}%");
             }
 
-            // Column 6: Price (HMO)
-            $hmoPriceFilter = $filter['columns'][6]['search']['value'] ?? '';
+            // Column 9: Price (HMO)
+            $hmoPriceFilter = $filter['columns'][9]['search']['value'] ?? '';
             if (!empty($hmoPriceFilter)) {
                 $query->where('price_hmo', 'like', "%{$hmoPriceFilter}%");
             }
 
-            // Column 7: Price (Others)
-            $othersPriceFilter = $filter['columns'][7]['search']['value'] ?? '';
+            // Column 10: Price (Others)
+            $othersPriceFilter = $filter['columns'][10]['search']['value'] ?? '';
             if (!empty($othersPriceFilter)) {
                 $query->where('price_others', 'like', "%{$othersPriceFilter}%");
             }
@@ -98,16 +132,31 @@ class AdminService
         $columnsMap = [
             1 => 'prod_itemdscr',
             2 => 'item_grouping',
-            3 => 'phic_reference_code',
-            4 => 'price_regular',
-            5 => 'price_phic',
-            6 => 'price_hmo',
-            7 => 'price_others'
+            3 => 'drug_grouping',
+            4 => 'dosage_form',
+            5 => 'philhealth_gamot_essential',
+            6 => 'phic_reference_code',
+            7 => 'price_regular',
+            8 => 'price_phic',
+            9 => 'price_hmo',
+            10 => 'price_others'
         ];
         $orderColumn = $columnsMap[$orderColIdx] ?? 'prod_itemdscr';
         $orderDirection = strtolower($orderDir) === 'desc' ? 'desc' : 'asc';
 
-        $items = $query->select(['prodcode', 'prod_itemdscr', 'item_grouping', 'phic_reference_code', 'price_regular', 'price_phic', 'price_hmo', 'price_others'])
+        $items = $query->select([
+            'prodcode',
+            'prod_itemdscr',
+            'item_grouping',
+            'drug_grouping',
+            'dosage_form',
+            'philhealth_gamot_essential',
+            'phic_reference_code',
+            'price_regular',
+            'price_phic',
+            'price_hmo',
+            'price_others'
+        ])
             ->orderBy($orderColumn, $orderDirection)
             ->offset($start)
             ->limit($length)

@@ -22,7 +22,8 @@ return new class extends Migration
             $table->string('drug_dosage', 80)->nullable()->comment('12g/10ml');
             $table->string('drug_preperation', 80)->nullable();
             $table->string('drug_add_dscr', 80)->nullable();
-            $table->enum('drug_grouping', ['DRUGS AND MEDS', 'MEDICAL SUPPLIES'])->nullable();
+            // Detailed Comment: Support category-specific grouping strings (e.g., xray, mri, antibiotics) from stocks_groupings
+            $table->string('drug_grouping', 100)->nullable();
             $table->string('drug_type', 30)->nullable()->comment('dw_lib_drugtype / NDC ANTIBIOTIC VACCINE OTHERS');
             $table->enum('drug_prescription_type', ['OTC', 'RX_REGULAR', 'RX_DANGEROUS'])->nullable()->comment('Over the Counter (OTC)');
             $table->string('unit', 20)->nullable()->comment('Tab, Ampule, Syrup, pc');

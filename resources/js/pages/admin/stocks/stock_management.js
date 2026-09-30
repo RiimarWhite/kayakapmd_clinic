@@ -15,11 +15,18 @@ $(function () {
     $("#th_stock_group").html(renderColumnFilterHeader('Category', 2, {
         picklist: ['DRUGS AND MEDS', 'SUPPLIES', 'PROCEDURES', 'DIAGNOSTIC', 'IMAGING', 'PROFESSIONAL FEE']
     }));
-    $("#th_stock_phic").html(renderColumnFilterHeader('PhilHealth Reference Code', 3));
-    $("#th_stock_reg").html(renderColumnFilterHeader('Price (Regular)', 4, { alignEnd: true }));
-    $("#th_stock_phic_price").html(renderColumnFilterHeader('Price (PHIC)', 5, { alignEnd: true }));
-    $("#th_stock_hmo").html(renderColumnFilterHeader('Price (HMO)', 6, { alignEnd: true }));
-    $("#th_stock_others").html(renderColumnFilterHeader('Price (Others)', 7, { alignEnd: true }));
+    $("#th_stock_subgroup").html(renderColumnFilterHeader('Group', 3));
+    $("#th_stock_dosage_form").html(renderColumnFilterHeader('Dosage Form', 4, {
+        picklist: ['N/A', 'Capsule', 'IV', 'Tablet']
+    }));
+    $("#th_stock_pge").html(renderColumnFilterHeader('PhilHealth PGE', 5, {
+        picklist: ['YES', 'NO']
+    }));
+    $("#th_stock_phic").html(renderColumnFilterHeader('PhilHealth Reference Code', 6));
+    $("#th_stock_reg").html(renderColumnFilterHeader('Price (Regular)', 7, { alignEnd: true }));
+    $("#th_stock_phic_price").html(renderColumnFilterHeader('Price (PHIC)', 8, { alignEnd: true }));
+    $("#th_stock_hmo").html(renderColumnFilterHeader('Price (HMO)', 9, { alignEnd: true }));
+    $("#th_stock_others").html(renderColumnFilterHeader('Price (Others)', 10, { alignEnd: true }));
 
     // Initialize the main Stocks & Services masterlist table
     loadStocksTable();
@@ -204,6 +211,29 @@ $(function () {
                     }
                 },
                 {
+                    data: 'drug_grouping',
+                    className: 'align-middle text-nowrap',
+                    render: function (data) {
+                        return data ? `<span class="badge bg-light text-dark border px-2 py-1">${data}</span>` : '-';
+                    }
+                },
+                {
+                    data: 'dosage_form',
+                    className: 'align-middle text-nowrap',
+                    render: function (data) {
+                        return data ? `<span class="badge bg-secondary-subtle text-secondary border px-2 py-1">${data}</span>` : '-';
+                    }
+                },
+                {
+                    data: 'philhealth_gamot_essential',
+                    className: 'align-middle text-center',
+                    render: function (data) {
+                        return (data == 1 || data === true || data === '1')
+                            ? `<span class="badge bg-success px-2 py-1" title="PhilHealth Gamot Essential"><i class="fa-solid fa-check"></i> PGE</span>`
+                            : `<span class="text-muted small">-</span>`;
+                    }
+                },
+                {
                     data: 'phic_reference_code',
                     className: 'align-middle font-monospace',
                     render: function (data) {
@@ -233,8 +263,8 @@ $(function () {
             ],
             columnDefs: [
                 { target: 0, width: '1%', className: 'text-center text-nowrap align-middle', orderable: false, searchable: false },
-                { targets: [1, 2, 3], className: 'align-middle' },
-                { targets: [4, 5, 6, 7], width: '1%', className: 'align-middle text-end text-nowrap font-monospace', type: 'num' }
+                { targets: [1, 2, 3, 4, 5, 6], className: 'align-middle' },
+                { targets: [7, 8, 9, 10], width: '1%', className: 'align-middle text-end text-nowrap font-monospace', type: 'num' }
             ],
             language: {
                 emptyTable: 'No items or services to display yet.',
@@ -253,45 +283,146 @@ $(function () {
     $("#add_item_modal").on("shown.bs.modal", function () {
         $("#add_item_form")[0].reset();
         $("#drug_generic").val(null).trigger('change');
+        $("#dosage_form").val('N/A').trigger('change');
+        $("#custom_dosage_form").addClass('d-none').val('');
+        $("#philhealth_gamot_essential").prop('checked', false);
         $("#item_group").trigger("change");
     });
 
     /**
+     * Detailed Comment: Dosage form Custom selection toggle for Add modal
+     */
+    $("#dosage_form").on("change", function () {
+        if ($(this).val() === "Custom") {
+            $("#custom_dosage_form").removeClass("d-none").focus();
+        } else {
+            $("#custom_dosage_form").addClass("d-none").val("");
+        }
+    });
+
+    /**
+     * Detailed Comment: Dosage form Custom selection toggle for Edit modal
+     */
+    $("#edosage_form").on("change", function () {
+        if ($(this).val() === "Custom") {
+            $("#ecustom_dosage_form").removeClass("d-none").focus();
+        } else {
+            $("#ecustom_dosage_form").addClass("d-none").val("");
+        }
+    });
+
+    /**
+     * Detailed Comment: Dynamically fetches category-specific groups from /api/stocks/fetch_groupings
+     * and populates the Group select dropdown (#drug_group or #edrug_group).
+     */
+    function loadCategoryGroupings(category, targetSelect, selectedValue = null) {
+        const $sel = $(targetSelect);
+        const $container = $sel.closest('.row');
+
+        if (!category) {
+            $container.removeClass('d-flex').addClass('d-none');
+            return;
+        }
+
+        $.ajax({
+            url: "/api/stocks/fetch_groupings",
+            type: "POST",
+            headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+            data: { category: category },
+            success: function (res) {
+                const groupings = res.groupings || res.data || [];
+                $sel.empty();
+                $sel.append('<option value="" disabled selected>-- Select Group --</option>');
+
+                if (groupings.length > 0) {
+                    groupings.forEach(g => {
+                        const val = g.group_name || g.group_code;
+                        $sel.append(`<option value="${val}">${val}</option>`);
+                    });
+                    $container.removeClass('d-none').addClass('d-flex');
+                    if (selectedValue) {
+                        $sel.val(selectedValue);
+                    }
+                } else if (category === 'IMAGING') {
+                    ['xray', 'mri', 'ct scan', 'ultrasound', 'ob ultrasound', '2d echo'].forEach(img => {
+                        $sel.append(`<option value="${img}">${img}</option>`);
+                    });
+                    $container.removeClass('d-none').addClass('d-flex');
+                    if (selectedValue) {
+                        $sel.val(selectedValue);
+                    }
+                } else if (category === 'DRUGS AND MEDS') {
+                    ['DRUGS AND MEDS', 'MEDICAL SUPPLIES'].forEach(med => {
+                        $sel.append(`<option value="${med}">${med}</option>`);
+                    });
+                    $container.removeClass('d-none').addClass('d-flex');
+                    if (selectedValue) {
+                        $sel.val(selectedValue);
+                    }
+                } else {
+                    $container.removeClass('d-flex').addClass('d-none');
+                }
+            },
+            error: function () {
+                if (category === 'IMAGING') {
+                    $sel.empty().append('<option value="" disabled selected>-- Select Group --</option>');
+                    ['xray', 'mri', 'ct scan', 'ultrasound', 'ob ultrasound', '2d echo'].forEach(img => {
+                        $sel.append(`<option value="${img}">${img}</option>`);
+                    });
+                    $container.removeClass('d-none').addClass('d-flex');
+                    if (selectedValue) $sel.val(selectedValue);
+                } else {
+                    $container.removeClass('d-flex').addClass('d-none');
+                }
+            }
+        });
+    }
+
+    /**
      * Detailed Comment: Category change listener on Add Item Modal.
-     * When Category is "DRUGS AND MEDS", display drug fields (Generic, Brand, Dosage) ABOVE Name and PhilHealth code.
+     * When Category is "DRUGS AND MEDS", display drug fields (Generic, Brand, Dosage, PGE, Dosage form).
+     * Automatically loads category-specific groupings dynamically from stocks_groupings.
      */
     $("#item_group").on("change", function () {
+        const val = $(this).val();
         const drugFields = $("#drug_fields");
         const refCode = $("#refcode");
 
-        if ($(this).val() === "DRUGS AND MEDS") {
+        if (val === "DRUGS AND MEDS") {
             drugFields.removeClass("d-none").addClass("d-flex");
             refCode.removeClass("d-none").addClass("d-block");
-        } else if ($(this).val() === "DIAGNOSTIC") {
+        } else if (val === "DIAGNOSTIC") {
             drugFields.removeClass("d-flex").addClass("d-none");
             refCode.removeClass("d-none").addClass("d-block");
         } else {
             drugFields.removeClass("d-flex").addClass("d-none");
             refCode.removeClass("d-block").addClass("d-none");
         }
+
+        loadCategoryGroupings(val, "#drug_group");
     });
 
     /**
      * Detailed Comment: Category change listener on Edit Item Modal.
      */
     $("#eitem_group").on("change", function () {
+        const val = $(this).val();
         const drugFields = $("#edrug_fields");
         const refCode = $("#erefcode");
 
-        if ($(this).val() === "DRUGS AND MEDS") {
+        if (val === "DRUGS AND MEDS") {
             drugFields.removeClass("d-none").addClass("d-flex");
             refCode.removeClass("d-none").addClass("d-block");
-        } else if ($(this).val() === "DIAGNOSTIC") {
+        } else if (val === "DIAGNOSTIC") {
             drugFields.removeClass("d-flex").addClass("d-none");
             refCode.removeClass("d-none").addClass("d-block");
         } else {
             drugFields.removeClass("d-flex").addClass("d-none");
             refCode.removeClass("d-block").addClass("d-none");
+        }
+
+        if (!isPopulatingEditModal) {
+            loadCategoryGroupings(val, "#edrug_group");
         }
     });
 
@@ -468,7 +599,19 @@ $(function () {
                     $("#eref_code").val(item.phic_reference_code || '');
                     $("#edrug_brand").val(item.drug_brand || '');
                     $("#edrug_dosage").val(item.drug_dosage || '');
-                    $("#edrug_group").val(item.drug_grouping || item.drug_group || '');
+
+                    // Populate dosage form
+                    const standardForms = ['N/A', 'Capsule', 'IV', 'Tablet'];
+                    if (item.dosage_form && !standardForms.includes(item.dosage_form)) {
+                        $("#edosage_form").val('Custom').trigger('change');
+                        $("#ecustom_dosage_form").removeClass('d-none').val(item.dosage_form);
+                    } else {
+                        $("#edosage_form").val(item.dosage_form || 'N/A').trigger('change');
+                        $("#ecustom_dosage_form").addClass('d-none').val('');
+                    }
+
+                    // Populate PGE checkbox
+                    $("#ephilhealth_gamot_essential").prop('checked', item.philhealth_gamot_essential == 1 || item.philhealth_gamot_essential === true || item.philhealth_gamot_essential === '1');
 
                     if (item.drug_generic) {
                         const option = new Option(item.drug_generic, item.drug_generic, true, true);
@@ -479,9 +622,18 @@ $(function () {
                 } else if (item.item_grouping === "DIAGNOSTIC") {
                     $("#eref_code").val(item.phic_reference_code || '');
                     $("#edrug_generic").val(null).trigger('change');
+                    $("#edosage_form").val('N/A').trigger('change');
+                    $("#ecustom_dosage_form").addClass('d-none').val('');
+                    $("#ephilhealth_gamot_essential").prop('checked', false);
                 } else {
                     $("#edrug_generic").val(null).trigger('change');
+                    $("#edosage_form").val('N/A').trigger('change');
+                    $("#ecustom_dosage_form").addClass('d-none').val('');
+                    $("#ephilhealth_gamot_essential").prop('checked', false);
                 }
+
+                // Load dynamic category groupings with item.drug_grouping selected
+                loadCategoryGroupings(item.item_grouping, "#edrug_group", item.drug_grouping || item.drug_group);
 
                 isPopulatingEditModal = false;
                 modal.show();

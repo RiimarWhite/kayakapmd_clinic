@@ -857,6 +857,7 @@ Drug/medical-supply catalog (`stocks_listing`) and the transactional stock movem
 | `drug_generic` | varchar(80) | NULL | NULL |  |
 | `drug_brand` | varchar(80) | NULL | NULL |  |
 | `drug_dosage` | varchar(80) | NULL | NULL | 12g/10ml |
+| `dosage_form` | varchar(50) | YES | 'N/A' | Dosage form (N/A, Capsule, IV, Tablet, or custom form) |
 | `drug_preperation` | varchar(80) | NULL | NULL |  |
 | `drug_add_dscr` | varchar(80) | NULL | NULL |  |
 | `drug_grouping` | enum('DRUGS AND MEDS','MEDICAL SUPPLIES') | NULL | NULL |  |
@@ -867,6 +868,7 @@ Drug/medical-supply catalog (`stocks_listing`) and the transactional stock movem
 | `oecb_code` | varchar(50) | NULL | NULL | for ER use only |
 | `oecb_price` | double(11, 2) | NULL | NULL | for ER use only |
 | `yakap_essential` | tinyint | NULL | NULL |  |
+| `philhealth_gamot_essential` | tinyint | YES | 0 | Flag indicating PhilHealth Gamot Essential status (0=No, 1=Yes) |
 | `yakap_essential_code` | varchar(50) | NULL | NULL | use if item is under yakap ESSENTIAL |
 | `yakap_essential_price` | double(11, 2) | NULL | NULL | use if item is under yakap ESSENTIAL |
 | `pndf_enable` | tinyint | NULL | NULL | PNDF |
@@ -926,6 +928,22 @@ Drug/medical-supply catalog (`stocks_listing`) and the transactional stock movem
 | `dispenseby` | varchar(80) | NULL | NULL |  |
 | `dispensed` | datetime | NULL | NULL |  |
 | `dispensed_status` | enum('PENDING','RELEASED','CANCELLED') | NULL | NULL |  |
+
+### `stocks_groupings`
+
+Category-specific grouping reference table for items and services (Imaging groups such as xray, mri, ct scan, ultrasound, ob ultrasound, 2d echo, and custom user groupings).
+
+| Column | Type | Null? | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | NO | auto_increment | Primary key |
+| `group_code` | varchar(50) | YES | NULL | Unique alphanumeric grouping identifier (e.g. GRPIMG001, GRPDRUG001) |
+| `category` | varchar(50) | NO | NULL | Category identifier (e.g. IMAGING, DRUGS AND MEDS, SUPPLIES, PROCEDURES, DIAGNOSTIC, PROFESSIONAL FEE) |
+| `group_name` | varchar(100) | NO | NULL | Grouping label/name (e.g. xray, mri, ct scan, ultrasound, ob ultrasound, 2d echo, Antibiotics) |
+| `description` | text | YES | NULL | Optional description of the grouping |
+| `status` | varchar(20) | NO | 'ACTIVE' | Grouping availability status (ACTIVE or INACTIVE) |
+| `created_by` | varchar(50) | YES | NULL | Creator username or system identifier |
+| `created_at` | timestamp | YES | NULL | Record creation timestamp |
+| `updated_at` | timestamp | YES | NULL | Record modification timestamp |
 
 ## 7. PhilHealth TSEKAP — Patient Enlistment & APE Profile (`dd_*` core)
 

@@ -40,6 +40,7 @@ export default defineConfig({
                 'resources/js/pages/admin/stocks/stock_ledger.js',
                 'resources/js/pages/admin/stocks/stock_listing.js',
                 'resources/js/pages/admin/stocks/stock_management.js',
+                'resources/js/pages/admin/stocks/groupings.js',
                 // Doctor pages
                 'resources/js/pages/doctor/dashboard.js',
                 'resources/js/pages/doctor/consultation.js',

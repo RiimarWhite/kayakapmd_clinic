@@ -130,28 +130,22 @@
                 </div>
 
                 <div class="card d-flex flex-column shadow-sm">
-                    <div class="card-header fw-semibold bg-secondary text-white">
-                        <i class="fa-solid fa-address-book"></i> New/Unscheduled Patients
+                    <div class="card-header fw-semibold bg-secondary text-white d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-address-book me-1"></i> Patient Masterlist</span>
+                        <button type="button" class="btn btn-sm btn-success fw-bold" id="btn_add_patient_masterlist" data-bs-toggle="modal" data-bs-target="#add_patient_modal">
+                            <i class="fa-solid fa-user-plus me-1"></i> Add Patient
+                        </button>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body p-2">
                         <div class="table-responsive">
-                            <table class="table table-sm table-bordered table-hover" id="patients_unsched_table">
+                            <table class="table table-sm table-bordered table-hover w-100" id="patient_masterlist_queue_table">
                                 <thead class="table-secondary">
                                     <tr>
-                                        <th scope="col">Actions</th>
-                                        <th scope="col">Patient Name <span class="text-secondary">(Last, First, Middle,
-                                                Suffix)</span></th>
-                                        <th scope="col">Status</th>
+                                        <th scope="col" style="width: 140px;" class="text-center">Action</th>
+                                        <th scope="col">Patient Name <span class="text-secondary">(Last, First, Middle, Suffix)</span></th>
                                     </tr>
                                 </thead>
-
-                                <tbody>
-                                    <tr>
-                                        <td></td>
-                                        <td></td>
-                                        <td></td>
-                                    </tr>
-                                </tbody>
+                                <tbody></tbody>
                             </table>
                         </div>
                     </div>
@@ -167,15 +161,7 @@
                 <div class="card shadow-sm d-flex flex-column" style="height: 90vh;">
                     <div class="card-header">
                         <!-- Topbar Buttons -->
-                        <div class="d-flex gap-1">
-                            <button type="button" class="btn btn-sm btn-success fw-bold" id="add_new_patient_btn">
-                                <i class="fa-solid fa-user-plus"></i> Add New Patient Record
-                            </button>
-
-                            <button type="button" class="btn btn-sm btn-secondary fw-bold" id="view_masterlist_btn">
-                                <i class="fa-solid fa-bars"></i> Patient Masterlist
-                            </button>
-
+                        <div class="d-flex gap-1 align-items-center">
                             {{-- Detailed Comment: 1-Click Document Printing dropdown matching Step 3 & 6 of OPD Consultation Workflow Plan --}}
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-info text-white fw-bold dropdown-toggle" type="button" id="printDocsDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -534,46 +520,88 @@
                                 </div>
 
                                 <div class="tab-pane" id="payment_info" role="tabpanel">
-                                    <div class="d-flex flex-column gap-1">
-                                        <div class="w-100 d-flex justify-content-end">
-                                            <button type="button" class="btn btn-sm btn-warning text-white fw-bold"
-                                                id="append_pxcharges_btn">
-                                                <i class=""></i> Append Charges
-                                            </button>
+                                    <!-- Detailed Comment: Current Consultation Payment & Charges Section -->
+                                    <div class="card border-0 shadow-sm mb-3">
+                                        <div class="card-header bg-light d-flex flex-wrap justify-content-between align-items-center py-2">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="fw-bold text-dark"><i class="fa-solid fa-receipt text-primary me-1"></i> Current Consultation Charges</span>
+                                                <span class="badge bg-primary" id="pay_tab_consultdate_badge">Date: --</span>
+                                                <span class="badge bg-secondary" id="pay_tab_consultref_badge">Ref: --</span>
+                                                <span class="badge bg-info text-dark" id="pay_tab_settlement_status">Status: Pending</span>
+                                            </div>
+                                            <div>
+                                                <button type="button" class="btn btn-sm btn-warning text-white fw-bold shadow-sm"
+                                                    id="append_pxcharges_btn">
+                                                    <i class="fa-solid fa-plus me-1"></i> Append Charges
+                                                </button>
+                                            </div>
                                         </div>
-
-                                        <div class="d-flex flex-column gap-2">
+                                        <div class="card-body p-2">
                                             <div class="table-responsive">
-                                                <table class="table table-sm table-bordered caption-top"
+                                                <table class="table table-sm table-bordered caption-top w-100"
                                                     id="pxcharges_table">
-                                                    <caption>List of charges</caption>
+                                                    <caption>Charges for current consultation</caption>
                                                     <thead class="table-warning">
                                                         <tr>
-                                                            <th scope="col">Actions</th>
+                                                            <th scope="col" style="width: 15%;">Actions</th>
                                                             <th scope="col">Description</th>
-                                                            <th scope="col">Quantity</th>
-                                                            <th scope="col">Amount</th>
+                                                            <th scope="col" style="width: 15%;">Quantity</th>
+                                                            <th scope="col" style="width: 20%;">Amount</th>
                                                         </tr>
                                                     </thead>
-
                                                     <tbody>
                                                         <tr>
-                                                            <td></td>
-                                                            <td></td>
-                                                            <td></td>
-                                                            <td></td>
+                                                            <td colspan="4" class="text-center text-muted">No charges recorded yet.</td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
                                             </div>
 
-                                            <!-- Detailed Comment: Position charges total element cleanly below table beside Settlements button -->
-                                            <div class="d-flex justify-content-between align-items-center mt-2">
-                                                <h4 class="fw-bold m-0">Total: PHP <span class="fw-normal ms-1" id="charges_total">0.00</span></h4>
-                                                <button type="button" class="btn btn-primary" data-bs-toggle="modal"
-                                                    data-bs-target="#settlementModal" id="settlement_btn">
-                                                    <i class="fa-solid fa-credit-card"></i> Settlements
-                                                </button>
+                                            <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-2 border-top">
+                                                <div>
+                                                    <h5 class="fw-bold m-0 text-primary">Total: PHP <span class="fw-normal" id="charges_total">0.00</span></h5>
+                                                    <small class="text-muted" id="pay_tab_soaref_wrap">SOA / Trans No: <span id="pay_tab_soaref" class="fw-semibold">--</span></small>
+                                                </div>
+                                                <div class="d-flex gap-2">
+                                                    <button type="button" class="btn btn-primary" data-bs-toggle="modal"
+                                                        data-bs-target="#settlementModal" id="settlement_btn">
+                                                        <i class="fa-solid fa-credit-card me-1"></i> Settlements
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Detailed Comment: Previous Payments History Section based on patient consultation records -->
+                                    <div class="card border-0 shadow-sm mt-3">
+                                        <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                                            <span class="fw-bold text-dark">
+                                                <i class="fa-solid fa-clock-rotate-left text-secondary me-1"></i> Previous Payments (Consultation History)
+                                            </span>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh_payment_history_btn" title="Refresh Payment History">
+                                                <i class="fa-solid fa-arrows-rotate"></i>
+                                            </button>
+                                        </div>
+                                        <div class="card-body p-2">
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-striped table-hover table-bordered w-100" id="px_previous_payments_table">
+                                                    <thead class="table-secondary">
+                                                        <tr>
+                                                            <th>Consultation Date</th>
+                                                            <th>Consultation Ref</th>
+                                                            <th>Doctor</th>
+                                                            <th class="text-end">Total Bill</th>
+                                                            <th class="text-end">Amount Paid</th>
+                                                            <th>Channel</th>
+                                                            <th class="text-center">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td colspan="7" class="text-center text-muted">Select a patient consultation to view past payment history.</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
                                             </div>
                                         </div>
                                     </div>
@@ -610,6 +638,8 @@
     @include('modals.take_photo')
     @include('modals.settlement_modal')
     @include('modals.advance_details')
+    <!-- Detailed Comment: Reusable Administrator Verification Modal for protected actions (queue deletion, masterlist deletion, fee editing/deletion) -->
+    @include('modals.admin_verification_modal')
 @endpush
 
 @if (session('success'))

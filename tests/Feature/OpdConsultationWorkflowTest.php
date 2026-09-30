@@ -212,6 +212,29 @@ class OpdConsultationWorkflowTest extends TestCase
             'prodcode' => 'DIAG-CBC-01',
         ]);
 
+        // Detailed Comment: Admin credential protection verification:
+        // 1. Non-elevated secretary session is denied with 403
+        $unauthResponse = $this->actingAs($this->secretary, 'secretary')
+            ->postJson('/api/delete_patient_charge', [
+                'consultationrefno' => $this->consultation->consultationrefno,
+                'prodcode' => 'DIAG-CBC-01',
+            ]);
+        $unauthResponse->assertStatus(403);
+        $unauthResponse->assertJson(['require_admin_auth' => true]);
+
+        // 2. Elevate session with valid admin credentials
+        $admin = \App\Models\AdminModel::first();
+        $admin->password = \Illuminate\Support\Facades\Hash::make('AdminPass123!');
+        $admin->save();
+
+        $this->actingAs($this->secretary, 'secretary')
+            ->postJson('/api/verify_admin_credentials', [
+                'username' => $admin->username,
+                'password' => 'AdminPass123!',
+                'duration' => '1_hour'
+            ])->assertOk();
+
+        // 3. Elevated secretary can now successfully remove the charge
         $response = $this->actingAs($this->secretary, 'secretary')
             ->postJson('/api/delete_patient_charge', [
                 'consultationrefno' => $this->consultation->consultationrefno,

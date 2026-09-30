@@ -81,6 +81,7 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('admin/users/fetch_schedule_refno', [SecretaryController::class, 'fetchScheduleByRef'])->name('admin.users.fetch_schedule_refno');
 
     Route::get('admin/stocks/management', [ManagementController::class, 'stocksManagementPage'])->name('admin.stocks.management');
+    Route::get('admin/stocks/groupings', [ManagementController::class, 'stocksGroupingsPage'])->name('admin.stocks.groupings');
     Route::get('admin/stocks/ledger', [ManagementController::class, 'stocksLedgerPage'])->name('admin.stocks.ledger');
     Route::get('admin/stocks/inventory', [ManagementController::class, 'inventoryPage'])->name('admin.stocks.inventory');
 

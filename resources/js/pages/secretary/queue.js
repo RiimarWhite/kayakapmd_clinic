@@ -1,4 +1,6 @@
 import { initAddressCascade } from '../../helpers/address-cascade.js';
+// Detailed Comment: Import reusable admin elevation helper for credential protection on fees, queue deletion, and patient deletion
+import { requireAdminAuth } from '../../helpers/admin_auth.js';
 
 $(function () {
     /**
@@ -78,6 +80,8 @@ $(function () {
 
     function loadPatients() {
         loadPatientTable();
+        // Detailed Comment: Load Patient Masterlist records into the new Patient Masterlist card
+        loadPatientMasterlistQueueTable();
         loadUnschedTable();
         updateDoctorQueueBadges();
 
@@ -100,6 +104,12 @@ $(function () {
         }
     }
 
+    /**
+     * Detailed Comment: Loads patient queue records into the Patient Queue table.
+     * Features:
+     * 1. Show Info button with eye icon preserving existing form-populating behaviour via .import-queue
+     * 2. Merged action dropdown grouping Change Status, Reschedule, and Admin-Protected Delete into one button
+     */
     function loadPatientTable() {
         const table = $("#patients_queue_table");
 
@@ -116,10 +126,34 @@ $(function () {
                 { data: "queueno" },
                 { data: null, render: function (data) {
                     return `
-                        <div class="d-flex gap-1 justify-content-center">
-                            <button class="btn btn-sm btn-primary import-queue" value="${data.pxrefno}" data-consultationrefno="${data.consultationrefno || ''}" title="Import patient data"><i class="fa-solid fa-share"></i></button>
-                            <button class="btn btn-sm btn-success update-queue" value="${data.consultationrefno}" title="Update Queue Status"><i class="fa-solid fa-check"></i></button>
-                            <button class="btn btn-sm btn-danger reschedule" value="${data.consultationrefno}" title="Reschedule"><i class="fa-solid fa-calendar-days"></i></button>
+                        <div class="d-flex gap-1 justify-content-center align-items-center">
+                            <!-- Show Info button: preserves .import-queue class and existing behavior with eye icon -->
+                            <button class="btn btn-sm btn-primary import-queue" value="${data.pxrefno}" data-consultationrefno="${data.consultationrefno || ''}" title="Show Info"><i class="fa-solid fa-eye"></i></button>
+                            
+                            <!-- Merged Action Dropdown: Change Status, Reschedule, and Admin-Protected Delete -->
+                            <div class="dropdown d-inline-block">
+                                <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
+                                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                    <li>
+                                        <button class="dropdown-item update-queue text-success" type="button" value="${data.consultationrefno}">
+                                            <i class="fa-solid fa-check me-2"></i> Change Status
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button class="dropdown-item reschedule text-primary" type="button" value="${data.consultationrefno}">
+                                            <i class="fa-solid fa-calendar-days me-2"></i> Reschedule
+                                        </button>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <button class="dropdown-item delete-queue-item text-danger" type="button" value="${data.consultationrefno}">
+                                            <i class="fa-solid fa-trash me-2"></i> Delete
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>`;
                 }},
                 { data: "patientname" },
@@ -130,7 +164,7 @@ $(function () {
             ],
             columnDefs: [
                 { target: 0, width: "1%", orderable: false, searchable: false, className: "text-nowrap text-center align-middle fw-bold" },
-                { target: 1, width: "1%", className: "text-nowrap justify-items-center text-center" },
+                { target: 1, width: "1%", className: "text-nowrap justify-items-center text-center align-middle" },
                 { target: 2, className: "text-nowrap text-truncate align-middle overflow-hidden" },
                 { target: 3, width: "1%", className: "text-nowrap text-center align-middle" }
             ],
@@ -139,8 +173,88 @@ $(function () {
         });
     }
 
+    /**
+     * Detailed Comment: Loads patient masterlist records into the Queue page left card.
+     * Displays Action column (consultation history, import, edit/delete dropdown) and Patient Name.
+     */
+    function loadPatientMasterlistQueueTable() {
+        const table = $("#patient_masterlist_queue_table");
+        if (!table.length) return;
+
+        if ($.fn.DataTable.isDataTable(table)) {
+            table.DataTable().clear().destroy();
+        }
+
+        table.DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: {
+                url: "/api/fetch_queue_patient_masterlist",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") }
+            },
+            columns: [
+                {
+                    data: null,
+                    render: function (data) {
+                        return `
+                            <div class="d-flex gap-1 justify-content-center align-items-center">
+                                <button class="btn btn-sm btn-info text-white btn_px_history" value="${data.pxrefno}" data-pincode="${data.pincode || ''}" title="Consultation History">
+                                    <i class="fa-solid fa-clock-rotate-left"></i>
+                                </button>
+                                <button class="btn btn-sm btn-primary btn_px_import" value="${data.pxrefno}" data-pincode="${data.pincode || ''}" title="Import Patient">
+                                    <i class="fa-solid fa-file-import"></i>
+                                </button>
+                                <div class="dropdown d-inline-block">
+                                    <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="More Actions">
+                                        <i class="fa-solid fa-ellipsis-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                        <li>
+                                            <button class="dropdown-item btn_px_edit text-primary" type="button" value="${data.pxrefno}" data-pincode="${data.pincode || ''}">
+                                                <i class="fa-solid fa-pen-to-square me-2"></i> Edit
+                                            </button>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <button class="dropdown-item btn_px_delete text-danger" type="button" value="${data.pxrefno}" data-name="${(data.formatted_name || data.patientname || '').replace(/"/g, '&quot;')}">
+                                                <i class="fa-solid fa-trash me-2"></i> Delete
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        `;
+                    }
+                },
+                {
+                    data: "formatted_name",
+                    render: function (d, type, row) {
+                        const name = d || row.patientname || 'N/A';
+                        return `
+                            <div class="fw-bold text-dark text-truncate" style="max-width: 200px;" title="${name}">${name}</div>
+                            <small class="text-muted">PIN: ${row.pincode || 'N/A'}</small>
+                        `;
+                    }
+                }
+            ],
+            columnDefs: [
+                { targets: 0, width: "1%", orderable: false, searchable: false, className: "text-nowrap text-center align-middle" },
+                { targets: 1, className: "align-middle" }
+            ],
+            language: { emptyTable: "No patient masterlist records found." },
+            pageLength: 10,
+            lengthChange: false,
+            info: true,
+            paging: true,
+            searching: true,
+            ordering: false
+        });
+    }
+
     function loadUnschedTable() {
         const table = $("#patients_unsched_table");
+        if (!table.length) return;
         if ($.fn.DataTable.isDataTable(table)) table.DataTable().clear().destroy();
         table.DataTable({
             processing: true, serverSide: true,
@@ -150,7 +264,7 @@ $(function () {
                 data: { consuldate: $("#queuedate").val(), consultime: $("#stime").val(), docrefno: $("#doctor_id").val() }
             },
             columns: [
-                { data: null, render: function (data) { return `<button class="btn btn-sm btn-primary import-queue" value="${data.pxrefno}" data-consultationrefno="${data.consultationrefno || ''}" title="Import patient details"><i class="fa-solid fa-share"></i></button>`; } },
+                { data: null, render: function (data) { return `<button class="btn btn-sm btn-primary import-queue" value="${data.pxrefno}" data-consultationrefno="${data.consultationrefno || ''}" title="Show Info"><i class="fa-solid fa-eye"></i></button>`; } },
                 { data: "patientname" },
                 { data: "status", render: function (data) {
                     const badges = { WAITING: "bg-warning text-white fs-6", IN_CONSULTATION: "bg-info text-white fs-6", FOR_BILLING: "bg-primary text-white fs-6", COMPLETED: "bg-success fs-6", UNSCHEDULED: "bg-primary fs-6", CANCELLED: "bg-danger fs-6", NO_SHOW: "bg-danger fs-6" };
@@ -569,6 +683,8 @@ $(function () {
                     }
 
                     loadPatientCharges();
+                    // Detailed Comment: Load past consultation payments and update current consultation badges
+                    loadPatientPaymentHistory(p.pincode, p.pxrefno, p.consultationrefno);
                 } else {
                     Swal.fire({ title: "Error", text: (response && response.message) || "Failed to import patient details.", icon: "error" });
                 }
@@ -623,26 +739,67 @@ $(function () {
     $("#patient_charges_btn").on("click", function () { loadPatientCharges(); });
 
     function loadPatientCharges() {
+        const refno = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
+        const consulDate = $("#sched_date").val() || $("#queuedate").val() || todayStr;
+        $("#pay_tab_consultdate_badge").text(`Date: ${consulDate}`);
+        $("#pay_tab_consultref_badge").text(`Ref: ${refno || 'None'}`);
+
         $("#pxcharges_table").DataTable().destroy().clear();
         $("#pxcharges_table").DataTable({
             ajax: {
                 url: "/api/fetch_pxcharges", type: "POST",
                 headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-                data: { consultationrefno: $("#pxconsultationrefno").text() },
+                data: { consultationrefno: refno },
                 dataSrc: function (response) {
                     let total = 0;
-                    response.charges.forEach(c => total += parseFloat(c.totalamt));
+                    if (response.charges && Array.isArray(response.charges)) {
+                        response.charges.forEach(c => total += parseFloat(c.totalamt || 0));
+                    }
                     $("#charges_total").text(total.toFixed(2));
-                    return response.charges;
+                    return response.charges || [];
                 }
             },
             columns: [
-                { data: null, render: function (data) { return `<button class="btn btn-sm btn-danger remove_charge" type="button" value="${data.prodcode}" data-id="${data.id || ''}"><i class="fa-solid fa-trash"></i></button> <button class="btn btn-sm btn-primary edit_charge_btn_sc" type="button" value="${data.pxchargerefno}"><i class="fa-solid fa-pen-to-square"></i></button>`; } },
-                { data: 'item_dscr' }, { data: 'qty' }, { data: 'totalamt' }
+                {
+                    data: null,
+                    render: function (data) {
+                        const chargeId = data.id || data.pxchargerefno || '';
+                        const itemDscr = (data.item_dscr || '').replace(/"/g, '&quot;');
+                        const unitPrice = parseFloat(data.sellingprice || (parseFloat(data.totalamt || 0) / Math.max(1, parseFloat(data.qty || 1)))).toFixed(2);
+                        const qty = data.qty || 1;
+                        const totalAmt = parseFloat(data.totalamt || 0).toFixed(2);
+                        return `
+                            <div class="d-flex gap-1 justify-content-center">
+                                <button class="btn btn-sm btn-outline-primary edit_charge_btn_sc" type="button"
+                                    data-id="${chargeId}"
+                                    data-prodcode="${data.prodcode || ''}"
+                                    data-item="${itemDscr}"
+                                    data-price="${unitPrice}"
+                                    data-qty="${qty}"
+                                    data-total="${totalAmt}"
+                                    title="Edit Fee (Admin Protected)">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger remove_charge" type="button"
+                                    value="${data.prodcode}"
+                                    data-id="${chargeId}"
+                                    data-item="${itemDscr}"
+                                    title="Delete Fee (Admin Protected)">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                    }
+                },
+                { data: 'item_dscr' },
+                { data: 'qty' },
+                { data: 'totalamt' }
             ],
-            columnDefs: [{ target: 0, width: '1%', orderable: false, className: 'text-nowrap text-center align-middle' }, { target: '_all', orderable: false, className: 'text-nowrap align-middle' }],
+            columnDefs: [
+                { target: 0, width: '1%', orderable: false, className: 'text-nowrap text-center align-middle' },
+                { target: '_all', orderable: false, className: 'text-nowrap align-middle' }
+            ],
             // Detailed Comment: In DataTables 2, layout uses standard feature keys to avoid "Unknown feature: html" warning.
-            // Total amount is rendered in the blade view below the table and updated dynamically via dataSrc.
             layout: {
                 bottomStart: 'paging',
                 bottomEnd: null
@@ -1564,50 +1721,161 @@ $(function () {
         }
     });
 
-    // Detailed Comment: Remove patient charge handler with button spinner feedback
-    // Uses /api/delete_patient_charge to synchronize with DoctorController::deleteCharge
+    /**
+     * Detailed Comment: Remove patient charge fee with administrator elevation protection.
+     * Checks if current user/session is elevated; if not, prompts admin credentials modal before calling /api/delete_patient_charge.
+     */
     $(document).on("click", ".remove_charge", function () {
         const $btn = $(this);
-        const prodcode = $btn.val();
-        const refno = $("#pxconsultationrefno").text();
-        if (!refno || !prodcode) return;
+        const prodcode = $btn.val() || $btn.data("prodcode");
+        const chargeId = $btn.data("id");
+        const itemDscr = $btn.data("item") || "this charge item";
+        const refno = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
 
-        Swal.fire({
-            title: "Delete Charge?",
-            text: "Are you sure you want to remove this charge item?",
-            icon: "warning",
-            showCancelButton: true,
-            confirmButtonText: "Yes, delete",
-            confirmButtonColor: "#d33"
-        }).then((result) => {
-            if (result.isConfirmed) {
-                setBtnLoading($btn, "");
-                const chargeId = $btn.data("id");
-                const payload = { consultationrefno: refno, prodcode: prodcode };
-                if (chargeId && chargeId !== 'null' && chargeId !== 'undefined') {
-                    payload.chargeid = chargeId;
-                }
+        if (!refno || (!prodcode && !chargeId)) return;
 
-                $.ajax({
-                    url: "/api/delete_patient_charge",
-                    type: "POST",
-                    headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-                    data: payload,
-                    success: function (response) {
-                        if (response.success) {
-                            loadPatientCharges();
-                        } else {
-                            Swal.fire({ title: "Error", text: response.message || "Failed to remove charge.", icon: "error" });
-                        }
-                    },
-                    error: function () {
-                        Swal.fire({ title: "Error", text: "Failed to remove charge.", icon: "error" });
-                    },
-                    complete: function () {
-                        resetBtnLoading($btn);
+        requireAdminAuth(function () {
+            Swal.fire({
+                title: "Delete Charge Fee?",
+                html: `Are you sure you want to remove <strong>${itemDscr}</strong> from this consultation's charges?`,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Yes, delete",
+                confirmButtonColor: "#d33"
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    setBtnLoading($btn, "");
+                    const payload = { consultationrefno: refno, prodcode: prodcode };
+                    if (chargeId && chargeId !== 'null' && chargeId !== 'undefined') {
+                        payload.chargeid = chargeId;
                     }
-                });
-            }
+
+                    $.ajax({
+                        url: "/api/delete_patient_charge",
+                        type: "POST",
+                        headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                        data: payload,
+                        success: function (response) {
+                            if (response.success) {
+                                Swal.fire({
+                                    toast: true,
+                                    position: 'top-end',
+                                    icon: 'success',
+                                    title: 'Charge removed',
+                                    showConfirmButton: false,
+                                    timer: 1500
+                                });
+                                loadPatientCharges();
+                            } else {
+                                Swal.fire({ title: "Error", text: response.message || "Failed to remove charge.", icon: "error" });
+                            }
+                        },
+                        error: function (xhr) {
+                            Swal.fire({ title: "Error", text: xhr.responseJSON?.message || "Failed to remove charge.", icon: "error" });
+                        },
+                        complete: function () {
+                            resetBtnLoading($btn);
+                        }
+                    });
+                }
+            });
+        });
+    });
+
+    /**
+     * Detailed Comment: Edit patient charge fee (unit price & quantity) with administrator elevation protection.
+     * Prompts administrator credentials if not elevated, then presents SweetAlert2 interactive input dialog
+     * to modify fee details and submits to /api/update_charge.
+     */
+    $(document).on("click", ".edit_charge_btn_sc", function () {
+        const $btn = $(this);
+        const prodcode = $btn.data("prodcode");
+        const chargeId = $btn.data("id");
+        const itemDscr = $btn.data("item") || "Charge Item";
+        const currentPrice = parseFloat($btn.data("price") || 0);
+        const currentQty = parseFloat($btn.data("qty") || 1);
+        const refno = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
+
+        if (!refno || (!prodcode && !chargeId)) return;
+
+        requireAdminAuth(function () {
+            Swal.fire({
+                title: `<i class="fa-solid fa-pen-to-square text-primary me-2"></i>Edit Fee`,
+                html: `
+                    <div class="text-start mb-3">
+                        <label class="form-label fw-bold small text-muted">Item Description</label>
+                        <input class="form-control bg-light" type="text" value="${itemDscr}" readonly>
+                    </div>
+                    <div class="row g-2 text-start">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small">Unit Price (PHP) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" min="0" class="form-control" id="swal_edit_fee_price" value="${currentPrice}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small">Quantity <span class="text-danger">*</span></label>
+                            <input type="number" step="1" min="1" class="form-control" id="swal_edit_fee_qty" value="${currentQty}">
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: "Save Changes",
+                confirmButtonColor: "#3085d6",
+                preConfirm: () => {
+                    const price = parseFloat(document.getElementById('swal_edit_fee_price').value);
+                    const qty = parseFloat(document.getElementById('swal_edit_fee_qty').value);
+                    if (isNaN(price) || price < 0) {
+                        Swal.showValidationMessage('Please enter a valid price (>= 0).');
+                        return false;
+                    }
+                    if (isNaN(qty) || qty < 1) {
+                        Swal.showValidationMessage('Quantity must be at least 1.');
+                        return false;
+                    }
+                    return { price: price, qty: qty };
+                }
+            }).then((result) => {
+                if (result.isConfirmed && result.value) {
+                    setBtnLoading($btn, "");
+                    const payload = {
+                        consultationrefno: refno,
+                        prodcode: prodcode,
+                        charge_fee: result.value.price,
+                        charge_qty: result.value.qty,
+                        discount: 0
+                    };
+                    if (chargeId && chargeId !== 'null' && chargeId !== 'undefined') {
+                        payload.chargeid = chargeId;
+                    }
+
+                    $.ajax({
+                        url: "/api/update_charge",
+                        type: "POST",
+                        headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                        data: payload,
+                        success: function (res) {
+                            if (res.success) {
+                                Swal.fire({
+                                    toast: true,
+                                    position: 'top-end',
+                                    icon: 'success',
+                                    title: 'Fee updated successfully',
+                                    showConfirmButton: false,
+                                    timer: 1500
+                                });
+                                loadPatientCharges();
+                            } else {
+                                Swal.fire({ title: "Error", text: res.message || "Failed to update fee.", icon: "error" });
+                            }
+                        },
+                        error: function (xhr) {
+                            Swal.fire({ title: "Error", text: xhr.responseJSON?.message || "Failed to update fee.", icon: "error" });
+                        },
+                        complete: function () {
+                            resetBtnLoading($btn);
+                        }
+                    });
+                }
+            });
         });
     });
 
@@ -1696,4 +1964,396 @@ $(function () {
             }
         });
     });
+
+    /**
+     * Detailed Comment: Delete patient queue record with administrator credential elevation protection.
+     * Secretary and unauthorized sessions must authorize via admin credentials before deleting queue items.
+     */
+    $(document).on("click", ".delete-queue-item", function () {
+        const consultationrefno = $(this).val();
+        if (!consultationrefno) return;
+
+        requireAdminAuth(function () {
+            Swal.fire({
+                title: "Delete Queue Record?",
+                text: "Are you sure you want to remove this consultation from the patient queue?",
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Yes, delete",
+                confirmButtonColor: "#d33"
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: "/api/delete_patient_queue",
+                        type: "POST",
+                        headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                        data: { consultationrefno: consultationrefno },
+                        success: function (res) {
+                            if (res.success) {
+                                Swal.fire({
+                                    icon: "success",
+                                    title: "Deleted",
+                                    text: res.message || "Queue record deleted successfully.",
+                                    timer: 1500,
+                                    showConfirmButton: false
+                                });
+                                loadPatientTable();
+                                updateDoctorQueueBadges();
+                            } else {
+                                Swal.fire({
+                                    icon: "error",
+                                    title: "Error",
+                                    text: res.message || "Failed to delete queue record."
+                                });
+                            }
+                        },
+                        error: function (xhr) {
+                            Swal.fire({
+                                icon: "error",
+                                title: "Error",
+                                text: xhr.responseJSON?.message || "Failed to delete queue record."
+                            });
+                        }
+                    });
+                }
+            });
+        });
+    });
+
+    /**
+     * Detailed Comment: Loads past consultation payment history for the active patient.
+     * Fetches historical settlement records via /api/fetch_patient_payment_history
+     * and renders into #px_previous_payments_table.
+     */
+    function loadPatientPaymentHistory(pincode, pxrefno, consultationrefno) {
+        const $tbody = $("#px_previous_payments_table tbody");
+        if (!pincode && !pxrefno && !consultationrefno) {
+            $tbody.html('<tr><td colspan="7" class="text-center text-muted">Select or import a patient consultation to view past payment history.</td></tr>');
+            return;
+        }
+
+        $tbody.html('<tr><td colspan="7" class="text-center text-muted"><span class="spinner-border spinner-border-sm me-1"></span> Loading past payment history...</td></tr>');
+
+        $.ajax({
+            url: "/api/fetch_patient_payment_history",
+            type: "POST",
+            headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+            data: {
+                pincode: pincode,
+                pxrefno: pxrefno,
+                consultationrefno: consultationrefno
+            },
+            success: function (res) {
+                $tbody.empty();
+                if (res.success && res.payments && res.payments.length > 0) {
+                    res.payments.forEach(pay => {
+                        const totalBill = parseFloat(pay.net_payable ?? pay.total_gross ?? 0).toFixed(2);
+                        const paidCash = parseFloat(pay.payment_cash || 0);
+                        const paidCard = parseFloat(pay.payment_card || 0);
+                        const totalPaid = (paidCash + paidCard).toFixed(2);
+                        const channels = [];
+                        if (paidCash > 0) channels.push('Cash');
+                        if (paidCard > 0) channels.push(pay.cta_type ? `Card (${pay.cta_type})` : 'Card');
+                        if (pay.hmocode || pay.less_hmo > 0) channels.push(`HMO (${pay.hmoname || pay.hmocode || 'Covered'})`);
+                        const channelStr = channels.length > 0 ? channels.join(', ') : 'None';
+
+                        const statusBadge = pay.payment_status === 'PAID'
+                            ? '<span class="badge bg-success">PAID</span>'
+                            : (pay.payment_status === 'PARTIAL'
+                                ? '<span class="badge bg-warning text-dark">PARTIAL</span>'
+                                : '<span class="badge bg-danger">UNPAID</span>');
+
+                        $tbody.append(`
+                            <tr>
+                                <td class="align-middle">${pay.consultation_date || 'N/A'}</td>
+                                <td class="align-middle fw-semibold">${pay.consultationrefno || 'N/A'}</td>
+                                <td class="align-middle">${pay.docname || 'N/A'}</td>
+                                <td class="align-middle text-end fw-semibold">PHP ${totalBill}</td>
+                                <td class="align-middle text-end text-success fw-bold">PHP ${totalPaid}</td>
+                                <td class="align-middle small">${channelStr}</td>
+                                <td class="align-middle text-center">${statusBadge}</td>
+                            </tr>
+                        `);
+                    });
+                } else {
+                    $tbody.html('<tr><td colspan="7" class="text-center text-muted">No past payment or settlement history found for this patient.</td></tr>');
+                }
+            },
+            error: function () {
+                $tbody.html('<tr><td colspan="7" class="text-center text-danger">Failed to load payment history.</td></tr>');
+            }
+        });
+    }
+
+    // Refresh payment history button
+    $("#refresh_payment_history_btn").on("click", function () {
+        const pincode = $("#pincode").val();
+        const pxrefno = $("#pxidno").text() || $("#pxidno").val();
+        const consultationrefno = $("#pxconsultationrefno").text() || $("#pxconsultationrefno").val();
+        loadPatientPaymentHistory(pincode, pxrefno, consultationrefno);
+    });
+
+    // Detailed Comment: Refresh charges and past payments whenever Payment Details tab is shown
+    $(document).on('shown.bs.tab', 'button[data-bs-target="#payment_info"]', function () {
+        loadPatientCharges();
+        const pincode = $("#pincode").val();
+        const pxrefno = $("#pxidno").text() || $("#pxidno").val();
+        const consultationrefno = $("#pxconsultationrefno").text() || $("#pxconsultationrefno").val();
+        loadPatientPaymentHistory(pincode, pxrefno, consultationrefno);
+    });
+
+    // Detailed Comment: Open Add Patient Modal from Patient Masterlist card
+    $("#btn_add_patient_masterlist").on("click", function () {
+        const modalEl = document.getElementById("add_patient_modal");
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+    });
+
+    // Detailed Comment: View consultation history from Patient Masterlist card
+    $(document).on("click", ".btn_px_history", function () {
+        const pxrefno = $(this).val();
+        const pincode = $(this).data("pincode");
+        if (!pxrefno && !pincode) return;
+
+        loadSecretaryMedhistory(pincode, pxrefno);
+        const medTabBtn = document.getElementById("medhistory-tab");
+        if (medTabBtn) {
+            bootstrap.Tab.getInstance(medTabBtn)?.show() || new bootstrap.Tab(medTabBtn).show();
+        }
+    });
+
+    // Detailed Comment: Import patient record from Patient Masterlist card into Consultation Form
+    $(document).on("click", ".btn_px_import", function () {
+        const pxrefno = $(this).val();
+        if (!pxrefno) return;
+
+        const genTabBtn = document.getElementById("general-info-tab");
+        if (genTabBtn) {
+            bootstrap.Tab.getInstance(genTabBtn)?.show() || new bootstrap.Tab(genTabBtn).show();
+        }
+
+        $.ajax({
+            url: "/api/fetch_consultation",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: { pxrefno: pxrefno },
+            success: function (response) {
+                if (response.success && response.patient) {
+                    const p = response.patient;
+                    $("#pincode").val(p.pincode || "");
+                    $("#pxconsultationrefno").text(p.consultationrefno || "").val(p.consultationrefno || "");
+                    $("#pxidno").text(p.pxrefno || "").val(p.pxrefno || "");
+                    $("#pxfname").val(p.pxfirstname || p.patientname || "");
+                    $("#pxmname").val(p.pxmidname || "");
+                    $("#pxlname").val(p.pxlastname || "");
+                    $("#pxsuffix").val(p.pxsuffix || "");
+                    $("#pxsex").val(p.gender || "male");
+                    $("#pxbday").val(p.birthday || "");
+                    $("#pxage").val(p.birthday ? getAge(p.birthday) : "");
+                    $("#pxcellnumber").val(p.mobilenumber || "");
+                    $("#pxlandlinenumber").val(p.landlinenumber || "");
+                    $("#pxemail").val(p.emailaddress || "");
+                    $("#pxaddress").val(p.address || "");
+                    $("#pxreasonforconsultation").val(p.reasonforconsultation || "");
+                    $("#pxweight").val(p.weight || "");
+                    $("#pxheight").val(p.height || "");
+                    $("#pxtemp").val(p.temp || "");
+                    $("#pxrespiratory").val(p.respiratoryrate || "");
+                    $("#pxpulse").val(p.pulserate || "");
+                    $("#pxbpnumerator").val(p.bpnumerator || "");
+                    $("#pxbpdenominator").val(p.bpdenominator || "");
+                    if (p.docrefno) $("#doctor_for_consult").val(p.docrefno);
+                    $("#sched_date").val($("#queuedate").val() || todayStr);
+                    loadSchedules(2);
+                    $("#patient_picture_preview").prop("src", p.photo_path ?? '/images/blank_photo.png');
+                    $("#photo_path").val(p.photo_path || "");
+                    $("#photo_base64").val("");
+                    loadSecretaryMedhistory(p.pincode, p.pxrefno, p.consultationrefno);
+                    loadPatientCharges();
+                    loadPatientPaymentHistory(p.pincode, p.pxrefno, p.consultationrefno);
+
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Patient data imported', showConfirmButton: false, timer: 1500 });
+                }
+            }
+        });
+    });
+
+    /**
+     * Detailed Comment: Edit Patient Masterlist record with administrator credential elevation protection.
+     * Checks session elevation, fetches patient details via /api/fetch_patient_details,
+     * populates #editPatientModal tabbed inputs, and shows modal.
+     */
+    $(document).on("click", ".btn_px_edit", function () {
+        const pxrefno = $(this).val();
+        const pincode = $(this).data("pincode");
+        if (!pxrefno && !pincode) return;
+
+        requireAdminAuth(function () {
+            $.ajax({
+                url: "/api/fetch_patient_details",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                data: { pxrefno: pxrefno, pincode: pincode },
+                success: function (res) {
+                    if (res.success && res.patient) {
+                        const p = res.patient;
+                        $("#edit_pxrefno").val(p.pxrefno || "");
+                        $("#edit_display_pxrefno").val(p.pxrefno || "");
+                        $("#edit_pincode").val(p.pincode || "");
+                        $("#edit_phic_pin").val(p.phic_pin || "");
+                        $("#edit_ipd_pincode").val(p.ipd_pincode || "");
+                        $("#edit_pxfirstname").val(p.pxfirstname || "");
+                        $("#edit_pxmidname").val(p.pxmidname || "");
+                        $("#edit_pxlastname").val(p.pxlastname || "");
+                        $("#edit_pxsuffix").val(p.pxsuffix || "");
+                        $("#edit_gender").val(p.gender || "MALE");
+                        $("#edit_birthday").val(p.birthday ? p.birthday.split(' ')[0] : "");
+                        $("#edit_religion").val(p.religion || "");
+                        $("#edit_nationality").val(p.nationality || "FILIPINO");
+                        $("#edit_ispwd").val(p.ispwd ? "1" : "0");
+                        $("#edit_senior_idno").val(p.senior_idno || "");
+                        $("#edit_mobilenumber").val(p.mobilenumber || "");
+                        $("#edit_emailaddress").val(p.emailaddress || "");
+                        $("#edit_streetadrs").val(p.streetadrs || "");
+                        $("#edit_zipcode").val(p.zipcode || "");
+                        $("#edit_address").val(p.address || "");
+                        $("#edit_classification").val(p.classification || "");
+                        $("#edit_next_follow_up").val(p.next_follow_up || "");
+                        $("#edit_medical_history_summary").val(p.medical_history_summary || "");
+
+                        const photoSrc = p.photo_path
+                            ? (p.photo_path.startsWith('http') ? p.photo_path : `/patient/photo/${p.photo_path.split('/').pop()}`)
+                            : '/images/blank_photo.png';
+                        $("#edit_patient_picture_preview").prop("src", photoSrc);
+                        $("#edit_photo_path").val(p.photo_path || "");
+                        $("#edit_photo_base64").val("");
+
+                        const modalEl = document.getElementById("editPatientModal");
+                        if (modalEl) {
+                            const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                            modal.show();
+                        }
+                    } else {
+                        Swal.fire({ title: "Error", text: res.message || "Failed to load patient details.", icon: "error" });
+                    }
+                },
+                error: function (xhr) {
+                    Swal.fire({ title: "Error", text: xhr.responseJSON?.message || "Failed to load patient details.", icon: "error" });
+                }
+            });
+        });
+    });
+
+    /**
+     * Detailed Comment: Submit handler for saving edited patient masterlist details.
+     * Posts updated demographics and address to /api/admin/update_patient.
+     */
+    $("#editPatientForm").on("submit", function (e) {
+        e.preventDefault();
+        const $submitBtn = $(this).find('button[type="submit"]');
+        setBtnLoading($submitBtn, "Saving...");
+
+        const formData = new FormData(this);
+
+        $.ajax({
+            url: "/api/admin/update_patient",
+            type: "POST",
+            headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (res) {
+                if (res.success) {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: 'Patient updated successfully',
+                        showConfirmButton: false,
+                        timer: 1800
+                    });
+                    const modalEl = document.getElementById("editPatientModal");
+                    if (modalEl) {
+                        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        modal.hide();
+                    }
+                    loadPatientMasterlistQueueTable();
+                } else {
+                    Swal.fire({ title: "Error", text: res.message || "Failed to update patient.", icon: "error" });
+                }
+            },
+            error: function (xhr) {
+                Swal.fire({ title: "Error", text: xhr.responseJSON?.message || "Failed to update patient.", icon: "error" });
+            },
+            complete: function () {
+                resetBtnLoading($submitBtn);
+            }
+        });
+    });
+
+    /**
+     * Detailed Comment: Delete Patient Masterlist record with administrator credential elevation protection.
+     * Confirms deletion intent and invokes /api/delete_patient_sec, then refreshes table.
+     */
+    $(document).on("click", ".btn_px_delete", function () {
+        const pxrefno = $(this).val();
+        const pxName = $(this).data("name") || "this patient";
+        if (!pxrefno) return;
+
+        requireAdminAuth(function () {
+            Swal.fire({
+                title: "Delete Patient Record?",
+                html: `Are you sure you want to permanently delete patient <strong>${pxName}</strong>? All associated consultation records will also be deleted.`,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Yes, delete patient",
+                confirmButtonColor: "#d33"
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: "/api/delete_patient_sec",
+                        type: "POST",
+                        headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                        data: { pxrefno: pxrefno },
+                        success: function (res) {
+                            if (res.success) {
+                                Swal.fire({
+                                    icon: "success",
+                                    title: "Deleted",
+                                    text: res.message || "Patient record deleted successfully.",
+                                    timer: 1500,
+                                    showConfirmButton: false
+                                });
+                                loadPatientMasterlistQueueTable();
+                                loadPatientTable();
+                            } else {
+                                Swal.fire({ title: "Error", text: res.message || "Failed to delete patient record.", icon: "error" });
+                            }
+                        },
+                        error: function (xhr) {
+                            Swal.fire({ title: "Error", text: xhr.responseJSON?.message || "Failed to delete patient record.", icon: "error" });
+                        }
+                    });
+                }
+            });
+        });
+    });
+
+    /**
+     * Detailed Comment: Initialize address cascade for Edit Patient modal if loaded
+     */
+    if ($("#editPatientModal").length && $("#edit_region").length) {
+        initAddressCascade({
+            regionSel: '#edit_region',
+            provSel: '#edit_province',
+            munSel: '#edit_muncity',
+            brgySel: '#edit_brgy',
+            zipInput: '#edit_zipcode',
+            streetInput: '#edit_streetadrs',
+            fullAddressInput: '#edit_address'
+        });
+    }
 });
+

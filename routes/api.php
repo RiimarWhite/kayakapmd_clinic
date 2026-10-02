@@ -35,6 +35,8 @@ Route::middleware(['web', 'auth:secretary,admin'])->group(function () {
     Route::post('fetch_consultation', [ConsultationController::class, 'fetchConsultation'])->name('consultation.fetch');
     Route::post('save_patient_consultation', [ConsultationController::class, 'saveConsultation'])->name('consultation.save');
     Route::post('update_patient_consultation', [ConsultationController::class, 'updateConsultation'])->name('consultation.update');
+    // Detailed Comment: Reorder queue numbers endpoint allowing drag-and-drop persistence from the secretary queue
+    Route::post('reorder_queue', [ConsultationController::class, 'reorderQueue'])->name('consultation.reorder_queue');
 
     Route::post('fetch_secretary', [SecretaryController::class, 'fetchSecretary']);
     Route::post('edit_secretary_account', [ManagementController::class, 'editSecretary']);

@@ -3,7 +3,8 @@ $(function () {
         const managementModal = new bootstrap.Modal("#management_modal");
 
         $.ajax({
-            url: "fetch_doctors_from_secretary",
+            // Detailed Comment: Explicit /api/ prefix ensures secretary doctor retrieval works correctly from /secretary/queue and /admin/secretary
+            url: "/api/fetch_doctors_from_secretary",
             type: "POST",
             headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
             success: function (response) {

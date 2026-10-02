@@ -13,8 +13,9 @@ import 'datatables.net-bs5';
 import 'datatables.net-select-bs5';
 
 // Bootstrap JS
-import { Modal, Dropdown, Tooltip, Popover } from 'bootstrap';
-window.bootstrap = { Modal, Dropdown, Tooltip, Popover };
+// Detailed Comment: Import complete Bootstrap bundle and attach to window.bootstrap to globally expose Tab, Modal, Dropdown, Toast, Tooltip, Popover, and Collapse components, preventing runtime TypeErrors when accessing components like bootstrap.Tab.getInstance
+import * as bootstrap from 'bootstrap';
+window.bootstrap = bootstrap;
 
 // SweetAlert
 import Swal from 'sweetalert2';

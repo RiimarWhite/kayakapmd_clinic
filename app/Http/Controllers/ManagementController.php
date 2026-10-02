@@ -2048,11 +2048,20 @@ class ManagementController extends Controller
     public function fetchAllCharges(Request $request)
     {
         $appendedCharges = StocksLedgerModel::where(['px_consultcode_cn' => $request->consultationrefno])->pluck('prodcode')->toArray();
-        $charges = StocksListingModel::when($request->category, function ($q) use ($request) {
-            if ($request->category == 'ALL') return;
-
-            $q->select(['prod_itemdscr', 'prodcode', 'item_grouping', 'price_regular'])->where(['item_grouping' => $request->category]);
-        })->whereNotIn('prodcode', $appendedCharges)->get();
+        // Detailed Comment: Select all price tiers (regular, phic, hmo, others) so patient charges differ by patient type
+        $query = StocksListingModel::query();
+        if ($request->category && $request->category !== 'ALL') {
+            $query->where('item_grouping', $request->category);
+        }
+        $charges = $query->select([
+            'prod_itemdscr',
+            'prodcode',
+            'item_grouping',
+            'price_regular',
+            'price_phic',
+            'price_hmo',
+            'price_others'
+        ])->whereNotIn('prodcode', $appendedCharges)->get();
 
         // // already-appended charge refnos
         // $appendedCharges = DocChargesModel::where('consultationrefno', $request->consultationrefno)

@@ -44,6 +44,60 @@ $(function () {
         $btn.prop('disabled', false);
     }
 
+    /**
+     * Detailed Comment: Safely activates a Bootstrap tab element.
+     * Uses bootstrap.Tab.getOrCreateInstance if available, and gracefully falls back
+     * to native element click to prevent uncaught TypeErrors from halting execution.
+     */
+    function safeShowTab(tabElementOrSelector) {
+        const el = typeof tabElementOrSelector === 'string'
+            ? document.querySelector(tabElementOrSelector)
+            : tabElementOrSelector;
+        if (!el) return;
+        try {
+            if (window.bootstrap && window.bootstrap.Tab) {
+                const tabInstance = typeof window.bootstrap.Tab.getOrCreateInstance === 'function'
+                    ? window.bootstrap.Tab.getOrCreateInstance(el)
+                    : (window.bootstrap.Tab.getInstance(el) || new window.bootstrap.Tab(el));
+                if (tabInstance && typeof tabInstance.show === 'function') {
+                    tabInstance.show();
+                    return;
+                }
+            }
+        } catch (err) {
+            console.warn('Bootstrap Tab show warning:', err);
+        }
+        if (typeof el.click === 'function') {
+            el.click();
+        }
+    }
+
+    /**
+     * Detailed Comment: Safely hides a Bootstrap modal without throwing if instance is null.
+     */
+    function safeHideModal(modalElementOrSelector) {
+        const el = typeof modalElementOrSelector === 'string'
+            ? document.querySelector(modalElementOrSelector)
+            : modalElementOrSelector;
+        if (!el) return;
+        try {
+            if (window.bootstrap && window.bootstrap.Modal) {
+                const modalInstance = typeof window.bootstrap.Modal.getOrCreateInstance === 'function'
+                    ? window.bootstrap.Modal.getOrCreateInstance(el)
+                    : (window.bootstrap.Modal.getInstance(el) || new window.bootstrap.Modal(el));
+                if (modalInstance && typeof modalInstance.hide === 'function') {
+                    modalInstance.hide();
+                    return;
+                }
+            }
+        } catch (err) {
+            console.warn('Bootstrap Modal hide warning:', err);
+        }
+        if (window.jQuery && typeof $(el).modal === 'function') {
+            $(el).modal('hide');
+        }
+    }
+
     const todayStr = new Date().toISOString().split('T')[0];
     if (!$("#queuedate").val()) $("#queuedate").val(todayStr);
     if (!$("#sched_date").val()) $("#sched_date").val(todayStr);
@@ -114,6 +168,92 @@ $(function () {
      * 1. Show Info button with eye icon preserving existing form-populating behaviour via .import-queue
      * 2. Merged action dropdown grouping Change Status, Reschedule, and Admin-Protected Delete into one button
      */
+    /**
+     * Detailed Comment: Initialize jQuery UI sortable on #patients_queue_table tbody.
+     * Enables draggable rows for reordering patient queue positions.
+     * When a row is dropped, recalculates 3-digit padded queue numbers, updates the visual table cells,
+     * and persists the changes immediately to the database via /api/reorder_queue.
+     */
+    function initQueueSortable() {
+        const $tbody = $("#patients_queue_table tbody");
+        if (!$tbody.length) return;
+
+        if (typeof $tbody.sortable !== 'function') {
+            console.warn('jQuery UI Sortable not loaded on #patients_queue_table tbody.');
+            return;
+        }
+
+        if ($tbody.hasClass('ui-sortable')) {
+            $tbody.sortable('refresh');
+            return;
+        }
+
+        $tbody.sortable({
+            handle: '.queue-drag-handle',
+            items: 'tr.queue-row-sortable',
+            axis: 'y',
+            cursor: 'grabbing',
+            opacity: 0.75,
+            placeholder: 'table-warning',
+            update: function (event, ui) {
+                const reorderedItems = [];
+                $tbody.find('tr.queue-row-sortable').each(function (index) {
+                    const newQueueNo = index + 1;
+                    const padded = String(newQueueNo).padStart(3, '0');
+                    const refNo = $(this).attr('data-consultationrefno');
+
+                    $(this).find('.queue-num-text').text(padded);
+                    $(this).attr('data-queueno', padded);
+
+                    if (refNo) {
+                        reorderedItems.push({
+                            consultationrefno: refNo,
+                            queueno: padded
+                        });
+                    }
+                });
+
+                if (reorderedItems.length > 0) {
+                    $.ajax({
+                        url: "/api/reorder_queue",
+                        type: "POST",
+                        headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                        contentType: "application/json",
+                        data: JSON.stringify({ queue: reorderedItems }),
+                        success: function (res) {
+                            if (res.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Queue Reordered',
+                                    text: 'Patient queue numbers updated successfully.',
+                                    toast: true,
+                                    position: 'top-end',
+                                    showConfirmButton: false,
+                                    timer: 1800
+                                });
+                            } else {
+                                Swal.fire('Error', res.message || 'Failed to reorder queue.', 'error');
+                                loadPatientTable();
+                            }
+                        },
+                        error: function (xhr) {
+                            console.error('Reorder queue error:', xhr);
+                            Swal.fire('Error', 'Failed to save new queue order.', 'error');
+                            loadPatientTable();
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    /**
+     * Detailed Comment: Loads patient queue records into the Patient Queue table.
+     * Features:
+     * 1. Draggable rows with drag handle for reordering queue numbers
+     * 2. Show Info button with eye icon preserving existing form-populating behaviour via .import-queue
+     * 3. Merged action dropdown grouping Change Status, Reschedule, and Admin-Protected Delete into one button
+     */
     function loadPatientTable() {
         const table = $("#patients_queue_table");
 
@@ -127,7 +267,17 @@ $(function () {
                 data: { consuldate: $("#queuedate").val(), consultime: $("#stime").val(), docrefno: $("#doctor_id").val() }
             },
             columns: [
-                { data: "queueno" },
+                { 
+                    data: "queueno",
+                    render: function (data, type, row) {
+                        return `
+                            <span class="d-inline-flex align-items-center gap-1">
+                                <i class="fa-solid fa-grip-vertical text-muted queue-drag-handle" style="cursor: grab;" title="Drag to reorder queue"></i>
+                                <span class="queue-num-text">${data || '000'}</span>
+                            </span>
+                        `;
+                    }
+                },
                 { data: null, render: function (data) {
                     return `
                         <div class="d-flex gap-1 justify-content-center align-items-center">
@@ -172,6 +322,14 @@ $(function () {
                 { target: 2, className: "text-nowrap text-truncate align-middle overflow-hidden" },
                 { target: 3, width: "1%", className: "text-nowrap text-center align-middle" }
             ],
+            createdRow: function (row, data, dataIndex) {
+                $(row).attr('data-consultationrefno', data.consultationrefno || '');
+                $(row).attr('data-queueno', data.queueno || '');
+                $(row).addClass('queue-row-sortable');
+            },
+            drawCallback: function () {
+                initQueueSortable();
+            },
             language: { emptyTable: "No patients record yet." },
             pageLength: 10, lengthChange: false, paging: true, ordering: false,
         });
@@ -407,7 +565,7 @@ $(function () {
         $("#photo_path").val("");
         $("#photo_base64").val("");
         $("#patient_picture_preview").prop("src", "/images/blank_photo.png");
-        $("#sec_medhistory_table tbody").html('<tr><td colspan="6" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view medical history.</td></tr>');
+        $("#sec_medhistory_table tbody").html('<tr><td colspan="7" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view consultation history.</td></tr>');
         $("#sec_medhistory_count").text('0 records');
     });
 
@@ -501,12 +659,195 @@ $(function () {
     });
 
     /**
-     * Detailed Comment: Loads medical and consultation history into the Secretary Medical History tab.
+     * Detailed Comment: Populate and open the Consultation Details modal for secretary console.
+     * Displays all clinical, prescription, diagnostic, radiological/lab, and billing
+     * information for a selected past consultation record, reproducing the doctor's consultation layout.
+     *
+     * @param {Object} record - Consultation record with embedded clinical data, rx, diagnostics, and charges
+     */
+    function openConsultationDetailsModal(record) {
+        if (!record) return;
+
+        // 1. Header Badges
+        const dateStr = record.consultation_date ? record.consultation_date.substring(0, 16) : 'N/A';
+        const cref = record.consultationrefno || record.caseno || 'N/A';
+        const status = record.status || 'N/A';
+        const ptype = (record.classification || 'REGULAR').toUpperCase();
+
+        const statusBadges = {
+            WAITING: "bg-warning text-white",
+            IN_CONSULTATION: "bg-info text-white",
+            FOR_BILLING: "bg-primary text-white",
+            COMPLETED: "bg-success text-white",
+            UNSCHEDULED: "bg-secondary text-white",
+            CANCELLED: "bg-danger text-white",
+            NO_SHOW: "bg-danger text-white"
+        };
+        const typeBadges = {
+            REGULAR: "bg-warning text-dark",
+            PHIC: "bg-primary text-white",
+            HMO: "bg-info text-white",
+            OTHERS: "bg-secondary text-white"
+        };
+
+        $("#vcd_consultdate_badge").text(`Date: ${dateStr}`);
+        $("#vcd_consultref_badge").text(`Ref: ${cref}`);
+        $("#vcd_status_badge")
+            .text(`Status: ${status}`)
+            .attr('class', `badge ${statusBadges[status] || 'bg-secondary text-white'} fs-6`);
+        $("#vcd_patient_type_badge")
+            .text(`Type: ${ptype}`)
+            .attr('class', `badge ${typeBadges[ptype] || 'bg-secondary text-white'} fs-6`);
+
+        // 2. Patient Demographics & Vitals
+        $("#vcd_docname").text(record.docname ? `Dr. ${record.docname}` : (record.docfname ? `Dr. ${record.docfname} ${record.doclname || ''}` : 'None Assigned'));
+        $("#vcd_photo").attr('src', record.photo_path || '/images/blank_photo.png');
+        $("#vcd_name").text(record.patientname || [record.pxlastname, record.pxfirstname, record.pxmidname].filter(Boolean).join(', ') || 'N/A');
+        $("#vcd_pincode").text(record.pincode || 'N/A');
+        $("#vcd_pxrefno").text(record.pxrefno || 'N/A');
+        $("#vcd_sex").text(record.gender || 'N/A');
+        $("#vcd_bday").text(record.birthday || 'N/A');
+        $("#vcd_age").text(record.age ? `${record.age} yrs` : 'N/A');
+        $("#vcd_cellno").text(record.mobilenumber || 'N/A');
+        $("#vcd_address").text(record.address || 'N/A');
+
+        $("#vcd_weight").text(record.weight ? `${record.weight} ${record.wunit || 'kg'}` : '--');
+        $("#vcd_height").text(record.height ? `${record.height} ${record.hunit || 'cm'}` : '--');
+        $("#vcd_temp").text(record.temp ? `${record.temp} ${record.tempunit || '°C'}` : '--');
+        $("#vcd_resprate").text(record.respiratoryrate ? `${record.respiratoryrate} cpm` : '--');
+        $("#vcd_pulserate").text(record.pulserate ? `${record.pulserate} bpm` : '--');
+        const bp = (record.bpnumerator && record.bpdenominator) ? `${record.bpnumerator}/${record.bpdenominator} mmHg` : '--';
+        $("#vcd_bp").text(bp);
+
+        // 3. Tab 1: Impressions & Diagnosis
+        $("#vcd_chief_complaint").val(record.reasonforconsultation || 'No chief complaint recorded.');
+        $("#vcd_impressions").val(record.impression || 'No impressions recorded.');
+        $("#vcd_diagnosis").val(record.finadiagnosis || 'No final diagnosis recorded.');
+
+        if (parseInt(record.isforadmission) === 1) {
+            $("#vcd_admit_badge").text('For Admission').removeClass('bg-secondary').addClass('bg-danger');
+        } else {
+            $("#vcd_admit_badge").text('Not for Admission').removeClass('bg-danger').addClass('bg-secondary');
+        }
+        $("#vcd_admit_instructions").val(record.admisionnotes || record.instructions || '');
+
+        // 4. Tab 2: Rx & Instructions
+        const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
+        if (record.consultationrefno) {
+            $("#vcd_print_rx_btn").attr("href", `${basePath}/print_pdf?type=rx&consultationrefno=${record.consultationrefno}`).removeClass('disabled');
+            $("#vcd_print_diag_btn").attr("href", `${basePath}/print_pdf?type=diagnostics&consultationrefno=${record.consultationrefno}`).removeClass('disabled');
+        } else {
+            $("#vcd_print_rx_btn, #vcd_print_diag_btn").attr("href", "#").addClass('disabled');
+        }
+
+        const $rxTbody = $("#vcd_rx_table tbody");
+        $rxTbody.empty();
+        const rxItems = record.rx_items || [];
+        if (rxItems.length === 0) {
+            $rxTbody.append('<tr><td colspan="4" class="text-center text-muted">No prescriptions recorded.</td></tr>');
+        } else {
+            rxItems.forEach(item => {
+                $rxTbody.append(`
+                    <tr>
+                        <td class="fw-semibold">${item.medname || 'N/A'}</td>
+                        <td>${item.sig || 'N/A'}</td>
+                        <td class="text-center">${item.qty || 1}</td>
+                        <td class="text-center">${item.dispensed == 1 ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>'}</td>
+                    </tr>
+                `);
+            });
+        }
+        $("#vcd_general_instructions").val(record.instructions || '');
+
+        // 5. Tab 3: Diagnostic Requests
+        const $diagTbody = $("#vcd_diagnostics_table tbody");
+        $diagTbody.empty();
+        const diagItems = record.diagnostic_items || [];
+        if (diagItems.length === 0) {
+            $diagTbody.append('<tr><td colspan="2" class="text-center text-muted">No diagnostic requests recorded.</td></tr>');
+        } else {
+            diagItems.forEach(item => {
+                $diagTbody.append(`
+                    <tr>
+                        <td class="fw-semibold">${item.requestname || 'N/A'}</td>
+                        <td><span class="badge bg-info text-white">${item.category || 'DIAGNOSTIC'}</span></td>
+                    </tr>
+                `);
+            });
+        }
+
+        // 6. Tab 4: Radiology & Laboratory
+        if (record.radiology_url) {
+            $("#vcd_rad_status").html('<span class="text-success"><i class="fa-solid fa-check-circle me-1"></i> Document attached</span>');
+            $("#vcd_rad_preview_btn").attr('href', record.radiology_url).removeClass('d-none');
+        } else {
+            $("#vcd_rad_status").text('No radiology file uploaded.');
+            $("#vcd_rad_preview_btn").attr('href', '#').addClass('d-none');
+        }
+
+        if (record.laboratory_url) {
+            $("#vcd_lab_status").html('<span class="text-success"><i class="fa-solid fa-check-circle me-1"></i> Document attached</span>');
+            $("#vcd_lab_preview_btn").attr('href', record.laboratory_url).removeClass('d-none');
+        } else {
+            $("#vcd_lab_status").text('No laboratory file uploaded.');
+            $("#vcd_lab_preview_btn").attr('href', '#').addClass('d-none');
+        }
+
+        // 7. Tab 5: Patient Charges
+        const $chargesTbody = $("#vcd_charges_table tbody");
+        $chargesTbody.empty();
+        const charges = record.charges || [];
+        let totalAmt = 0;
+
+        if (charges.length === 0) {
+            $chargesTbody.append('<tr><td colspan="5" class="text-center text-muted">No charges recorded.</td></tr>');
+        } else {
+            charges.forEach(c => {
+                const qty = parseFloat(c.qty) || 1;
+                const unitPrice = parseFloat(c.cost_ave || c.retails || 0);
+                const subTotal = parseFloat(c.totalamt || (qty * unitPrice));
+                totalAmt += subTotal;
+
+                $chargesTbody.append(`
+                    <tr>
+                        <td class="fw-semibold">${c.item_dscr || 'N/A'}</td>
+                        <td><span class="badge bg-secondary">${c.item_grouping || 'CHARGE'}</span></td>
+                        <td class="text-center">${qty}</td>
+                        <td class="text-end">PHP ${unitPrice.toFixed(2)}</td>
+                        <td class="text-end fw-bold">PHP ${subTotal.toFixed(2)}</td>
+                    </tr>
+                `);
+            });
+        }
+        $("#vcd_charges_total").text(totalAmt.toFixed(2));
+
+        // Activate first vertical tab (Impressions & Diagnosis)
+        safeShowTab('button[data-bs-target="#vcd_pane_impdiag"]');
+
+        // Show modal
+        const modalEl = document.getElementById("view_consultation_details_modal");
+        if (modalEl && window.bootstrap && window.bootstrap.Modal) {
+            const modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+    }
+
+    // Detailed Comment: Delegate click handler to open the consultation details viewer modal
+    $(document).on("click", ".view-consultation-details-btn", function () {
+        const idx = $(this).data("index");
+        if (window._secMedhistoryRecords && window._secMedhistoryRecords[idx]) {
+            openConsultationDetailsModal(window._secMedhistoryRecords[idx]);
+        }
+    });
+
+    /**
+     * Detailed Comment: Loads medical and consultation history into the Secretary Consultation History tab.
      * Queries /api/fetch_patient_medhistory using multi-key lookup (pincode, pxrefno, consultationrefno).
+     * Populates 7-column table with "View" action button connecting to the dedicated Consultation Details Viewer modal.
      */
     function loadSecretaryMedhistory(pincode, pxrefno, consultationrefno) {
         const $tbody = $("#sec_medhistory_table tbody");
-        $tbody.html('<tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading medical history...</td></tr>');
+        $tbody.html('<tr><td colspan="7" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Loading consultation history...</td></tr>');
 
         $.ajax({
             url: "/api/fetch_patient_medhistory",
@@ -520,10 +861,11 @@ $(function () {
             success: function (res) {
                 $tbody.empty();
                 const history = res.medhistory || [];
+                window._secMedhistoryRecords = history;
                 $("#sec_medhistory_count").text(`${history.length} records`);
 
                 if (history.length === 0) {
-                    $tbody.append('<tr><td colspan="6" class="text-center text-muted py-3">No consultation history records found for this patient.</td></tr>');
+                    $tbody.append('<tr><td colspan="7" class="text-center text-muted py-3">No consultation history records found for this patient.</td></tr>');
                     return;
                 }
 
@@ -537,7 +879,7 @@ $(function () {
                     NO_SHOW: "bg-danger text-white"
                 };
 
-                history.forEach(item => {
+                history.forEach((item, index) => {
                     const photo = item.photo_path || '/images/blank_photo.png';
                     const dateStr = item.consultation_date ? item.consultation_date.substring(0, 16) : 'N/A';
                     const reason = item.reasonforconsultation || 'No chief complaint recorded.';
@@ -548,20 +890,25 @@ $(function () {
 
                     $tbody.append(`
                         <tr>
-                            <td class="text-center">
+                            <td class="text-center align-middle">
+                                <button type="button" class="btn btn-sm btn-primary view-consultation-details-btn" data-index="${index}" title="View Consultation Details">
+                                    <i class="fa-solid fa-eye me-1"></i> View
+                                </button>
+                            </td>
+                            <td class="text-center align-middle">
                                 <img src="${photo}" alt="patient" class="rounded border" style="width: 36px; height: 36px; object-fit: cover;" onerror="this.src='/images/blank_photo.png'">
                             </td>
-                            <td class="fw-semibold text-nowrap">${dateStr}</td>
-                            <td>${reason}</td>
-                            <td><span class="badge ${badgeClass}">${status}</span></td>
-                            <td class="text-nowrap">${recordedby}</td>
-                            <td class="text-nowrap">${recordeddate}</td>
+                            <td class="fw-semibold text-nowrap align-middle">${dateStr}</td>
+                            <td class="align-middle">${reason}</td>
+                            <td class="align-middle text-center"><span class="badge ${badgeClass}">${status}</span></td>
+                            <td class="text-nowrap align-middle">${recordedby}</td>
+                            <td class="text-nowrap align-middle">${recordeddate}</td>
                         </tr>
                     `);
                 });
             },
             error: function () {
-                $tbody.html('<tr><td colspan="6" class="text-center text-danger py-3">Failed to load medical history.</td></tr>');
+                $tbody.html('<tr><td colspan="7" class="text-center text-danger py-3">Failed to load consultation history.</td></tr>');
                 $("#sec_medhistory_count").text('0 records');
             }
         });
@@ -593,7 +940,8 @@ $(function () {
             success: function (response) {
                 if (response.success) {
                     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Patient registered!', showConfirmButton: false, timer: 1500 });
-                    bootstrap.Modal.getInstance(document.getElementById("add_patient_modal")).hide();
+                    // Detailed Comment: Safely dismiss add patient modal using safeHideModal helper
+                    safeHideModal(document.getElementById("add_patient_modal"));
                     loadPatients();
                 } else {
                     Swal.fire({ title: "Error", text: response.message || "Failed to register patient.", icon: "error" });
@@ -616,11 +964,8 @@ $(function () {
         const pxrefno = $btn.val() || $btn.data("pxrefno") || "";
         const consultationrefno = $btn.data("consultationrefno") || "";
 
-        // Detailed Comment: Automatically switch to Consultation Details tab when Show Info is clicked
-        const consulTabBtn = document.querySelector('button[data-bs-target="#consul_info"]');
-        if (consulTabBtn) {
-            bootstrap.Tab.getInstance(consulTabBtn)?.show() || new bootstrap.Tab(consulTabBtn).show();
-        }
+        // Detailed Comment: Automatically switch to Consultation Details tab safely without throwing if bootstrap.Tab instance is missing
+        safeShowTab('button[data-bs-target="#consul_info"]');
 
         $.ajax({
             url: "/api/fetch_consultation", type: "POST",
@@ -692,10 +1037,15 @@ $(function () {
                         $("#sec_print_rx_btn, #sec_print_diag_btn, #sec_print_admit_btn, #sec_print_soa_btn").attr("href", "#");
                     }
 
-                    if (p.hmocode != null) {
-                        $("#patient_type").val("hmo");
+                    if (p.classification) {
+                        $("#patient_type").val(p.classification.toLowerCase()).trigger("change");
+                    } else if (p.hmocode != null) {
+                        $("#patient_type").val("hmo").trigger("change");
+                    } else {
+                        $("#patient_type").val("regular").trigger("change");
+                    }
+                    if (p.hmocode) {
                         $("#hmo_input").val(p.hmocode);
-                        $("#patient_type").trigger("change");
                     }
 
                     // Detailed Comment: Safely refresh charges table and payment history
@@ -743,7 +1093,8 @@ $(function () {
             success: function (response) {
                 if (response.success) {
                     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Patient rescheduled!', showConfirmButton: false, timer: 1500 });
-                    bootstrap.Modal.getInstance(document.getElementById("reschedule_modal")).hide();
+                    // Detailed Comment: Safely dismiss reschedule modal using safeHideModal helper
+                    safeHideModal(document.getElementById("reschedule_modal"));
                     refreshQueue(); loadPatients();
                 } else {
                     Swal.fire({ title: "Error", text: response.message || "Failed to reschedule patient.", icon: "error" });
@@ -772,6 +1123,19 @@ $(function () {
         const consulDate = $("#sched_date").val() || $("#queuedate").val() || todayStr;
         $("#pay_tab_consultdate_badge").text(`Date: ${consulDate}`);
         $("#pay_tab_consultref_badge").text(`Ref: ${refno || 'None'}`);
+
+        // Detailed Comment: Synchronize and display patient type badge on the payment details tab
+        const currentPatientType = ($("#patient_type").val() || "regular").toUpperCase();
+        const typeBadgeClasses = {
+            'REGULAR': 'bg-warning text-dark',
+            'PHIC': 'bg-primary text-white',
+            'HMO': 'bg-info text-white',
+            'OTHERS': 'bg-secondary text-white'
+        };
+        const badgeClass = typeBadgeClasses[currentPatientType] || 'bg-secondary text-white';
+        $("#pay_tab_patient_type_badge")
+            .text(`Type: ${currentPatientType}`)
+            .attr('class', `badge ${badgeClass} fs-6`);
 
         // Detailed Comment: Safely destroy existing DataTable instance in DataTables 2 (clear then destroy)
         if ($.fn.DataTable.isDataTable("#pxcharges_table")) {
@@ -1162,7 +1526,7 @@ $(function () {
                                 $("#photo_path").val('');
                                 $("#photo_base64").val('');
                                 $("#patient_picture_preview").prop("src", "/images/blank_photo.png");
-                                $("#sec_medhistory_table tbody").html('<tr><td colspan="6" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view medical history.</td></tr>');
+                                $("#sec_medhistory_table tbody").html('<tr><td colspan="7" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view consultation history.</td></tr>');
                                 $("#sec_medhistory_count").text('0 records');
                             }
                         });
@@ -1241,7 +1605,7 @@ $(function () {
                                 $("#photo_path").val('');
                                 $("#photo_base64").val('');
                                 $("#patient_picture_preview").prop("src", "/images/blank_photo.png");
-                                $("#sec_medhistory_table tbody").html('<tr><td colspan="6" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view medical history.</td></tr>');
+                                $("#sec_medhistory_table tbody").html('<tr><td colspan="7" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view consultation history.</td></tr>');
                                 $("#sec_medhistory_count").text('0 records');
                             }
                         });
@@ -1415,11 +1779,8 @@ $(function () {
                     if (response.answers && Array.isArray(response.answers)) {
                         response.answers.forEach(element => { $(`textarea[name="answer[${element.questionrefno}]"]`).val(element.answer); });
                     }
-                    const masterlistModalEl = document.getElementById('patientMasterlistModal');
-                    if (masterlistModalEl) {
-                        const modalInstance = bootstrap.Modal.getInstance(masterlistModalEl);
-                        if (modalInstance) modalInstance.hide();
-                    }
+                    // Detailed Comment: Safely dismiss patient masterlist modal after importing
+                    safeHideModal('#patientMasterlistModal');
                     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Patient data imported', showConfirmButton: false, timer: 1500 });
                 } else {
                     Swal.fire({ title: "Error", text: (response && response.message) || "Failed to import patient details.", icon: "error" });
@@ -1441,11 +1802,8 @@ $(function () {
         const pxrefno = $(this).data('pxrefno') || '';
         const consultationrefno = $(this).data('consultationrefno') || '';
 
-        const masterlistModalEl = document.getElementById("patientMasterlistModal");
-        if (masterlistModalEl) {
-            const masterlistModal = bootstrap.Modal.getInstance(masterlistModalEl);
-            if (masterlistModal) masterlistModal.hide();
-        }
+        // Detailed Comment: Safely dismiss patient masterlist modal before opening medical history modal
+        safeHideModal('#patientMasterlistModal');
 
         $("#mpincode").val(pincode);
         $("#patientMedhistoryModal").data('pxrefno', pxrefno);
@@ -1601,6 +1959,11 @@ $(function () {
                         $select.append(`<option value="${h.hmocode}">${h.hmoname}</option>`);
                     });
                 }
+                // Preselect HMO if patient already has an assigned HMO code
+                const patHmo = $("#hmo_input").val();
+                if (patHmo) {
+                    $select.val(patHmo);
+                }
             }
         });
 
@@ -1646,6 +2009,18 @@ $(function () {
                             $("#info_phic").val('PHP 0.00');
                             $("#info_hmo_type").val('None');
                         }
+
+                        // Detailed Comment: Auto-focus the corresponding settlement channel matching the patient's type
+                        const ptype = ($("#patient_type").val() || "regular").toLowerCase();
+                        setTimeout(() => {
+                            if (ptype === 'phic') {
+                                $("#phic").focus();
+                            } else if (ptype === 'hmo') {
+                                $("#hmo").focus();
+                            } else {
+                                $("#cash").focus();
+                            }
+                        }, 400);
                     }
                 });
             },
@@ -1968,6 +2343,19 @@ $(function () {
         } else {
             s2Container.hide();
         }
+
+        // Detailed Comment: Update patient type badge on the payment details tab
+        const ptype = ($(this).val() || "regular").toUpperCase();
+        const typeBadgeClasses = {
+            'REGULAR': 'bg-warning text-dark',
+            'PHIC': 'bg-primary text-white',
+            'HMO': 'bg-info text-white',
+            'OTHERS': 'bg-secondary text-white'
+        };
+        const badgeClass = typeBadgeClasses[ptype] || 'bg-secondary text-white';
+        $("#pay_tab_patient_type_badge")
+            .text(`Type: ${ptype}`)
+            .attr('class', `badge ${badgeClass} fs-6`);
     });
 
     // Detailed Comment: Mark as Complete handler from consultation card footer with validation, confirmation, and button loader
@@ -2226,10 +2614,8 @@ $(function () {
             console.warn("Error loading secretary medhistory:", err);
         }
 
-        const medTabBtn = document.getElementById("patient_medhistory_tab_btn");
-        if (medTabBtn) {
-            bootstrap.Tab.getInstance(medTabBtn)?.show() || new bootstrap.Tab(medTabBtn).show();
-        }
+        // Detailed Comment: Safely switch to Medical History tab using safeShowTab helper
+        safeShowTab('#patient_medhistory_tab_btn');
 
         // Restore button state after modal activation
         setTimeout(function () {
@@ -2246,11 +2632,8 @@ $(function () {
 
         setBtnLoading($btn, "");
 
-        // Detailed Comment: Activate Consultation Details tab immediately
-        const consulTabBtn = document.querySelector('button[data-bs-target="#consul_info"]');
-        if (consulTabBtn) {
-            bootstrap.Tab.getInstance(consulTabBtn)?.show() || new bootstrap.Tab(consulTabBtn).show();
-        }
+        // Detailed Comment: Safely activate Consultation Details tab immediately without throwing if bootstrap.Tab is missing
+        safeShowTab('button[data-bs-target="#consul_info"]');
 
         $.ajax({
             url: "/api/fetch_consultation",
@@ -2319,10 +2702,15 @@ $(function () {
                         $("#sec_print_rx_btn, #sec_print_diag_btn, #sec_print_admit_btn, #sec_print_soa_btn").attr("href", "#");
                     }
 
-                    if (p.hmocode != null) {
-                        $("#patient_type").val("hmo");
+                    if (p.classification) {
+                        $("#patient_type").val(p.classification.toLowerCase()).trigger("change");
+                    } else if (p.hmocode != null) {
+                        $("#patient_type").val("hmo").trigger("change");
+                    } else {
+                        $("#patient_type").val("regular").trigger("change");
+                    }
+                    if (p.hmocode) {
                         $("#hmo_input").val(p.hmocode);
-                        $("#patient_type").trigger("change");
                     }
 
                     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Patient data imported', showConfirmButton: false, timer: 1500 });

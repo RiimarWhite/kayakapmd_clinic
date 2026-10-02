@@ -109,7 +109,8 @@
                             <table class="table table-sm table-bordered table-hover" id="patients_queue_table">
                                 <thead class="table-success">
                                     <tr>
-                                        <th scope="col">#</th>
+                                        <!-- Detailed Comment: Draggable queue column header per user requirement -->
+                                        <th scope="col" style="width: 55px;" class="text-center" title="Drag row to reorder queue"><i class="fa-solid fa-grip-vertical me-1 text-muted"></i>#</th>
                                         <th scope="col">Actions</th>
                                         <th scope="col">Patient Name <span class="text-secondary">(First, Middle, Last,
                                                 Suffix)</span></th>
@@ -306,12 +307,12 @@
                                     </button>
                                 </li>
 
-                                <!-- Detailed Comment: Medical History tab added immediately after Consultation Details per user request -->
+                                <!-- Detailed Comment: Consultation History tab renamed per user request -->
                                 <li class="nav-item" role="presentation">
                                     <button type="button" class="nav-link" data-bs-toggle="tab"
                                         data-bs-target="#medhistory_info" role="tab" aria-controls="medhistory_info"
                                         aria-selected="false" id="patient_medhistory_tab_btn">
-                                        <i class="fa-solid fa-clock-rotate-left me-1"></i> Medical History
+                                        <i class="fa-solid fa-clock-rotate-left me-1"></i> Consultation History
                                     </button>
                                 </li>
 
@@ -494,16 +495,17 @@
                                     </div>
                                 </div>
 
-                                <!-- Detailed Comment: Medical History tab pane rendering patient's historical consultations and SOAP notes -->
+                                <!-- Detailed Comment: Consultation History tab pane rendering patient's historical consultations with dedicated details modal access -->
                                 <div class="tab-pane" id="medhistory_info" role="tabpanel">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <h5 class="fw-bold m-0"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Patient Consultation &amp; Medical History</h5>
+                                        <h5 class="fw-bold m-0"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Patient Consultation History</h5>
                                         <span class="badge bg-secondary" id="sec_medhistory_count">0 records</span>
                                     </div>
                                     <div class="table-responsive">
                                         <table class="table table-sm table-bordered table-hover align-middle caption-top w-100" id="sec_medhistory_table">
                                             <thead class="table-info">
                                                 <tr>
+                                                    <th scope="col" class="text-center" style="width: 80px;">Action</th>
                                                     <th scope="col" class="text-center" style="width: 50px;">Photo</th>
                                                     <th scope="col" style="width: 120px;">Consultation Date</th>
                                                     <th scope="col">Reason for Consultation</th>
@@ -514,7 +516,7 @@
                                             </thead>
                                             <tbody>
                                                 <tr>
-                                                    <td colspan="6" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view medical history.</td>
+                                                    <td colspan="7" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view consultation history.</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -522,7 +524,7 @@
                                 </div>
 
                                 <div class="tab-pane" id="payment_info" role="tabpanel">
-                                    <!-- Detailed Comment: Current Consultation Payment & Charges Section -->
+                                    <!-- Detailed Comment: Current Consultation Payment & Charges Section with Patient Type Reference -->
                                     <div class="card border-0 shadow-sm mb-3">
                                         <div class="card-header bg-light d-flex flex-wrap justify-content-between align-items-center py-2">
                                             <div class="d-flex align-items-center gap-2">
@@ -530,6 +532,7 @@
                                                 <span class="badge bg-primary" id="pay_tab_consultdate_badge">Date: --</span>
                                                 <span class="badge bg-secondary" id="pay_tab_consultref_badge">Ref: --</span>
                                                 <span class="badge bg-info text-dark" id="pay_tab_settlement_status">Status: Pending</span>
+                                                <span class="badge bg-warning text-dark" id="pay_tab_patient_type_badge">Type: REGULAR</span>
                                             </div>
                                             <div>
                                                 <button type="button" class="btn btn-sm btn-warning text-white fw-bold shadow-sm"
@@ -636,6 +639,8 @@
     @include('modals.take_photo')
     @include('modals.settlement_modal')
     @include('modals.advance_details')
+    <!-- Detailed Comment: Dedicated Consultation Details Viewer Modal with vertical tabs per user requirement -->
+    @include('modals.view_consultation_details')
     <!-- Detailed Comment: Reusable Administrator Verification Modal for protected actions (queue deletion, masterlist deletion, fee editing/deletion) -->
     @include('modals.admin_verification_modal')
 @endpush

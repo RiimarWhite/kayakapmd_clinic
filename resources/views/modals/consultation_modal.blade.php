@@ -15,173 +15,125 @@
             </div>
 
             <div class="modal-body d-flex flex-column gap-3" id="consul_sidebar">
-                <div class="accordion" id="consultation_accordion">
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#rx_patient_info" aria-expanded="false" aria-controls="rx_patient_info">
-                                <i class="fa-solid fa-user me-2"></i> Patient Information
-                            </button>
-                        </h2>
+                {{-- Detailed Comment: Patient Information styled as a clean, always-visible Bootstrap card with Patient Type badge per user requirement --}}
+                <div class="card border shadow-sm mb-2" id="rx_patient_card">
+                    <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-dark"><i class="fa-solid fa-user me-2 text-primary"></i> Patient Information</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-secondary" id="doctor_modal_patient_type_badge">REGULAR</span>
+                        </div>
+                    </div>
+                    <div class="card-body p-3" id="rx_patient_info">
+                        <div class="d-flex gap-3 align-items-center mb-3">
+                            <img id="genphoto" src="/images/blank_photo.png" class="rounded rounded-circle border shadow-sm" style="width: 60px; height: 60px; object-fit: cover;" alt="Patient Photo" onerror="this.src='/images/blank_photo.png'">
+                            <div>
+                                <h5 class="m-0 fw-bold" id="genname"></h5>
+                                <div class="text-muted small">PIN: <span id="genpincode" class="fw-semibold">N/A</span> | Ref: <span id="genpxrefno" class="fw-semibold">N/A</span></div>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-column">
+                            <div class="d-flex">
+                                <p class="m-0 w-50">Sex: <strong id="gensex"></strong></p>
+                                <p class="m-0 w-50">Birthdate: <strong id="genbday"></strong> (Age: <strong id="genage"></strong>)</p>
+                            </div>
 
-                        <div class="accordion-collapse collapse" id="rx_patient_info">
-                            <div class="accordion-body">
-                                <div class="d-flex gap-3 align-items-center mb-3">
-                                    <img id="genphoto" src="/images/blank_photo.png" class="rounded rounded-circle border shadow-sm" style="width: 60px; height: 60px; object-fit: cover;" alt="Patient Photo" onerror="this.src='/images/blank_photo.png'">
-                                    <div>
-                                        <h5 class="m-0 fw-bold" id="genname"></h5>
-                                        <div class="text-muted small">PIN: <span id="genpincode" class="fw-semibold">N/A</span> | Ref: <span id="genpxrefno" class="fw-semibold">N/A</span></div>
-                                    </div>
-                                </div>
-                                <div class="d-flex flex-column">
-                                    <div class="d-flex">
-                                        <p class="m-0 w-50">Sex: <strong id="gensex"></strong></p>
-                                        <p class="m-0 w-50">Birthdate: <strong id="genbday"></strong> (Age: <strong id="genage"></strong>)</p>
-                                    </div>
+                            <div class="d-flex">
+                                <p class="m-0 w-50">Mobile: <strong id="gencellno"></strong></p>
+                                <p class="m-0 w-50">Landline: <strong id="genlandline"></strong></p>
+                            </div>
 
-                                    <div class="d-flex">
-                                        <p class="m-0 w-50">Mobile: <strong id="gencellno"></strong></p>
-                                        <p class="m-0 w-50">Landline: <strong id="genlandline"></strong></p>
-                                    </div>
+                            <div class="d-flex">
+                                <p class="m-0 w-50">Email: <strong id="genemail"></strong></p>
+                                <p class="m-0 w-50">Address: <strong id="genaddress"></strong></p>
+                            </div>
 
-                                    <div class="d-flex">
-                                        <p class="m-0 w-50">Email: <strong id="genemail"></strong></p>
-                                        <p class="m-0 w-50">Address: <strong id="genaddress"></strong></p>
-                                    </div>
+                            <hr class="my-2">
 
-                                    <hr class="my-2">
+                            <div class="d-flex justify-content-between">
+                                <p class="m-0 w-50">Weight: <strong id="genweight"></strong></p>
+                                <p class="m-0 w-50">Height: <strong id="genheight"></strong></p>
+                                <p class="m-0 w-50">Temperature: <strong id="gentemp"></strong></p>
+                            </div>
 
-                                    <div class="d-flex justify-content-between">
-                                        <p class="m-0 w-50">Weight: <strong id="genweight"></strong></p>
-                                        <p class="m-0 w-50">Height: <strong id="genheight"></strong></p>
-                                        <p class="m-0 w-50">Temperature: <strong id="gentemp"></strong></p>
-                                    </div>
-
-                                    <div class="d-flex justify-content-between">
-                                        <p class="m-0 w-50">Respiratory Rate: <strong id="genresprate"></strong></p>
-                                        <p class="m-0 w-50">Pulse Rate: <strong id="genpulserate"></strong></p>
-                                        <p class="m-0 w-50">Blood Pressure: <strong id="genbp"></strong></p>
-                                    </div>
-                                </div>
+                            <div class="d-flex justify-content-between">
+                                <p class="m-0 w-50">Respiratory Rate: <strong id="genresprate"></strong></p>
+                                <p class="m-0 w-50">Pulse Rate: <strong id="genpulserate"></strong></p>
+                                <p class="m-0 w-50">Blood Pressure: <strong id="genbp"></strong></p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="card d-flex flex-row p-2 h-100 gap-3">
-                    <nav class="nav nav-pills d-flex flex-column w-25 gap-1">
-                        <!-- <li class="nav-item">
-                            <button class="nav-link active w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                data-bs-target="#medQuestTab" role="tab" aria-controls="medQuestTab"
-                                aria-selected="false" id="medical_questions_tab_btn">
-                                <i class="fa-solid fa-clipboard-question"></i> Medical Questions
-                            </button>
-                        </li> -->
+                {{-- Detailed Comment: Lower Card with Card-Header separating Consultation clinical tabs from Consultation History per user requirements --}}
+                <div class="card h-100 border shadow-sm">
+                    <div class="card-header bg-light p-2 pb-0 border-bottom">
+                        <ul class="nav nav-tabs card-header-tabs" id="consultation_main_tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active fw-bold text-dark px-3" id="main_consultation_tab_btn" data-bs-toggle="tab" data-bs-target="#main_consultation_pane" type="button" role="tab" aria-controls="main_consultation_pane" aria-selected="true">
+                                    <i class="fa-solid fa-stethoscope text-primary me-2"></i> Consultation
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link fw-bold text-dark px-3" id="main_medhistory_tab_btn" data-bs-toggle="tab" data-bs-target="#main_medhistory_pane" type="button" role="tab" aria-controls="main_medhistory_pane" aria-selected="false">
+                                    <i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Consultation History
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
 
-                        <li class="nav-item">
-                            <button class="nav-link active w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                data-bs-target="#medHistoryTab" role="tab" aria-controls="medHistoryTab"
-                                aria-selected="false" id="medhistory_btn">
-                                <i class="fa-solid fa-timeline"></i> Medical History
-                            </button>
-                        </li>
+                    <div class="card-body p-2 d-flex flex-column h-100 overflow-hidden">
+                        <div class="tab-content h-100 d-flex flex-column" id="consultation_main_tab_content">
+                            <!-- TAB 1: CURRENT CONSULTATION CLINICAL WORKFLOW -->
+                            <div class="tab-pane fade show active h-100" id="main_consultation_pane" role="tabpanel" aria-labelledby="main_consultation_tab_btn" tabindex="0">
+                                <div class="d-flex flex-row h-100 gap-3">
+                                    <nav class="nav nav-pills d-flex flex-column w-25 gap-1">
+                                        <li class="nav-item">
+                                            <button class="nav-link active w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
+                                                data-bs-target="#impDiagTab" role="tab" aria-controls="impDiagTab"
+                                                aria-selected="true" id="impDiagBtn">
+                                                <i class="fa-solid fa-quote-left me-2"></i> Impressions &amp; Diagnosis
+                                            </button>
+                                        </li>
 
-                        <li class="nav-item">
-                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                data-bs-target="#impDiagTab" role="tab" aria-controls="impDiagTab"
-                                aria-selected="false" id="impDiagBtn">
-                                <i class="fa-solid fa-quote-left"></i> Impressions & Diagnosis
-                            </button>
-                        </li>
+                                        <li class="nav-item">
+                                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
+                                                data-bs-target="#rxTab" role="tab" aria-controls="rxTab"
+                                                aria-selected="false" id="rx_sidebar_btn">
+                                                <i class="fa-solid fa-prescription me-2"></i> Rx &amp; Instructions
+                                            </button>
+                                        </li>
 
-                        <li class="nav-item">
-                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                data-bs-target="#rxTab" role="tab" aria-controls="rxTab"
-                                aria-selected="false" id="rx_sidebar_btn">
-                                <i class="fa-solid fa-prescription"></i> Rx & Instructions
-                            </button>
-                        </li>
+                                        <li class="nav-item">
+                                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
+                                                data-bs-target="#dReqsTab" role="tab" aria-controls="dReqsTab"
+                                                aria-selected="false" id="dReqsTabBtn">
+                                                <i class="fa-solid fa-envelope-open-text me-2"></i> Diagnostic Requests
+                                            </button>
+                                        </li>
 
-                        <li class="nav-item">
-                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                data-bs-target="#dReqsTab" role="tab" aria-controls="dReqsTab"
-                                aria-selected="false" id="dReqsTabBtn">
-                                <i class="fa-solid fa-envelope-open-text"></i> Diagnostic Requests
-                            </button>
-                        </li>
+                                        <li class="nav-item">
+                                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
+                                                data-bs-target="#radLabTab" role="tab" aria-controls="radLabTab"
+                                                aria-selected="false" id="radLabTabBtn">
+                                                <i class="fa-solid fa-vial me-2"></i> Radiology &amp; Laboratory
+                                            </button>
+                                        </li>
 
-                        <li class="nav-item">
-                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                data-bs-target="#radLabTab" role="tab" aria-controls="radLabTab"
-                                aria-selected="false" id="radLabTabBtn">
-                                <i class="fa-solid fa-vial"></i> Radiology & Laboratory
-                            </button>
-                        </li>
+                                        <li class="nav-item">
+                                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
+                                                data-bs-target="#patientChargeTab" role="tab" aria-controls="patientChargeTab"
+                                                aria-selected="false" id="patient_charge_tab_btn">
+                                                <i class="fa-solid fa-coins me-2"></i> Patient Charges
+                                            </button>
+                                        </li>
+                                    </nav>
 
-                        <li class="nav-item">
-                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                data-bs-target="#patientChargeTab" role="tab" aria-controls="patientChargeTab"
-                                aria-selected="false" id="patient_charge_tab_btn">
-                                <i class="fa-solid fa-coins"></i> Patient Charges
-                            </button>
-                        </li>
-                    </nav>
-
-                    <div class="tab-content d-flex overflow-y-auto w-75 px-2">
-                        <!-- <div class="tab-pane active w-100" id="medQuestTab" role="tabpanel" aria-labelledby="medQuestTab-tab"
-                            tabindex="0">
-                            <h4>Medical Questions</h4>
-                            <hr class="m-0 mb-4">
-
-                            <div class="table-responsive">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="m-0 fw-bold">Saved Questions</h6>
-                                    <button class="btn btn-sm btn-primary text-white" id="add_question_btn"><i class="fa-solid fa-file-pen"></i> Add New Question</button>
-                                </div>
-
-                                <table class="table table-bordered caption-top" id="patient_questions_answer">
-                                    <thead class="table-primary">
-                                        <tr>
-                                            <th scope="col">Actions</th>
-                                            <th scope="col">Question</th>
-                                            <th scope="col">Answer</th>
-                                        </tr>
-                                    </thead>
-
-                                    <tbody>
-                                        <tr>
-                                            <td></td>
-                                            <td></td>
-                                            <td></td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div> -->
-
-                        <!-- Medical History -->
-                        <div class="tab-pane active w-100" id="medHistoryTab" role="tabpanel" aria-labelledby="medHistoryTab-tab"
-                            tabindex="0">
-                            <h4>Medical History</h4>
-                            <hr class="m-0 mb-4">
-
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered" id="medhistory_table">
-                                    <thead class="table-warning">
-                                        <tr>
-                                            <th scope="col">Photo</th>
-                                            <th scope="col">Consultation Date</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody></tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Impressions and Diagnosis -->
-                        <div class="tab-pane w-100" id="impDiagTab" role="tabpanel" aria-labelledby="impDiagTab-tab"
-                            tabindex="0">
-                            <h4>Impressions & Diagnosis</h4>
-                            <hr class="m-0 mb-4">
+                                    <div class="tab-content d-flex overflow-y-auto w-75 px-2">
+                                        <!-- Impressions and Diagnosis (Active by default) -->
+                                        <div class="tab-pane active w-100" id="impDiagTab" role="tabpanel" aria-labelledby="impDiagTab-tab"
+                                            tabindex="0">
+                                            <h4>Impressions &amp; Diagnosis</h4>
+                                            <hr class="m-0 mb-4">
 
                             <form class="d-flex flex-column gap-2">
                                 <div>
@@ -360,6 +312,42 @@
                     </div>
                 </div>
             </div>
+
+            <!-- TAB 2: CONSULTATION HISTORY (Full-width dedicated history pane) -->
+            <div class="tab-pane fade h-100" id="main_medhistory_pane" role="tabpanel" aria-labelledby="main_medhistory_tab_btn" tabindex="0">
+                <div class="d-flex flex-column h-100 p-2 overflow-y-auto">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5 class="fw-bold m-0 text-dark"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Patient Consultation History</h5>
+                            <small class="text-muted">Previous recorded consultations, impressions, and diagnoses for this patient</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh_medhistory_btn" title="Refresh Consultation History">
+                            <i class="fa-solid fa-rotate me-1"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="table-responsive flex-grow-1">
+                        <table class="table table-sm table-bordered table-hover align-middle w-100" id="medhistory_table">
+                            <thead class="table-warning">
+                                <tr>
+                                    <th scope="col" style="width: 80px;" class="text-center">Action</th>
+                                    <th scope="col" style="width: 70px;" class="text-center">Photo</th>
+                                    <th scope="col" style="width: 130px;">Consultation Date</th>
+                                    <th scope="col">Chief Complaint</th>
+                                    <th scope="col">Diagnosis</th>
+                                    <th scope="col" style="width: 100px;" class="text-center">Status</th>
+                                    <th scope="col" style="width: 140px;">Doctor / Recorded By</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
 
             <div class="modal-footer">
                 {{-- Detailed Comment: Trigger append charge modal without toggling/closing consultation_modal --}}

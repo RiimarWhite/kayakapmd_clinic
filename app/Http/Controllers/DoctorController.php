@@ -266,22 +266,58 @@ class DoctorController extends Controller
         ]);
     }
 
+    /**
+     * Detailed Comment: Fetches patient consultation history for the doctor console.
+     * Supports lookup by pxrefno, pincode, or consultationrefno with safe fallbacks.
+     * Returns structured DataTables payload with full compatibility for recordsTotal and recordsFiltered.
+     */
     public function fetchPatientHistory(Request $request)
     {
         $start = $request->input('start', 0);
         $length = $request->input('length', 25);
+        $pxrefno = $request->input('pxrefno');
+        $consultationrefno = $request->input('consultationrefno');
+        $pincode = $request->input('pincode');
 
-        $patient = ConsultationModel::where(['consultationrefno' => $request->consultationrefno])->value('pxrefno');
-        $history = ConsultationModel::where(['pxrefno' => $patient])
+        if (empty($pxrefno) && !empty($consultationrefno)) {
+            $pxrefno = ConsultationModel::where('consultationrefno', $consultationrefno)->value('pxrefno');
+        }
+
+        if (empty($pxrefno) && !empty($pincode)) {
+            $pxrefno = ConsultationModel::where('pincode', $pincode)->value('pxrefno');
+        }
+
+        if (empty($pxrefno) && empty($consultationrefno)) {
+            return response()->json([
+                'draw' => intval($request->draw),
+                'recordsFiltered' => 0,
+                'recordsTotal' => 0,
+                'data' => [],
+                'history' => [],
+                'medhistory' => []
+            ]);
+        }
+
+        $query = ConsultationModel::query();
+        if (!empty($pxrefno)) {
+            $query->where('pxrefno', $pxrefno);
+        } else {
+            $query->where('consultationrefno', $consultationrefno);
+        }
+
+        $total = $query->count();
+        $history = $query->orderBy('consultation_date', 'desc')->orderBy('id', 'desc')
             ->offset($start)
             ->limit($length)
             ->get();
 
         return response()->json([
             'draw' => intval($request->draw),
-            'recordsFiltered' => $history->count(),
-            'recordsTotal' => $history->count(),
-            'data' => $history
+            'recordsFiltered' => $total,
+            'recordsTotal' => $total,
+            'data' => $history,
+            'history' => $history,
+            'medhistory' => $history
         ]);
     }
 
@@ -1228,6 +1264,48 @@ class DoctorController extends Controller
      */
     public function fetchPatientCharges(Request $request)
     {
+        // Detailed Comment: Auto-populate doctor consultation fee from doctor dashboard configuration if not yet present
+        $consultation = ConsultationModel::where('consultationrefno', $request->consultationrefno)->first();
+        if ($consultation && !empty($consultation->docrefno)) {
+            $hasPf = StocksLedgerModel::where('px_consultcode_cn', $request->consultationrefno)
+                ->where('item_grouping', 'PROFESSIONAL FEE')
+                ->exists();
+
+            if (!$hasPf) {
+                $docProfile = DoctorsProfileModel::where('docrefno', $consultation->docrefno)->first();
+                if ($docProfile) {
+                    $classification = strtolower($consultation->classification ?? '');
+                    $isPhic = $classification === 'phic' || !empty($consultation->phic_pin);
+
+                    if ($isPhic && $docProfile->phicenable && floatval($docProfile->phicrate) > 0) {
+                        $fee = floatval($docProfile->phicrate);
+                    } else {
+                        $fee = floatval($docProfile->pfrate ?: ($docProfile->consultationfee ?? 0));
+                    }
+
+                    if ($fee > 0) {
+                        StocksLedgerModel::create([
+                            'dw_clientcode' => $docProfile->dw_clientcode ?? 'HO1',
+                            'transactiontype' => 'CHARGES',
+                            'px_pin' => $consultation->pxrefno ?? '',
+                            'patient_name' => $consultation->patientname ?? '',
+                            'prodcode' => 'PF',
+                            'px_consultcode_cn' => $consultation->consultationrefno,
+                            'item_dscr' => 'Professional Fee - Dr. ' . ($docProfile->docname ?: ($docProfile->doclname . ', ' . $docProfile->docfname)),
+                            'qty' => 1,
+                            'cost_ave' => $fee,
+                            'retails' => $fee,
+                            'totalamt' => $fee,
+                            'item_grouping' => 'PROFESSIONAL FEE',
+                            'remarks' => 'Doctor Consultation Fee calculated from Doctor Dashboard',
+                            'updatedby' => auth()->guard('doctor')->user()->username ?? 'system',
+                            'updated' => now()
+                        ]);
+                    }
+                }
+            }
+        }
+
         // Detailed Comment: Fetches all patient charges for this consultation, including
         // supplies, procedures, diagnostics, imaging, professional fees, and prescribed medicines (DRUGS AND MEDS).
         $charges = StocksLedgerModel::where('px_consultcode_cn', $request->consultationrefno)->get();
@@ -1266,7 +1344,7 @@ class DoctorController extends Controller
     /**
      * Detailed Comment: Saves appended patient charges to stocks_ledger.
      * Calculates the unit price and total amount from the supplied amount/quantity or stocks_listing,
-     * populates px_pin and transactiontype, and persists cost_ave, retails, and totalamt.
+     * differentiating unit price based on patient type (Regular, PHIC, HMO, Others).
      */
     public function saveAppendedCharges(Request $request)
     {
@@ -1309,10 +1387,25 @@ class DoctorController extends Controller
                 }
             }
 
-            // Detailed Comment: Compute unit price and total amount defensively
-            $unitPrice = ($inputAmount !== null && $inputAmount > 0)
-                ? $inputAmount
-                : (float)($charge->price_regular ?? $charge->cost_ave ?? 0);
+            // Detailed Comment: Compute unit price differentiating by patient type (PHIC, HMO, Others, Regular)
+            if ($inputAmount !== null && $inputAmount > 0) {
+                $unitPrice = $inputAmount;
+            } else {
+                $classification = strtolower($consultation->classification ?? '');
+                $isPhic = $classification === 'phic' || !empty($consultation->phic_pin);
+                $isHmo = $classification === 'hmo' || !empty($consultation->hmocode);
+                $isOthers = $classification === 'others';
+
+                if ($isPhic && floatval($charge->price_phic) > 0) {
+                    $unitPrice = floatval($charge->price_phic);
+                } elseif ($isHmo && floatval($charge->price_hmo) > 0) {
+                    $unitPrice = floatval($charge->price_hmo);
+                } elseif ($isOthers && floatval($charge->price_others) > 0) {
+                    $unitPrice = floatval($charge->price_others);
+                } else {
+                    $unitPrice = floatval($charge->price_regular ?? $charge->cost_ave ?? 0);
+                }
+            }
 
             $totalAmt = $unitPrice * $quantity;
 
@@ -1634,21 +1727,36 @@ class DoctorController extends Controller
     }
 
     /**
-     * Detailed Comment: Retrieves HMO price or regular price for a product based on whether
-     * the consultation record is linked to an active HMO code.
+     * Detailed Comment: Retrieves tier price for a product based on patient type
+     * (PHIC -> price_phic, HMO -> price_hmo, Others -> price_others, Regular -> price_regular).
      */
     public function getHmoPrice(Request $request)
     {
-        $consultation = ConsultationModel::where('consultationrefno', $request->consultationrefno)
-            ->orWhere('caseno', $request->consultationrefno)
-            ->first();
+        $consultation = null;
+        if (!empty($request->consultationrefno)) {
+            $consultation = ConsultationModel::where('consultationrefno', $request->consultationrefno)
+                ->orWhere('caseno', $request->consultationrefno)
+                ->first();
+        }
 
-        $hasHmo = $consultation && !empty($consultation->hmocode);
-        $priceType = $hasHmo ? 'price_hmo' : 'price_regular';
+        $classification = strtolower($request->patient_type ?? $consultation->classification ?? '');
+        $hasHmo = !empty($consultation->hmocode) || $classification === 'hmo';
+        $hasPhic = !empty($consultation->phic_pin) || $classification === 'phic';
+        $isOthers = $classification === 'others';
 
-        $price = StocksListingModel::where('prodcode', $request->prodcode)->value($priceType);
-        if ($price === null || $price === '') {
-            $price = StocksListingModel::where('prodcode', $request->prodcode)->value('price_regular') ?? 0;
+        $stock = StocksListingModel::where('prodcode', $request->prodcode)->first();
+        if (!$stock) {
+            return response()->json(['success' => false, 'price' => '0.00']);
+        }
+
+        if ($hasPhic && floatval($stock->price_phic) > 0) {
+            $price = $stock->price_phic;
+        } elseif ($hasHmo && floatval($stock->price_hmo) > 0) {
+            $price = $stock->price_hmo;
+        } elseif ($isOthers && floatval($stock->price_others) > 0) {
+            $price = $stock->price_others;
+        } else {
+            $price = $stock->price_regular ?? $stock->cost_ave ?? 0;
         }
 
         return response()->json(['success' => true, 'price' => number_format((float)$price, 2, '.', '')]);

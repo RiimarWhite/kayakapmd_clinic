@@ -520,9 +520,10 @@ $(function () {
         const itemDscr = $("#item_dscr").val();
 
         if (!itemDscr) {
+            // Detailed Comment: User requested renaming field label and validation from Name to Description
             return Swal.fire({
                 title: "Validation Error",
-                text: "Item Name is required.",
+                text: "Item Description is required.",
                 icon: "warning"
             });
         }
@@ -649,9 +650,10 @@ $(function () {
         const itemDscr = $("#eitem_dscr").val();
 
         if (!itemDscr) {
+            // Detailed Comment: User requested renaming field label and validation from Name to Description
             return Swal.fire({
                 title: "Validation Error",
-                text: "Item Name is required.",
+                text: "Item Description is required.",
                 icon: "warning"
             });
         }

@@ -245,5 +245,7 @@
     @include("modals.consultation_modal")
     @include('modals.doctor_info')
     @include('modals.view_patient')
+    {{-- Detailed Comment: Dedicated Consultation Details Viewer modal for viewing previous consultation history --}}
+    @include('modals.view_consultation_details')
 
 </body>

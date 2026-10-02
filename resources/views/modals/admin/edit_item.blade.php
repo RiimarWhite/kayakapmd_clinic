@@ -80,11 +80,11 @@
                     </div>
                 </div>
 
-                <!-- Detailed Comment: Item Name and PhilHealth Reference Code positioned below drug fields -->
+                <!-- Detailed Comment: Item Description and PhilHealth Reference Code positioned below drug fields per user requirement -->
                 <div class="d-flex gap-2" id="ename_and_refcode_row">
                     <div class="w-100" id="ename_container">
-                        <label class="form-label fw-bold" for="eitem_dscr">Name <span class="text-danger">*</span></label>
-                        <input class="form-control" type="text" name="eitem_dscr" id="eitem_dscr" placeholder="Item or Service Name">
+                        <label class="form-label fw-bold" for="eitem_dscr">Description <span class="text-danger">*</span></label>
+                        <input class="form-control" type="text" name="eitem_dscr" id="eitem_dscr" placeholder="Item or Service Description">
                     </div>
 
                     <div class="d-none w-50" id="erefcode">

@@ -641,9 +641,10 @@ class SecretaryController extends Controller
     }
 
     /**
-     * Detailed Comment: Fetches medical history for a patient in secretary queue.
-     * Supports multi-key lookup (pincode, pxrefno, or consultationrefno) to guarantee
-     * reliable history loading when launched from the Patient Masterlist modal.
+     * Detailed Comment: Fetches comprehensive consultation and medical history for a patient in secretary queue.
+     * Returns full consultation modal dataset (vital signs, impressions, diagnosis, admission instructions,
+     * prescribed medications, diagnostics requested, lab/radiology files, and charges) to populate the
+     * dedicated Consultation Details modal per user requirements.
      */
     public function fetchPatientMedhistory(Request $request) {
         $pincode = $request->input('pincode');
@@ -651,10 +652,13 @@ class SecretaryController extends Controller
         $consultationrefno = $request->input('consultationrefno');
 
         $query = ConsultationModel::query();
+        $hasIdentifier = false;
         if (!empty($pincode) && $pincode !== 'undefined') {
             $query->where('pincode', $pincode);
+            $hasIdentifier = true;
         } elseif (!empty($pxrefno) && $pxrefno !== 'undefined') {
             $query->where('pxrefno', $pxrefno);
+            $hasIdentifier = true;
         } elseif (!empty($consultationrefno) && $consultationrefno !== 'undefined') {
             $px = ConsultationModel::where('consultationrefno', $consultationrefno)->value('pxrefno');
             if ($px) {
@@ -662,32 +666,105 @@ class SecretaryController extends Controller
             } else {
                 $query->where('consultationrefno', $consultationrefno);
             }
+            $hasIdentifier = true;
+        }
+
+        // Detailed Comment: If no patient identifier was provided, return empty payload safely without querying entire table
+        if (!$hasIdentifier) {
+            return response()->json([
+                'draw' => intval($request->draw),
+                'recordsFiltered' => 0,
+                'recordsTotal' => 0,
+                'success' => true,
+                'history' => [],
+                'medhistory' => [],
+                'data' => []
+            ]);
         }
 
         $history = $query->select([
+                'id',
                 'consultationrefno',
                 'pxrefno',
                 'pincode',
+                'caseno',
+                'patientname',
+                'gender',
+                'birthday',
+                'age',
+                'mobilenumber',
+                'emailaddress',
+                'address',
                 'photo_path',
                 'consultation_date',
                 'reasonforconsultation',
+                'impression',
+                'finadiagnosis',
+                'instructions',
+                'foradmit',
+                'foradmit_instructions',
+                'weight',
+                'wunit',
+                'height',
+                'hunit',
+                'temp',
+                'tempunit',
+                'respiratoryrate',
+                'pulserate',
+                'bpnumerator',
+                'bpdenominator',
+                'docname',
+                'docrefno',
+                'classification',
+                'subclassification',
+                'hmocode',
+                'hmoname',
+                'phic_pin',
                 'status',
+                'queueno',
                 'recordedby',
-                'recordeddate'
+                'recordeddate',
+                'laboratorypath',
+                'radiologypath'
             ])
             ->orderBy('id', 'desc')
             ->get();
 
         $history->transform(function ($record) {
-            if ($record->photo_path) {
+            if ($record->photo_path && !str_contains($record->photo_path, 'blank_photo.png')) {
                 $filename = basename($record->photo_path);
                 $record->photo_path = url('/patient/photo/' . $filename);
+                $record->photo_url = url('/patient/photo/' . $filename);
+            } else {
+                $record->photo_path = url('/images/blank_photo.png');
+                $record->photo_url = url('/images/blank_photo.png');
             }
+
+            // Prescriptions (Rx) from stocks_ledger
+            $record->rx_items = StocksLedgerModel::where('px_consultcode_cn', $record->consultationrefno)
+                ->where('item_grouping', 'DRUGS AND MEDS')
+                ->select(['prodcode', 'item_dscr', 'qty', 'remarks', 'dispensed_flag'])
+                ->get();
+
+            // Diagnostic requests from stocks_ledger
+            $record->diagnostic_items = StocksLedgerModel::where('px_consultcode_cn', $record->consultationrefno)
+                ->whereIn('item_grouping', ['DIAGNOSTIC', 'IMAGING'])
+                ->select(['prodcode', 'item_dscr', 'item_grouping', 'remarks'])
+                ->get();
+
+            // Charges from stocks_ledger
+            $record->charges = StocksLedgerModel::where('px_consultcode_cn', $record->consultationrefno)
+                ->select(['id', 'prodcode', 'item_dscr', 'item_grouping', 'qty', 'cost_ave', 'totalamt'])
+                ->get();
+            $record->charges_total = $record->charges->sum('totalamt');
 
             return $record;
         });
 
         return response()->json([
+            'draw' => intval($request->draw),
+            'recordsFiltered' => $history->count(),
+            'recordsTotal' => $history->count(),
             'success' => true,
             'history' => $history,
             'medhistory' => $history,

@@ -20,13 +20,26 @@ $(function () {
         $btn.prop('disabled', false);
     }
 
+    /**
+     * Detailed Comment: Suppress intrusive DataTables native alert popups across the consultation page
+     * and redirect internal warnings to the console for structured debugging.
+     */
+    if ($.fn.dataTable) {
+        $.fn.dataTable.ext.errMode = function (settings, helpPage, message) {
+            console.warn("DataTables warning:", message);
+        };
+    }
+
     // Init consultation date and load patients
     $("#consul_date").val(new Date().toISOString().split('T')[0]);
     getPatientsFromDate($("#consul_date").val());
 
     function getPatientsFromDate(value, $btn = null) {
         if ($btn) setBtnLoading($btn, "");
-        $("#consultation_table").DataTable().clear().destroy();
+        if ($.fn.DataTable.isDataTable("#consultation_table")) {
+            $("#consultation_table").DataTable().clear().destroy();
+            $("#consultation_table tbody").empty();
+        }
         $("#consultation_table").DataTable({
             processing: true,
             ajax: {
@@ -147,15 +160,22 @@ $(function () {
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             data: { consultationrefno: rowConsultationRefno },
             success: function (response) {
-                consultationModal.show();
-                $("#medical_questions_tab_btn").trigger("click");
                 if (response.patient != null) {
                     const p = response.patient;
                     $("#consultationrefno").val(p.consultationrefno);
+                    $("#consultation_modal").data("pxrefno", p.pxrefno || "");
+                    $("#consultation_modal").data("pincode", p.pincode || "");
+
                     // Detailed Comment: Populate modal header badges with active consultation date and reference
                     const activeConsulDate = p.consultation_date ? p.consultation_date.split(' ')[0] : ($("#consul_date").val() || new Date().toISOString().split('T')[0]);
                     $("#doctor_modal_consultdate_badge").text(`Date: ${activeConsulDate}`);
                     $("#doctor_modal_consultref_badge").text(`Ref: ${p.consultationrefno || 'N/A'}`);
+
+                    // Detailed Comment: Populate Patient Type badge in the Patient Information card
+                    const pxType = (p.classification || (p.hmocode ? 'HMO' : (p.phic_pin ? 'PHIC' : 'REGULAR'))).toUpperCase();
+                    $("#doctor_modal_patient_type_badge").text(pxType).removeClass("bg-secondary bg-success bg-info bg-warning")
+                        .addClass(pxType === 'PHIC' ? 'bg-success text-white' : (pxType === 'HMO' ? 'bg-info text-white' : 'bg-secondary text-white'));
+
                     $("#consulname").text([p.patientname, p.pxmidname, p.pxlastname, p.pxsuffix].filter(v => v).join(' '));
                     $("#consulsex").text(p.gender);
                     $("#consulbday").text(new Date(p.birthday.replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
@@ -205,7 +225,18 @@ $(function () {
                     $("#diagnosis").val(p.finadiagnosis);
                     $("#foradmit").prop("checked", p.foradmit == 1);
                     $("#foradmit_instructions").val(p.foradmit_instructions || "");
+
+                    // Detailed Comment: Activate the primary Consultation tab on the card header and Impressions & Diagnosis vertical pill
+                    const mainConsulTabEl = document.querySelector("#main_consultation_tab_btn");
+                    if (mainConsulTabEl && window.bootstrap && window.bootstrap.Tab) {
+                        window.bootstrap.Tab.getOrCreateInstance(mainConsulTabEl).show();
+                    }
+                    const impDiagBtnEl = document.querySelector("#impDiagBtn");
+                    if (impDiagBtnEl && window.bootstrap && window.bootstrap.Tab) {
+                        window.bootstrap.Tab.getOrCreateInstance(impDiagBtnEl).show();
+                    }
                 }
+                consultationModal.show();
                 loadDashboardRx();
             },
             error: function () {
@@ -219,7 +250,8 @@ $(function () {
 
     function loadDashboardRx() {
         if ($.fn.DataTable.isDataTable("#dashboard_rx_table")) {
-            $("#dashboard_rx_table").DataTable().destroy().clear();
+            $("#dashboard_rx_table").DataTable().clear().destroy();
+            $("#dashboard_rx_table tbody").empty();
         }
         $("#dashboard_rx_table").DataTable({
             ajax: {
@@ -287,7 +319,8 @@ $(function () {
 
     function loadRx() {
         if ($.fn.DataTable.isDataTable("#rx_table")) {
-            $("#rx_table").DataTable().destroy().clear();
+            $("#rx_table").DataTable().clear().destroy();
+            $("#rx_table tbody").empty();
         }
         $("#rx_table").DataTable({
             ajax: {

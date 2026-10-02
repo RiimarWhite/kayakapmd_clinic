@@ -108,7 +108,8 @@ $(function () {
 
     $("#info_tab").on("click", function () {
         $.ajax({
-            url: "fetch_doctor_info",
+            // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+            url: "/api/fetch_doctor_info",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             data: {
@@ -183,7 +184,8 @@ $(function () {
         }
 
         $.ajax({
-            url: "create_question",
+            // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+            url: "/api/create_question",
             type: "POST",
             headers: {
                 "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content"),
@@ -212,7 +214,8 @@ $(function () {
 
     $("#schedules_tab").on("click", function () {
         $.ajax({
-            url: "fetch_doctor_schedules",
+            // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+            url: "/api/fetch_doctor_schedules",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             data: {
@@ -328,7 +331,8 @@ $(function () {
         const schedrefno = $(this).val();
 
         $.ajax({
-            url: "fetch_schedule_refno",
+            // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+            url: "/api/fetch_schedule_refno",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             data: {
@@ -370,7 +374,8 @@ $(function () {
                     }).then((result) => {
                         if (result.isConfirmed) {
                             $.ajax({
-                                url: "edit_schedule",
+                                // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+                                url: "/api/edit_schedule",
                                 type: "POST",
                                 headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
                                 data: {
@@ -404,7 +409,8 @@ $(function () {
         }).then((result) => {
             if (result.isConfirmed) {
                 $.ajax({
-                    url: "delete_schedule",
+                    // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+                    url: "/api/delete_schedule",
                     type: "POST",
                     headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
                     data: {
@@ -432,7 +438,8 @@ $(function () {
             "&docrefno=" + encodeURIComponent($("#choose_doctor").val());
 
         $.ajax({
-            url: "create_doctor_schedules",
+            // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+            url: "/api/create_doctor_schedules",
             type: "POST",
             headers: {
                 "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content"),
@@ -463,7 +470,8 @@ $(function () {
         $("#group_management_tab").DataTable().clear().destroy();
         groupTable = $("#group_management_tab").DataTable({
             ajax: {
-                url: "fetchGroupManagement",
+                // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+                url: "/api/fetchGroupManagement",
                 type: "POST",
                 headers: {
                     "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
@@ -524,7 +532,8 @@ $(function () {
         });
 
         $.ajax({
-            url: "createGroupManagement",
+            // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+            url: "/api/createGroupManagement",
             type: "POST",
             headers: {
                 "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content"),
@@ -569,7 +578,8 @@ $(function () {
 
         $.ajax({
             type: "POST",
-            url: "editGroupManagement",
+            // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+            url: "/api/editGroupManagement",
             data: {
                 token: token,
             },
@@ -635,7 +645,8 @@ $(function () {
                 // Step 2: Proceed with AJAX deletion
                 $.ajax({
                     type: "POST", // or "DELETE" if your route supports it
-                    url: "deleteGroupManagement", // change to your deletion route
+                    // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+                    url: "/api/deleteGroupManagement", // change to your deletion route
                     data: { token: token },
                     headers: {
                         "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
@@ -720,7 +731,8 @@ $(function () {
                 // Step 2: Proceed with AJAX update
                 $.ajax({
                     type: "POST",
-                    url: "updateGroupManagement", // your update route
+                    // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+                    url: "/api/updateGroupManagement", // your update route
                     data: {
                         token: token,
                         servicegroup_name: edit_servicegroup_name,
@@ -795,7 +807,8 @@ $(function () {
 
         servicesTable = $("#services_management_table_tab").DataTable({
             ajax: {
-                url: "fetchDoctorServices",
+                // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+                url: "/api/fetchDoctorServices",
                 type: "GET",
                 headers: {
                     "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
@@ -869,7 +882,8 @@ $(function () {
 
         // AJAX request
         $.ajax({
-            url: "createServicesManagement", // Laravel route for saving service
+            // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+            url: "/api/createServicesManagement", // Laravel route for saving service
             type: "POST",
             headers: {
                 "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content"),
@@ -930,7 +944,8 @@ $(function () {
 
             $.ajax({
                 type: "POST",
-                url: "editServiceManagement",
+                // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+                url: "/api/editServiceManagement",
                 data: { token: token },
                 headers: {
                     "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
@@ -1011,7 +1026,8 @@ $(function () {
 
                 $.ajax({
                     type: "POST",
-                    url: "updateServiceManagement",
+                    // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+                    url: "/api/updateServiceManagement",
                     data: {
                         token: token,
                         servicename: servicename,
@@ -1089,7 +1105,8 @@ $(function () {
 
                     $.ajax({
                         type: "POST",
-                        url: "deleteServiceManagement",
+                        // Detailed Comment: Explicit /api/ prefix ensures endpoint resolves correctly from /secretary/queue and /admin/secretary
+                        url: "/api/deleteServiceManagement",
                         data: { token: token },
                         headers: {
                             "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
@@ -1137,7 +1154,8 @@ $(function () {
 
     function loadServiceCategories() {
         $.ajax({
-            url: "fetchGroupManagementCategory",
+            // Detailed Comment: Explicit /api/ prefix ensures category loading resolves correctly from /secretary/queue and /admin/secretary, fixing the 404 Not Found console error
+            url: "/api/fetchGroupManagementCategory",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             dataType: "json",

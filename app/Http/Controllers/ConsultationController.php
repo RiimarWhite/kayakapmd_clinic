@@ -707,12 +707,16 @@ class ConsultationController extends Controller
         $rawSchedTime = $request->input('sched_time');
         $schedTime = ($rawSchedTime && strtotime($rawSchedTime) !== false) ? $rawSchedTime : now()->format('H:i:s');
 
-        $queueCount = ConsultationModel::where(['docrefno' => $request->docrefno])
-            ->whereDate('consultation_date', Carbon::parse($schedDate))
-            ->whereTime('consultation_date', Carbon::parse($schedTime))
-            ->count();
-
-        $queueno = str_pad($queueCount + 1, 3, '0', STR_PAD_LEFT);
+        // Detailed Comment: Safely determine next sequential queue number per doctor and date, or honor specified queueno
+        if ($request->filled('queueno') && intval($request->queueno) > 0) {
+            $queueno = str_pad(intval($request->queueno), 3, '0', STR_PAD_LEFT);
+        } else {
+            $maxQueue = ConsultationModel::where(['docrefno' => $request->docrefno])
+                ->whereDate('consultation_date', Carbon::parse($schedDate)->toDateString())
+                ->max(DB::raw('CAST(queueno AS UNSIGNED)'));
+            $nextQueue = $maxQueue ? ($maxQueue + 1) : 1;
+            $queueno = str_pad($nextQueue, 3, '0', STR_PAD_LEFT);
+        }
 
         $fullName = array_filter([
             $request->pxfname,
@@ -801,6 +805,8 @@ class ConsultationController extends Controller
         $consultationData['laboratorypath'] = $request->hasFile('laboratory_file') ? $request->file('laboratory_file')->store('laboratory_results', 'private') : null;
         $consultationData['status'] = 'PENDING';
         $consultationData['queueno'] = $queueno;
+        // Detailed Comment: Persist patient classification/type (REGULAR, PHIC, HMO, OTHERS) for accurate billing and queue tracking
+        $consultationData['classification'] = strtoupper($request->patient_type ?? $request->classification ?? 'REGULAR');
 
         try {
             $consultation = ConsultationModel::create($consultationData);
@@ -906,11 +912,17 @@ class ConsultationController extends Controller
         $rawSchedTime = $request->input('sched_time');
         $schedTime = ($rawSchedTime && strtotime($rawSchedTime) !== false) ? $rawSchedTime : ($record->consultation_date ? Carbon::parse($record->consultation_date)->format('H:i:s') : now()->format('H:i:s'));
 
-        $queueCount = ConsultationModel::where(['docrefno' => $request->docrefno])
-            ->whereDate('consultation_date', Carbon::parse($schedDate)->startOfDay())
-            ->whereTime('consultation_date', Carbon::parse($schedTime)->endOfDay())
-            ->count();
-        $queueno = $record->queueno ?: str_pad($queueCount + 1, 3, '0', STR_PAD_LEFT);
+        // Detailed Comment: Safely determine queue number: honor explicit input, preserve existing queue number, or compute next sequential
+        if ($request->filled('queueno') && intval($request->queueno) > 0) {
+            $queueno = str_pad(intval($request->queueno), 3, '0', STR_PAD_LEFT);
+        } elseif (!empty($record->queueno)) {
+            $queueno = str_pad(intval($record->queueno), 3, '0', STR_PAD_LEFT);
+        } else {
+            $maxQueue = ConsultationModel::where(['docrefno' => $request->docrefno])
+                ->whereDate('consultation_date', Carbon::parse($schedDate)->toDateString())
+                ->max(DB::raw('CAST(queueno AS UNSIGNED)'));
+            $queueno = str_pad($maxQueue ? ($maxQueue + 1) : 1, 3, '0', STR_PAD_LEFT);
+        }
 
         $fullName = array_filter([
             $request->pxfname,
@@ -982,6 +994,8 @@ class ConsultationController extends Controller
         $consultationData['laboratorypath'] = $request->hasFile('laboratorypath') ? $request->file('laboratorypath')->store('laboratory_results', 'private') : $record->laboratorypath;
         $consultationData['status'] = $record->status ?: 'PENDING';
         $consultationData['queueno'] = $queueno;
+        // Detailed Comment: Persist updated patient classification/type (REGULAR, PHIC, HMO, OTHERS)
+        $consultationData['classification'] = strtoupper($request->patient_type ?? $request->classification ?? $record->classification ?? 'REGULAR');
 
         try {
             $update = $record->update($consultationData);
@@ -1483,4 +1497,48 @@ class ConsultationController extends Controller
             'data' => $data
         ]);
     }
+
+    /**
+     * Detailed Comment: Reorder queue numbers for scheduled consultations.
+     * Accepts an array of queue items with consultationrefno and new queueno,
+     * updates pxwalkinconsultation within a database transaction, and logs the change.
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function reorderQueue(Request $request)
+    {
+        $queue = $request->input('queue');
+        if (!is_array($queue) || empty($queue)) {
+            return response()->json(['success' => false, 'message' => 'No queue data provided.'], 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            foreach ($queue as $item) {
+                if (!empty($item['consultationrefno']) && isset($item['queueno'])) {
+                    $paddedQueue = str_pad(intval($item['queueno']), 3, '0', STR_PAD_LEFT);
+                    ConsultationModel::where('consultationrefno', $item['consultationrefno'])
+                        ->orWhere('id', $item['consultationrefno'])
+                        ->update(['queueno' => $paddedQueue]);
+                }
+            }
+            DB::commit();
+
+            Log::info('Consultation queue reordered successfully', [
+                'total_reordered' => count($queue),
+                'updated_by' => auth()->user() ? auth()->user()->username : 'secretary'
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Queue reordered successfully.']);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Failed to reorder queue', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['success' => false, 'message' => 'Failed to reorder queue: ' . $e->getMessage()], 500);
+        }
+    }
 }
+

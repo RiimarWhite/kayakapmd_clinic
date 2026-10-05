@@ -744,11 +744,14 @@ Point-of-care billing: charge line items posted against a doctor/consultation, p
 | `total_others` | double(11, 2) | NULL | NULL |  |
 | `total_gross` | double(11, 2) | NULL | NULL |  |
 | `less_vat` | double(11, 2) | NULL | NULL |  |
-| `less_srpwd` | double(11, 2) | NULL | NULL |  |
+| `less_srpwd` | double(11, 2) | NULL | NULL | Senior citizen / PWD discount amount |
+| `srpwd_refno` | varchar(80) | YES | NULL | Senior citizen / PWD identification card or reference number |
 | `less_hmo` | double(11, 2) | NULL | NULL |  |
 | `less_phic` | double(11, 2) | NULL | NULL |  |
+| `phic_icd_rvs` | varchar(100) | YES | NULL | PhilHealth ICD-10 diagnosis or RVS procedure case rate reference code |
 | `less_govt` | double(11, 2) | NULL | NULL |  |
 | `less_discount` | double(11, 2) | NULL | NULL |  |
+| `discount_description` | varchar(255) | YES | NULL | Description or authorization note for other consultation discount |
 | `net_payable` | double(11, 2) | NULL | NULL |  |
 | `payment_cash` | double(11, 2) | NULL | NULL |  |
 | `payment_card` | double(11, 2) | NULL | NULL |  |

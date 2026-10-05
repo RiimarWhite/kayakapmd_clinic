@@ -63,6 +63,15 @@
                 background-color: whitesmoke;
             }
 
+            /* Detailed Comment: Ensure Select2 dropdown renders with full width and floats above all modal dialogs */
+            .select2-container {
+                width: 100% !important;
+            }
+
+            .select2-dropdown {
+                z-index: 9999 !important;
+            }
+
             .select2-container .select2-selection--single {
                 height: 38px !important;
                 display: flex;

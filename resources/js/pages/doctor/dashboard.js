@@ -303,17 +303,38 @@ $(function () {
                         $("#prof_clinichours").val(u.clinichours || '');
                         $("#prof_hospadrs").val(u.hospadrs || '');
 
-                        // Tab 4: Rates, Tax & Billing
-                        $("#prof_consultationfee").val(u.consultationfee || 0);
-                        $("#prof_emergencyfee").val(u.emergencyfee || 0);
-                        $("#prof_admissionfee").val(u.admissionfee || 0);
-                        $("#prof_tin").val(u.tin || '');
-                        $("#prof_taxpercent").val(u.taxpercent || 0);
-                        $("#prof_withholdingtax").val(u.withholdingtax || 0);
-                        $("#prof_bankacct").val(u.bankacct || '');
-                        $("#prof_slcode").val(u.slcode || '');
-                        $("#prof_autoAddVAT").prop('checked', !!(u.autoAddVAT == 1 || u.autoAddVAT === true));
-                        $("#prof_issuehospOR").prop('checked', !!(u.issuehospOR == 1 || u.issuehospOR === true));
+                        // Detailed Comment: Tab 4: Rates, Tax & Billing - accurately populate from doctor record
+                        const pfVal = u.pfrate !== undefined && u.pfrate !== null ? u.pfrate : (u.consultationfee || 0);
+                        const rodVal = u.rodrate !== undefined && u.rodrate !== null ? u.rodrate : 0;
+                        const taxVal = u.tax !== undefined && u.tax !== null ? u.tax : (u.taxpercent || 0);
+                        const vatVal = u.vatrate !== undefined && u.vatrate !== null ? u.vatrate : (u.VAT || 0);
+                        const coaVal = u.coacode || '';
+                        const acctVal = u.accountno || (u.bankacct || '');
+                        const vatableVal = !!(u.vatable == 1 || u.vatable === true);
+                        const autoVatVal = !!(u.autoAddVAT == 1 || u.autoAddVAT === true);
+                        const hospOrVal = !!(u.issuehospOR == 1 || u.issuehospOR === true);
+
+                        // Set profile modal fields
+                        $("#prof_pfrate").val(parseFloat(pfVal).toFixed(2));
+                        $("#prof_rodrate").val(parseFloat(rodVal).toFixed(2));
+                        $("#prof_tax").val(parseFloat(taxVal).toFixed(2));
+                        $("#prof_vatrate").val(parseFloat(vatVal).toFixed(2));
+                        $("#prof_coacode").val(coaVal);
+                        $("#prof_accountno").val(acctVal);
+                        $("#prof_vatable").prop('checked', vatableVal);
+                        $("#prof_autoAddVAT").prop('checked', autoVatVal);
+                        $("#prof_issuehospOR").prop('checked', hospOrVal);
+
+                        // Also synchronize dashboard widget fields
+                        $("#doctor_pfrate").val(parseFloat(pfVal).toFixed(2));
+                        $("#doctor_rodrate").val(parseFloat(rodVal).toFixed(2));
+                        $("#doctor_tax").val(parseFloat(taxVal).toFixed(2));
+                        $("#doctor_vatrate").val(parseFloat(vatVal).toFixed(2));
+                        $("#doctor_coacode").val(coaVal);
+                        $("#doctor_accountno").val(acctVal);
+                        $("#doctor_vatable").prop('checked', vatableVal);
+                        $("#doctor_autoAddVAT").prop('checked', autoVatVal);
+                        $("#doctor_issuehospOR").prop('checked', hospOrVal);
 
                         // Tab 5: System Settings & Notes
                         $("#prof_quevisible").prop('checked', !!(u.quevisible == 1 || u.quevisible === true || u.quevisible === undefined));
@@ -361,6 +382,17 @@ $(function () {
                 data: $("#doctor_profile_form").serialize(),
                 success: function (response) {
                     if (response.success) {
+                        // Detailed Comment: Two-way sync - update dashboard billing widget with saved profile rates
+                        $("#doctor_pfrate").val($("#prof_pfrate").val());
+                        $("#doctor_rodrate").val($("#prof_rodrate").val());
+                        $("#doctor_tax").val($("#prof_tax").val());
+                        $("#doctor_vatrate").val($("#prof_vatrate").val());
+                        $("#doctor_coacode").val($("#prof_coacode").val());
+                        $("#doctor_accountno").val($("#prof_accountno").val());
+                        $("#doctor_vatable").prop('checked', $("#prof_vatable").is(':checked'));
+                        $("#doctor_autoAddVAT").prop('checked', $("#prof_autoAddVAT").is(':checked'));
+                        $("#doctor_issuehospOR").prop('checked', $("#prof_issuehospOR").is(':checked'));
+
                         Swal.fire({
                             title: "Success",
                             text: "Doctor profile updated successfully.",
@@ -403,6 +435,17 @@ $(function () {
             data: $("#doctor_fee_form").serialize(),
             success: function (response) {
                 if (response.success) {
+                    // Detailed Comment: Two-way sync - update modal Tab 4 inputs with saved dashboard billing rates
+                    $("#prof_pfrate").val($("#doctor_pfrate").val());
+                    $("#prof_rodrate").val($("#doctor_rodrate").val());
+                    $("#prof_tax").val($("#doctor_tax").val());
+                    $("#prof_vatrate").val($("#doctor_vatrate").val());
+                    $("#prof_coacode").val($("#doctor_coacode").val());
+                    $("#prof_accountno").val($("#doctor_accountno").val());
+                    $("#prof_vatable").prop('checked', $("#doctor_vatable").is(':checked'));
+                    $("#prof_autoAddVAT").prop('checked', $("#doctor_autoAddVAT").is(':checked'));
+                    $("#prof_issuehospOR").prop('checked', $("#doctor_issuehospOR").is(':checked'));
+
                     Swal.fire({
                         toast: true,
                         position: "top-end",

@@ -1289,9 +1289,8 @@ class ConsultationController extends Controller
     }
 
     /**
-     * Detailed Comment: Fetches available HMO entities for consultations and settlements.
-     * Queries by clientcode with defensive fallbacks to application configuration and all active
-     * non-empty HMO records so the HMO dropdown is never empty.
+     * Detailed Comment: Fetches available HMO entities from the hmo_masterlist table for consultations and settlements.
+     * Selects hmocode and hmoname, filters out null or empty names, and orders alphabetically by hmoname.
      */
     public function fetchHMO()
     {
@@ -1299,10 +1298,16 @@ class ConsultationController extends Controller
 
         $query = HMOModel::select(['hmocode', 'hmoname'])
             ->whereNotNull('hmoname')
-            ->where('hmoname', '!=', '');
+            ->where('hmoname', '!=', '')
+            ->orderBy('hmoname', 'ASC');
 
         if ($clientCode) {
-            $hmo = (clone $query)->where('dw_clientcode', $clientCode)->get();
+            $hmo = (clone $query)->where(function ($q) use ($clientCode) {
+                $q->where('dw_clientcode', $clientCode)
+                  ->orWhereNull('dw_clientcode')
+                  ->orWhere('dw_clientcode', '');
+            })->get();
+
             if ($hmo->isNotEmpty()) {
                 return response()->json(['success' => true, 'hmo' => $hmo]);
             }

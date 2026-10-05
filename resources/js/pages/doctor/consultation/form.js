@@ -1481,7 +1481,59 @@ $(function () {
                             `;
                     }
                 },
-                { data: 'item_dscr' },
+                {
+                    data: 'item_dscr',
+                    render: function (data, type, row) {
+                        const title = (data || 'Item / Service').replace(/"/g, '&quot;');
+                        // Detailed Comment: Enriched display for Professional Fee showing doctor billing rates (PF, Vatable, +VAT, W/Tax, ROD)
+                        if (row.is_pf || row.prodcode === 'PF' || row.item_grouping === 'PROFESSIONAL FEE') {
+                            const pfRate = parseFloat(row.pf_rate || row.cost_ave || 0).toFixed(2);
+                            const rodRate = parseFloat(row.rod_rate || 0).toFixed(2);
+                            const taxPct = parseFloat(row.tax_percent || 0).toFixed(1);
+                            const isVatable = Boolean(row.vatable);
+                            const isAutoAddVat = Boolean(row.auto_add_vat);
+                            return `
+                                <div>
+                                    <div class="fw-semibold text-dark">${title}</div>
+                                    <div class="d-flex flex-wrap gap-1 mt-1 small">
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">PF Rate: ₱${pfRate}</span>
+                                        <span class="badge ${isVatable ? 'bg-info-subtle text-info-emphasis border border-info-subtle' : 'bg-secondary-subtle text-secondary border'}">${isVatable ? 'Vatable (12%)' : 'Non-VAT'}</span>
+                                        ${isAutoAddVat ? '<span class="badge bg-secondary-subtle text-secondary border">+VAT Added</span>' : ''}
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">W/Tax: ${taxPct}%</span>
+                                        ${parseFloat(rodRate) > 0 ? `<span class="badge bg-light text-muted border">ROD: ₱${rodRate}</span>` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            // Detailed Comment: Enriched display for standard catalog charges showing applied patient tier and comparison with regular price
+                            const regPrice = parseFloat(row.regular_price || 0);
+                            const curPrice = parseFloat(row.cost_ave || row.sellingprice || 0);
+                            const tier = row.posted_tier || 'REGULAR';
+                            const tierBadgeClass = tier === 'PHIC' ? 'bg-success-subtle text-success-emphasis border border-success-subtle' :
+                                (tier === 'HMO' ? 'bg-info-subtle text-info-emphasis border border-info-subtle' :
+                                (tier === 'OTHERS' ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' :
+                                'bg-light text-dark border'));
+                            let diffHtml = '';
+                            if (regPrice > 0 && Math.abs(curPrice - regPrice) > 0.01) {
+                                if (curPrice < regPrice) {
+                                    diffHtml = `<span class="badge bg-success-subtle text-success border border-success-subtle ms-1">Saved ₱${(regPrice - curPrice).toFixed(2)}</span>`;
+                                } else {
+                                    diffHtml = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1">+₱${(curPrice - regPrice).toFixed(2)}</span>`;
+                                }
+                            }
+                            return `
+                                <div>
+                                    <div class="fw-semibold text-dark">${title}</div>
+                                    <div class="d-flex flex-wrap align-items-center gap-1 mt-1 small">
+                                        <span class="badge ${tierBadgeClass}">${tier} Tier</span>
+                                        ${regPrice > 0 ? `<span class="text-muted" style="font-size: 0.78rem;">Reg: ₱${regPrice.toFixed(2)}</span>` : ''}
+                                        ${diffHtml}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                },
                 { data: 'qty' },
                 {
                     data: 'cost_ave',
@@ -1581,7 +1633,7 @@ $(function () {
     });
 
     // Detailed Comment: Edit Patient Charge (Professional Fee, procedure, supplies, etc.)
-    // Captures current row data from DataTable, populates Swal form, and posts updates to /api/update_charge
+    // Displays doctor fee billing rates or catalog price tiers comparison without discount field
     $(document).on("click", ".edit_charge_btn", function () {
         const $btn = $(this);
         const chargeId = $btn.data("id") || $btn.val() || "";
@@ -1592,7 +1644,7 @@ $(function () {
         const currentItemName = rowData.item_dscr || "Item / Service";
         const currentQty = parseFloat(rowData.qty || 1) || 1;
         const currentPrice = parseFloat(rowData.cost_ave || rowData.retails || 0) || 0;
-        const currentDiscount = parseFloat(rowData.discount || 0) || 0;
+        const isPf = Boolean(rowData.is_pf || rowData.prodcode === 'PF' || rowData.item_grouping === 'PROFESSIONAL FEE');
 
         const consulModalEl = document.getElementById("consultation_modal");
         const consulModal = bootstrap.Modal.getInstance(consulModalEl);
@@ -1600,27 +1652,93 @@ $(function () {
             consulModal.hide();
         }
 
+        // Detailed Comment: Build contextual information card based on whether the charge is PF or catalog item
+        let detailsCardHtml = '';
+        if (isPf) {
+            const pfRate = parseFloat(rowData.pf_rate || currentPrice || 0).toFixed(2);
+            const rodRate = parseFloat(rowData.rod_rate || 0).toFixed(2);
+            const taxPercent = parseFloat(rowData.tax_percent || 0).toFixed(1);
+            const vatable = Boolean(rowData.vatable);
+            const autoAddVat = Boolean(rowData.auto_add_vat);
+
+            detailsCardHtml = `
+                <div class="card bg-light border-primary mb-3 text-start">
+                    <div class="card-header bg-primary text-white py-1 px-2 fw-bold small">
+                        <i class="fa-solid fa-user-doctor me-1"></i> Professional Fee &amp; Billing Rates
+                    </div>
+                    <div class="card-body p-2 small">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Doctor Base PF / Consultation Fee:</span>
+                            <strong class="text-primary">₱${pfRate}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">ROD Rate (PHP):</span>
+                            <span>₱${rodRate}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Withholding Tax (%):</span>
+                            <span>${taxPercent}%</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted">Tax Status:</span>
+                            <div>
+                                <input type="checkbox" class="form-check-input me-1" ${vatable ? 'checked' : ''} disabled>
+                                <span class="badge ${vatable ? 'bg-info text-dark' : 'bg-secondary'}">${vatable ? 'Vatable (12%)' : 'Non-VAT'}</span>
+                                ${autoAddVat ? '<span class="badge bg-secondary ms-1">+VAT Auto-Added</span>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            const regPrice = parseFloat(rowData.regular_price || currentPrice || 0).toFixed(2);
+            const phicPrice = parseFloat(rowData.price_phic || 0).toFixed(2);
+            const hmoPrice = parseFloat(rowData.price_hmo || 0).toFixed(2);
+            const othersPrice = parseFloat(rowData.price_others || 0).toFixed(2);
+            const postedTier = rowData.posted_tier || 'REGULAR';
+            const postedTierPrice = parseFloat(rowData.posted_tier_price || currentPrice || 0).toFixed(2);
+
+            detailsCardHtml = `
+                <div class="card bg-light border-secondary mb-3 text-start">
+                    <div class="card-header bg-secondary text-white py-1 px-2 fw-bold small">
+                        <i class="fa-solid fa-tags me-1"></i> Catalog Pricing Comparison
+                    </div>
+                    <div class="card-body p-2 small">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Regular Catalog Price:</span>
+                            <strong>₱${regPrice}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">PHIC Tier Price:</span>
+                            <span class="${postedTier === 'PHIC' ? 'fw-bold text-success' : ''}">₱${phicPrice}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">HMO Tier Price:</span>
+                            <span class="${postedTier === 'HMO' ? 'fw-bold text-info' : ''}">₱${hmoPrice}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Others / Special Price:</span>
+                            <span class="${postedTier === 'OTHERS' ? 'fw-bold text-warning' : ''}">₱${othersPrice}</span>
+                        </div>
+                        <div class="d-flex justify-content-between pt-1 border-top">
+                            <span class="text-muted">Applied Classification Tier:</span>
+                            <span class="badge bg-primary">${postedTier} (₱${postedTierPrice})</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         Swal.fire({
             title: `Edit Charge`,
             html: `
                 <div class="mb-3 text-start">
-                    <span class="fw-bold text-primary">${currentItemName}</span>
+                    <span class="fw-bold text-primary fs-6">${currentItemName}</span>
                 </div>
-                <div class="row g-2 text-start">
-                    <div class="col-4">
-                        <label class="form-label fw-bold small" for="charge_qty">Quantity</label>
-                        <input class="form-control" type="number" step="any" min="0.01" name="charge_qty" id="charge_qty" value="${currentQty}">
-                    </div>
-
-                    <div class="col-4">
-                        <label class="form-label fw-bold small" for="charge_input_sw">Unit Price (₱)</label>
-                        <input class="form-control" type="number" step="0.01" min="0" name="charge_input_sw" id="charge_input_sw" value="${currentPrice.toFixed(2)}">
-                    </div>
-
-                    <div class="col-4">
-                        <label class="form-label fw-bold small" for="discount_input_sw">Discount (₱)</label>
-                        <input class="form-control" type="number" step="0.01" min="0" name="discount_input_sw" id="discount_input_sw" value="${currentDiscount.toFixed(2)}">
-                    </div>
+                ${detailsCardHtml}
+                <div class="text-start">
+                    <label class="form-label fw-bold small" for="charge_input_sw">Unit Price (₱)</label>
+                    <input class="form-control form-control-lg" type="number" step="0.01" min="0" name="charge_input_sw" id="charge_input_sw" value="${currentPrice.toFixed(2)}">
                 </div>
             `,
             confirmButtonText: "Update Charge",
@@ -1628,21 +1746,16 @@ $(function () {
             cancelButtonText: "Cancel",
             preConfirm: () => {
                 const charge = document.getElementById("charge_input_sw").value;
-                const qty = document.getElementById("charge_qty").value;
 
                 if (!charge || isNaN(parseFloat(charge)) || parseFloat(charge) < 0) {
                     Swal.showValidationMessage("Please enter a valid unit price/fee.");
                     return false;
                 }
-                if (!qty || isNaN(parseFloat(qty)) || parseFloat(qty) <= 0) {
-                    Swal.showValidationMessage("Please enter a valid quantity greater than zero.");
-                    return false;
-                }
 
                 return {
                     charge_fee: parseFloat(charge),
-                    charge_qty: parseFloat(qty),
-                    discount: parseFloat(document.getElementById("discount_input_sw").value || 0)
+                    charge_qty: currentQty || 1,
+                    discount: 0
                 };
             }
         }).then((result) => {

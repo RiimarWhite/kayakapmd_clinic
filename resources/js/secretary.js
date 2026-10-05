@@ -1322,66 +1322,223 @@ $(function () {
         $("#patient_picture_preview").prop("src", "");
     });
 
+    // Detailed Comment: Refresh charges and adjust column widths when the Payment Details tab is opened
+    $(document).on('shown.bs.tab', 'button[data-bs-target="#payment_info"], #patient_charges_btn', function () {
+        loadPatientCharges();
+        if ($.fn.DataTable.isDataTable("#pxcharges_table")) {
+            $("#pxcharges_table").DataTable().columns.adjust().draw(false);
+        }
+    });
+
     // Patient charges
     $("#patient_charges_btn").on("click", function () {
         loadPatientCharges();
     });
 
+    /**
+     * Detailed Comment: Load and display patient charges for current consultation in secretary console.
+     * Safely checks for existing DataTable, initializes cleanly with 5 columns (Actions, Description, Quantity, Unit Price, Amount),
+     * and uses null-safe row data extractors.
+     */
     function loadPatientCharges() {
-        $("#pxcharges_table").DataTable().destroy().clear();
+        const refno = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
+
+        // Detailed Comment: If DataTable is already initialized, reload cleanly without destroying the table DOM
+        if ($.fn.DataTable.isDataTable("#pxcharges_table")) {
+            const table = $("#pxcharges_table").DataTable();
+            if (!refno) {
+                $("#charges_total").text("0.00");
+                table.clear().draw();
+                return;
+            }
+            table.ajax.reload(function () {
+                table.columns.adjust();
+            }, false);
+            return;
+        }
+
+        $("#pxcharges_table tbody").empty();
+
+        // Detailed Comment: If no consultation is selected, initialize with all 5 matching empty columns
+        if (!refno) {
+            $("#charges_total").text("0.00");
+            $("#pxcharges_table").DataTable({
+                data: [],
+                columns: [
+                    { data: null, defaultContent: "" },
+                    { data: 'item_dscr', defaultContent: "" },
+                    { data: 'qty', defaultContent: "" },
+                    { data: 'cost_ave', defaultContent: "" },
+                    { data: 'totalamt', defaultContent: "" }
+                ],
+                columnDefs: [
+                    { targets: 0, width: '10%', orderable: false, className: 'text-nowrap text-center align-middle' },
+                    { targets: '_all', orderable: false, className: 'text-nowrap align-middle' }
+                ],
+                language: {
+                    emptyTable: 'Please select a patient consultation to view charges.'
+                },
+                layout: {
+                    bottomStart: 'paging',
+                    bottomEnd: null
+                },
+                searching: false,
+                lengthChange: false,
+                pageLength: 5,
+                paging: true,
+                order: []
+            });
+            return;
+        }
+
         $("#pxcharges_table").DataTable({
             ajax: {
-                url: "fetch_pxcharges",
+                url: "/api/fetch_pxcharges",
                 type: "POST",
                 headers: {
                     "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content")
                 },
-                data: {
-                    consultationrefno: $("#pxconsultationrefno").text()
+                data: function (d) {
+                    d.consultationrefno = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
                 },
                 dataSrc: function (response) {
                     let total = 0;
-
-                    response.charges.forEach(charge => {
-                        total += parseFloat(charge.net_total)
+                    const list = (response && response.charges && Array.isArray(response.charges)) ? response.charges : [];
+                    list.forEach(c => {
+                        const val = parseFloat(c.totalamt || c.cost_ave || 0);
+                        if (!isNaN(val)) total += val;
                     });
 
                     $("#charges_total").text(total.toFixed(2));
 
-                    return response.charges;
+                    return list;
                 }
             },
             columns: [
                 {
                     data: null,
-                    render: function (data) {
+                    render: function (data, type, row) {
+                        const r = row || data || {};
+                        const chargeId = r.id || r.pxchargerefno || r.prodcode || '';
+                        const itemDscr = (r.item_dscr || r.servicename || '').replace(/"/g, '&quot;');
+                        const unitPrice = parseFloat(r.cost_ave || r.sellingprice || (parseFloat(r.totalamt || 0) / Math.max(1, parseFloat(r.qty || 1))) || 0).toFixed(2);
+                        const qty = r.qty || 1;
+                        const totalAmt = parseFloat(r.totalamt || 0).toFixed(2);
                         return `
-                            <button class="btn btn-sm btn-danger remove_charge" type="button" value="${data.pxchargerefno}"><i class="fa-solid fa-trash"></i></button>
-                            <button class="btn btn-sm btn-primary edit_charge_btn_sc" type="button" value="${data.pxchargerefno}"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <div class="d-flex gap-1 justify-content-center">
+                                <button class="btn btn-sm btn-outline-danger remove_charge" type="button"
+                                    value="${chargeId}"
+                                    data-id="${chargeId}"
+                                    data-prodcode="${r.prodcode || ''}"
+                                    data-item="${itemDscr}"
+                                    title="Delete Fee">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary edit_charge_btn_sc" type="button"
+                                    value="${chargeId}"
+                                    data-id="${chargeId}"
+                                    data-prodcode="${r.prodcode || ''}"
+                                    data-item="${itemDscr}"
+                                    data-price="${unitPrice}"
+                                    data-qty="${qty}"
+                                    data-total="${totalAmt}"
+                                    title="Edit Fee">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                            </div>
                         `;
                     }
                 },
-                { data: 'servicename' },
-                { data: 'discount' },
-                { data: 'net_total' }
-            ],
-            columnDefs: [
                 {
-                    target: 0,
-                    width: '1%',
-                    orderable: false,
-                    className: 'text-nowrap text-center align-middle'
+                    data: 'item_dscr',
+                    defaultContent: '',
+                    render: function (data, type, row) {
+                        const r = row || {};
+                        const title = (data || r.servicename || r.item_dscr || 'Item / Service').replace(/"/g, '&quot;');
+                        // Detailed Comment: Enriched display for Professional Fee showing doctor billing rates (PF, Vatable, +VAT, W/Tax, ROD)
+                        if (r.is_pf || r.prodcode === 'PF' || r.item_grouping === 'PROFESSIONAL FEE') {
+                            const pfRate = parseFloat(r.pf_rate || r.cost_ave || 0).toFixed(2);
+                            const rodRate = parseFloat(r.rod_rate || 0).toFixed(2);
+                            const taxPct = parseFloat(r.tax_percent || 0).toFixed(1);
+                            const isVatable = Boolean(r.vatable);
+                            const isAutoAddVat = Boolean(r.auto_add_vat);
+                            return `
+                                <div>
+                                    <div class="fw-semibold text-dark">${title}</div>
+                                    <div class="d-flex flex-wrap gap-1 mt-1 small">
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">PF Rate: ₱${pfRate}</span>
+                                        <span class="badge ${isVatable ? 'bg-info-subtle text-info-emphasis border border-info-subtle' : 'bg-secondary-subtle text-secondary border'}">${isVatable ? 'Vatable (12%)' : 'Non-VAT'}</span>
+                                        ${isAutoAddVat ? '<span class="badge bg-secondary-subtle text-secondary border">+VAT Added</span>' : ''}
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">W/Tax: ${taxPct}%</span>
+                                        ${parseFloat(rodRate) > 0 ? `<span class="badge bg-light text-muted border">ROD: ₱${rodRate}</span>` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            // Detailed Comment: Enriched display for standard catalog charges showing applied patient tier and comparison with regular price
+                            const regPrice = parseFloat(r.regular_price || 0);
+                            const curPrice = parseFloat(r.cost_ave || r.sellingprice || 0);
+                            const tier = r.posted_tier || 'REGULAR';
+                            const tierBadgeClass = tier === 'PHIC' ? 'bg-success-subtle text-success-emphasis border border-success-subtle' :
+                                (tier === 'HMO' ? 'bg-info-subtle text-info-emphasis border border-info-subtle' :
+                                (tier === 'OTHERS' ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' :
+                                'bg-light text-dark border'));
+                            let diffHtml = '';
+                            if (regPrice > 0 && Math.abs(curPrice - regPrice) > 0.01) {
+                                if (curPrice < regPrice) {
+                                    diffHtml = `<span class="badge bg-success-subtle text-success border border-success-subtle ms-1">Saved ₱${(regPrice - curPrice).toFixed(2)}</span>`;
+                                } else {
+                                    diffHtml = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1">+₱${(curPrice - regPrice).toFixed(2)}</span>`;
+                                }
+                            }
+                            return `
+                                <div>
+                                    <div class="fw-semibold text-dark">${title}</div>
+                                    <div class="d-flex flex-wrap align-items-center gap-1 mt-1 small">
+                                        <span class="badge ${tierBadgeClass}">${tier} Tier</span>
+                                        ${regPrice > 0 ? `<span class="text-muted" style="font-size: 0.78rem;">Reg: ₱${regPrice.toFixed(2)}</span>` : ''}
+                                        ${diffHtml}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
                 },
                 {
-                    targets: [1, 2, 3],
-                    className: 'text-nowrap text-truncate align-middle'
+                    data: 'qty',
+                    defaultContent: '1',
+                    className: 'text-center align-middle',
+                    render: function (data) { return parseFloat(data || 1); }
+                },
+                {
+                    data: 'cost_ave',
+                    defaultContent: '0.00',
+                    className: 'text-end align-middle fw-semibold',
+                    render: function (data, type, row) {
+                        const r = row || {};
+                        const price = parseFloat(data || r.sellingprice || r.current_price || (parseFloat(r.totalamt || 0) / Math.max(1, parseFloat(r.qty || 1))) || 0);
+                        return isNaN(price) ? '0.00' : price.toFixed(2);
+                    }
+                },
+                {
+                    data: 'totalamt',
+                    defaultContent: '0.00',
+                    className: 'text-end align-middle fw-bold text-primary',
+                    render: function (data, type, row) {
+                        const amt = parseFloat(data || (row && row.totalamt) || 0);
+                        return isNaN(amt) ? '0.00' : amt.toFixed(2);
+                    }
                 }
             ],
+            columnDefs: [
+                { targets: 0, width: '10%', orderable: false, className: 'text-nowrap text-center align-middle' },
+                { targets: 1, orderable: false, className: 'align-middle' },
+                { targets: 2, width: '10%', orderable: false, className: 'text-center align-middle' },
+                { targets: [3, 4], width: '15%', orderable: false, className: 'text-end align-middle' }
+            ],
             language: {
-                emptyTable: 'No patient charges yet.'
+                emptyTable: 'No charges recorded for this consultation yet.'
             },
-            // Detailed Comment: In DataTables 2, layout uses standard feature keys to avoid "Unknown feature: div" warning.
-            // Total amount is rendered in the blade view below the table and updated dynamically via dataSrc.
             layout: {
                 bottomStart: 'paging',
                 bottomEnd: null
@@ -1390,7 +1547,7 @@ $(function () {
             lengthChange: false,
             pageLength: 5,
             paging: true,
-            order: [[1, 'asc']]
+            order: []
         });
     }
 
@@ -1402,13 +1559,13 @@ $(function () {
         const chargeModal = new bootstrap.Modal("#append_charge_modal");
 
         $.ajax({
-            url: "fetch_charge_categories_sc",
+            url: "/api/fetch_charge_categories_sc",
             type: "POST",
             headers: {
                 "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content")
             },
             data: {
-                consultationrefno: $("#pxconsultationrefno").val()
+                consultationrefno: String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim()
             },
             success: function (response) {
                 chargeModal.show();
@@ -1465,9 +1622,9 @@ $(function () {
 
             loading = true;
 
-            $.getJSON("fetch_all_charges", {
+            $.getJSON("/api/fetch_all_charges", {
                 category: $("#search_filter").val() || "",
-                consultationrefno: $("#pxconsultationrefno").val()
+                consultationrefno: String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim()
             }, function (data) {
                 cache = data.charges.map(item => ({
                     label: item.charge_name,
@@ -1577,14 +1734,14 @@ $(function () {
         }
 
         $.ajax({
-            url: "save_patient_charges",
+            url: "/api/save_patient_charges",
             type: "POST",
             headers: {
                 "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content")
             },
             contentType: "application/json",
             data: JSON.stringify({
-                consultationrefno: $("#pxconsultationrefno").val(),
+                consultationrefno: String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim(),
                 chargerefnos: appendedPxcharges
             }),
             success: function (response) {
@@ -1597,6 +1754,7 @@ $(function () {
 
                     appendedPxcharges = [];
                     $("#appended_charges_list").empty();
+                    loadPatientCharges();
                 }
             }
         });
@@ -1614,14 +1772,14 @@ $(function () {
         }).then((result) => {
             if (result.isConfirmed) {
                 $.ajax({
-                    url: "delete_patient_charge",
+                    url: "/api/delete_patient_charge",
                     type: "POST",
                     headers: {
                         "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content")
                     },
                     data: {
                         chargerefno: $(this).val(),
-                        consultationrefno: $("#pxconsultationrefno").val()
+                        consultationrefno: String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim()
                     },
                     success: function (response) {
                         if (response.success) {
@@ -1631,7 +1789,7 @@ $(function () {
                                 icon: "success"
                             });
 
-                            $("#pxcharges_table").DataTable().ajax.reload();
+                            loadPatientCharges();
                         }
                     }
                 });
@@ -1640,19 +1798,102 @@ $(function () {
     });
 
     $(document).on("click", ".edit_charge_btn_sc", function () {
+        const $btn = $(this);
+        const chargeVal = $btn.val();
+        const $row = $btn.closest("tr");
+        const rowData = $("#pxcharges_table").DataTable().row($row).data() || {};
+        const itemDscr = rowData.item_dscr || rowData.servicename || "Charge Item";
+        const currentPrice = parseFloat(rowData.cost_ave || rowData.sellingprice || rowData.net_total || 0);
+        const currentQty = parseFloat(rowData.qty || 1);
+        const isPf = Boolean(rowData.is_pf || rowData.prodcode === 'PF' || rowData.item_grouping === 'PROFESSIONAL FEE');
+
+        // Detailed Comment: Build contextual information card based on whether the charge is PF or catalog item
+        let detailsCardHtml = '';
+        if (isPf) {
+            const pfRate = parseFloat(rowData.pf_rate || currentPrice || 0).toFixed(2);
+            const rodRate = parseFloat(rowData.rod_rate || 0).toFixed(2);
+            const taxPercent = parseFloat(rowData.tax_percent || 0).toFixed(1);
+            const vatable = Boolean(rowData.vatable);
+            const autoAddVat = Boolean(rowData.auto_add_vat);
+
+            detailsCardHtml = `
+                <div class="card bg-light border-primary mb-3 text-start">
+                    <div class="card-header bg-primary text-white py-1 px-2 fw-bold small">
+                        <i class="fa-solid fa-user-doctor me-1"></i> Professional Fee &amp; Billing Rates
+                    </div>
+                    <div class="card-body p-2 small">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Doctor Base PF / Consultation Fee:</span>
+                            <strong class="text-primary">₱${pfRate}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">ROD Rate (PHP):</span>
+                            <span>₱${rodRate}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Withholding Tax (%):</span>
+                            <span>${taxPercent}%</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted">Tax Status:</span>
+                            <div>
+                                <input type="checkbox" class="form-check-input me-1" ${vatable ? 'checked' : ''} disabled>
+                                <span class="badge ${vatable ? 'bg-info text-dark' : 'bg-secondary'}">${vatable ? 'Vatable (12%)' : 'Non-VAT'}</span>
+                                ${autoAddVat ? '<span class="badge bg-secondary ms-1">+VAT Auto-Added</span>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            const regPrice = parseFloat(rowData.regular_price || currentPrice || 0).toFixed(2);
+            const phicPrice = parseFloat(rowData.price_phic || 0).toFixed(2);
+            const hmoPrice = parseFloat(rowData.price_hmo || 0).toFixed(2);
+            const othersPrice = parseFloat(rowData.price_others || 0).toFixed(2);
+            const postedTier = rowData.posted_tier || 'REGULAR';
+            const postedTierPrice = parseFloat(rowData.posted_tier_price || currentPrice || 0).toFixed(2);
+
+            detailsCardHtml = `
+                <div class="card bg-light border-secondary mb-3 text-start">
+                    <div class="card-header bg-secondary text-white py-1 px-2 fw-bold small">
+                        <i class="fa-solid fa-tags me-1"></i> Catalog Pricing Comparison
+                    </div>
+                    <div class="card-body p-2 small">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Regular Catalog Price:</span>
+                            <strong>₱${regPrice}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">PHIC Tier Price:</span>
+                            <span class="${postedTier === 'PHIC' ? 'fw-bold text-success' : ''}">₱${phicPrice}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">HMO Tier Price:</span>
+                            <span class="${postedTier === 'HMO' ? 'fw-bold text-info' : ''}">₱${hmoPrice}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Others / Special Price:</span>
+                            <span class="${postedTier === 'OTHERS' ? 'fw-bold text-warning' : ''}">₱${othersPrice}</span>
+                        </div>
+                        <div class="d-flex justify-content-between pt-1 border-top">
+                            <span class="text-muted">Applied Classification Tier:</span>
+                            <span class="badge bg-primary">${postedTier} (₱${postedTierPrice})</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         Swal.fire({
             title: "Edit Charge",
             html: `
-                <div class="d-flex gap-2">
-                    <div class="">
-                        <label class="form-label" for="charge_input_sw">Charge Amount</label>
-                        <input class="form-control" type="number" name="charge_input_sw" id="charge_input_sw">
-                    </div>
-
-                    <div class="">
-                        <label class="form-label" for="discount_input_sw">Charge Amount</label>
-                        <input class="form-control" type="number" name="discount_input_sw" id="discount_input_sw">
-                    </div>
+                <div class="mb-3 text-start">
+                    <span class="fw-bold text-primary fs-6">${itemDscr}</span>
+                </div>
+                ${detailsCardHtml}
+                <div class="text-start">
+                    <label class="form-label fw-bold small" for="charge_input_sw">Unit Price (₱)</label>
+                    <input class="form-control" type="number" step="0.01" min="0" name="charge_input_sw" id="charge_input_sw" value="${currentPrice.toFixed(2)}">
                 </div>
             `,
             confirmButtonText: "Update",
@@ -1660,23 +1901,27 @@ $(function () {
             preConfirm: () => {
                 const charge = $("#charge_input_sw").val();
 
-                if (!charge) {
-                    return Swal.showValidationMessage("Charge input field is empty.");
+                if (!charge || isNaN(parseFloat(charge)) || parseFloat(charge) < 0) {
+                    return Swal.showValidationMessage("Please enter a valid unit price.");
                 }
             }
         }).then((result) => {
             if (result.isConfirmed) {
+                const consulRef = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
                 $.ajax({
-                    url: "update_charge",
+                    url: "/api/update_charge",
                     type: "POST",
                     headers: {
                         "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content")
                     },
                     data: {
-                        consultationrefno: $("#pxconsultationrefno").val(),
-                        pxchargerefno: $(this).val(),
+                        consultationrefno: consulRef,
+                        pxchargerefno: chargeVal,
+                        chargeid: rowData.id || '',
+                        prodcode: rowData.prodcode || '',
                         charge_fee: $("#charge_input_sw").val(),
-                        discount: $("#discount_input_sw").val()
+                        charge_qty: currentQty,
+                        discount: 0
                     },
                     success: function (response) {
                         if (response.success) {
@@ -1689,7 +1934,7 @@ $(function () {
                                 timer: 2000
                             });
 
-                            $("#pxcharges_table").DataTable().ajax.reload();
+                            loadPatientCharges();
                         }
                     }
                 });
@@ -1787,71 +2032,202 @@ $(function () {
     });
 
     // Patient charges
+    // Patient settlements
     let totalAmount = 0.00;
+
+    /**
+     * Detailed Comment: Computes total deductions (Senior/PWD, PhilHealth, HMO, Other discounts)
+     * and calculates Net Billing = max(0, totalGross - totalDeductions).
+     */
+    function calculateNetBilling() {
+        let deductions = 0;
+        if ($("#is_srpwd").is(":checked")) {
+            deductions += parseFloat($("#less_srpwd").val()) || 0;
+        }
+        deductions += parseFloat($("#phic").val()) || 0;
+        deductions += parseFloat($("#hmo").val()) || 0;
+        deductions += parseFloat($("#less_discount").val()) || 0;
+        deductions = Math.round(deductions * 100) / 100;
+
+        let netBilling = Math.max(0, totalAmount - deductions);
+        return Math.round(netBilling * 100) / 100;
+    }
+
+    /**
+     * Detailed Comment: Computes remaining balance to be dispersed into Cash and CTA payments.
+     */
+    function calculateRemaining() {
+        const netBilling = calculateNetBilling();
+        let payments = 0;
+        payments += parseFloat($("#cash").val()) || 0;
+        payments += parseFloat($("#cta").val()) || 0;
+        payments = Math.round(payments * 100) / 100;
+
+        let remaining = Math.max(0, netBilling - payments);
+        return Math.round(remaining * 100) / 100;
+    }
+
+    /**
+     * Detailed Comment: Updates Net Billing and Remaining balance displays and hidden form inputs.
+     */
+    function updateRemaining() {
+        const netBilling = calculateNetBilling();
+        const remaining = calculateRemaining();
+        $("#net_billing_display").text(netBilling.toFixed(2));
+        $("#net_payable_input").val(netBilling.toFixed(2));
+        $("#remaining").text(remaining.toFixed(2));
+    }
+
+    // Detailed Comment: Toggle Senior/PWD discount fields and trigger recomputation
+    $("#is_srpwd").on("change", function () {
+        if ($(this).is(":checked")) {
+            $("#srpwd_fields_wrap").removeClass("d-none");
+            $("#less_srpwd").focus();
+        } else {
+            $("#srpwd_fields_wrap").addClass("d-none");
+            $("#srpwd_refno").val("");
+            $("#less_srpwd").val("");
+        }
+        updateRemaining();
+    });
+
+    // Detailed Comment: Re-adjust Select2 width and attach to modal container upon settlement modal being fully shown
+    $("#settlement_modal").on("shown.bs.modal", function () {
+        if (!$("#hmo_type").hasClass("select2-hidden-accessible")) {
+            $("#hmo_type").select2({
+                dropdownParent: $("#settlement_modal"),
+                width: "100%",
+                placeholder: "-- Select HMO --",
+                allowClear: true
+            });
+        }
+    });
+
     $("#settlement_btn").on("click", function () {
         totalAmount = parseFloat($("#charges_total").text()) || 0;
 
         $("#total_amount").text(totalAmount.toFixed(2));
-        $("#remaining").text(totalAmount.toFixed(2));
-        $("#sett_consultationrefno").val($("#pxconsultationrefno").val());
+        $("#total").val(totalAmount.toFixed(2));
+        const refno = $("#pxconsultationrefno").text() || $("#pxconsultationrefno").val();
+        $("#sett_consultationrefno").val(refno);
 
         $("#settlement_form")[0].reset();
+        $("#is_srpwd").prop("checked", false);
+        $("#srpwd_fields_wrap").addClass("d-none");
+        updateRemaining();
+
+        // Detailed Comment: Initialize searchable Select2 dropdown for HMO provider inside settlement modal
+        if (!$("#hmo_type").hasClass("select2-hidden-accessible")) {
+            $("#hmo_type").select2({
+                dropdownParent: $("#settlement_modal"),
+                width: "100%",
+                placeholder: "-- Select HMO --",
+                allowClear: true
+            });
+        }
+        $("#hmo_type").val("").trigger("change");
+
+        // Detailed Comment: Pre-populate existing settlement data from pxsettlements including HMO selection from hmo_masterlist
+        if (refno) {
+            $.ajax({
+                url: "/api/fetch_settlements",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                data: { consultationrefno: refno },
+                success: function (resSett) {
+                    if (resSett.success && resSett.record) {
+                        const r = resSett.record;
+                        if (parseFloat(r.less_srpwd || 0) > 0 || r.srpwd_refno) {
+                            $("#is_srpwd").prop("checked", true);
+                            $("#srpwd_fields_wrap").removeClass("d-none");
+                            if (r.srpwd_refno) $("#srpwd_refno").val(r.srpwd_refno);
+                            if (parseFloat(r.less_srpwd || 0) > 0) $("#less_srpwd").val(parseFloat(r.less_srpwd).toFixed(2));
+                        }
+                        if (r.phic_icd_rvs) $("#phic_icd_rvs").val(r.phic_icd_rvs);
+                        if (parseFloat(r.phic || r.less_phic || 0) > 0) $("#phic").val(parseFloat(r.phic || r.less_phic).toFixed(2));
+
+                        // HMO dropdown from hmo_masterlist
+                        const hmoVal = r.hmocode || r.hmo_type;
+                        if (hmoVal) {
+                            $("#hmo_type").val(hmoVal).trigger("change");
+                            if (!$("#hmo_type").val()) {
+                                $("#hmo_type option").each(function () {
+                                    if ($(this).text().trim().toLowerCase() === String(hmoVal).trim().toLowerCase()) {
+                                        $("#hmo_type").val($(this).val()).trigger("change");
+                                    }
+                                });
+                            }
+                        } else {
+                            $("#hmo_type").val("").trigger("change");
+                        }
+                        if (parseFloat(r.hmo || r.less_hmo || 0) > 0) $("#hmo").val(parseFloat(r.hmo || r.less_hmo).toFixed(2));
+                        if (r.discount_description) $("#discount_description").val(r.discount_description);
+                        if (parseFloat(r.less_discount || 0) > 0) $("#less_discount").val(parseFloat(r.less_discount).toFixed(2));
+                        if (parseFloat(r.cash || r.payment_cash || 0) > 0) $("#cash").val(parseFloat(r.cash || r.payment_cash).toFixed(2));
+                        if (parseFloat(r.cta || r.payment_card || 0) > 0) $("#cta").val(parseFloat(r.cta || r.payment_card).toFixed(2));
+                        if (r.cta_type) $("#card_type").val(r.cta_type);
+
+                        updateRemaining();
+                    }
+                }
+            });
+        }
     });
 
-    $(document).on("click", ".import-total", function () {
-        let input = $(this).closest(".input-group").find(".settlement-input");
+    // Detailed Comment: Import Net Billing into target settlement payment channel (Cash or CTA)
+    $(document).on("click", ".import-net-billing, .import-total", function () {
+        let input = $(this).closest(".input-group").find(".settlement-payment-input, .settlement-input");
+        const netBilling = calculateNetBilling();
+        let otherPayment = 0;
+        $(".settlement-payment-input, .settlement-input").not(input).each(function () {
+            otherPayment += parseFloat($(this).val()) || 0;
+        });
 
-        let remaining = calculateRemaining();
-
-        input.val(remaining.toFixed(2)).trigger("input");
+        let remaining = Math.max(0, netBilling - otherPayment);
+        input.val(remaining > 0 ? remaining.toFixed(2) : "").trigger("input");
     });
 
-    $(document).on("input", ".settlement-input", function () {
+    // Detailed Comment: Dynamic deduction calculation with Gross bounding
+    $(document).on("input", ".deduction-input", function () {
         let currentInput = $(this);
         let value = parseFloat(currentInput.val()) || 0;
-
         if (value < 0) value = 0;
 
-        // Calculate remaining EXCLUDING this field first
         let usedExceptCurrent = 0;
-
-        $(".settlement-input").not(currentInput).each(function () {
+        $(".deduction-input").not(currentInput).each(function () {
+            if ($(this).attr("id") === "less_srpwd" && !$("#is_srpwd").is(":checked")) return;
             usedExceptCurrent += parseFloat($(this).val()) || 0;
         });
 
-        let maxAllowed = totalAmount - usedExceptCurrent;
-
+        let maxAllowed = Math.max(0, totalAmount - usedExceptCurrent);
         if (value > maxAllowed) {
             value = maxAllowed;
         }
-
         value = Math.round(value * 100) / 100;
-
-        currentInput.val(value.toFixed(2));
-
+        currentInput.val(value > 0 ? value.toFixed(2) : "");
         updateRemaining();
     });
 
-    function calculateRemaining() {
-        let used = 0;
+    // Detailed Comment: Dynamic payment dispersion calculation bounded by Net Billing
+    $(document).on("input", ".settlement-payment-input, .settlement-input", function () {
+        let currentInput = $(this);
+        let value = parseFloat(currentInput.val()) || 0;
+        if (value < 0) value = 0;
 
-        $(".settlement-input").each(function () {
-            used += parseFloat($(this).val()) || 0;
+        const netBilling = calculateNetBilling();
+        let otherPayment = 0;
+        $(".settlement-payment-input, .settlement-input").not(currentInput).each(function () {
+            otherPayment += parseFloat($(this).val()) || 0;
         });
 
-        used = Math.round(used * 100) / 100;
-
-        let remaining = totalAmount - used;
-
-        if (remaining < 0) remaining = 0;
-
-        return Math.round(remaining * 100) / 100;
-    }
-
-    function updateRemaining() {
-        let remaining = calculateRemaining();
-        $("#remaining").text(remaining.toFixed(2));
-    }
+        let maxAllowed = Math.max(0, netBilling - otherPayment);
+        if (value > maxAllowed) {
+            value = maxAllowed;
+        }
+        value = Math.round(value * 100) / 100;
+        currentInput.val(value > 0 ? value.toFixed(2) : "");
+        updateRemaining();
+    });
 
     $("#save_settlements").on("click", function () {
         if (calculateRemaining() <= 0) {
@@ -1867,7 +2243,7 @@ $(function () {
                     formData += "&total=" + encodeURIComponent($("#total_amount").text());
 
                     $.ajax({
-                        url: "save_settlements",
+                        url: "/api/save_settlements",
                         type: "POST",
                         headers: {
                             "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content")
@@ -1905,7 +2281,7 @@ $(function () {
 
     $("#view_sett_btn").on("click", function () {
         $.ajax({
-            url: "fetch_settlements",
+            url: "/api/fetch_settlements",
             type: "POST",
             headers: {
                 "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content")
@@ -1914,17 +2290,33 @@ $(function () {
                 consultationrefno: $("#sett_consultationrefno").val()
             },
             success: function (response) {
-                if (response.success) {
-                    $("#info_total").val(response.record.net_total);
-                    $("#info_cash").val(response.record.cash);
-                    $("#info_cta").val(response.record.cta);
-                    $("#info_cta_type").val(response.record.cta_type);
-                    // $("#info_cash").val(response.record.something);
-                    $("#info_hmo").val(response.record.hmo);
-                    $("#info_hmo_type").val(response.record.hmo_type);
+                if (response.success && response.record) {
+                    const r = response.record;
+                    const cardMap = { 'cc': 'Credit Card', 'dc': 'Debit Card' };
+                    const cardLabel = cardMap[r.cta_type] || r.cta_type || 'None';
+
+                    let hmoLabel = r.hmoname || r.hmo_type || r.hmocode || 'None';
+                    const hmoOption = $(`#hmo_type option[value="${r.hmocode || r.hmo_type}"]`).text();
+                    if (hmoOption && hmoOption !== '-- Select HMO --') {
+                        hmoLabel = hmoOption;
+                    }
+
+                    $("#info_total").val('PHP ' + parseFloat(r.total_gross || totalAmount).toFixed(2));
+                    $("#info_srpwd").val('PHP ' + parseFloat(r.less_srpwd || 0).toFixed(2));
+                    $("#info_srpwd_ref").val(r.srpwd_refno || 'None');
+                    $("#info_phic").val('PHP ' + parseFloat(r.less_phic || r.phic || 0).toFixed(2));
+                    $("#info_phic_icd").val(r.phic_icd_rvs || 'None');
+                    $("#info_hmo").val('PHP ' + parseFloat(r.less_hmo || r.hmo || 0).toFixed(2));
+                    $("#info_hmo_type").val(hmoLabel);
+                    $("#info_discount").val('PHP ' + parseFloat(r.less_discount || 0).toFixed(2));
+                    $("#info_discount_desc").val(r.discount_description || 'None');
+                    $("#info_net_payable").val('PHP ' + parseFloat(r.net_payable || (r.total_gross || 0)).toFixed(2));
+                    $("#info_cash").val('PHP ' + parseFloat(r.payment_cash || r.cash || 0).toFixed(2));
+                    $("#info_cta").val('PHP ' + parseFloat(r.payment_card || r.cta || 0).toFixed(2));
+                    $("#info_cta_type").val(cardLabel);
                 }
             }
-        })
+        });
     });
 
     $("#complete_consultation_btn").on("click", function () {

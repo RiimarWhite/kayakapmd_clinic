@@ -220,10 +220,10 @@ class DoctorController extends Controller
 
         $pfrate = floatval($request->input('pfrate', $request->input('consultationfee', 0)));
         $rodrate = floatval($request->input('rodrate', 0));
-        $tax = floatval($request->input('tax', 0));
+        $tax = floatval($request->input('tax', $request->input('taxpercent', $request->input('withholdingtax', 0))));
         $vatrate = floatval($request->input('vatrate', 0));
         $coacode = $request->input('coacode', '');
-        $accountno = $request->input('accountno', '');
+        $accountno = $request->input('accountno', $request->input('bankacct', ''));
         $vatable = $request->has('vatable') ? ($request->input('vatable') ? 1 : 0) : 0;
         $autoAddVAT = $request->has('autoAddVAT') ? ($request->input('autoAddVAT') ? 1 : 0) : 0;
         $issuehospOR = $request->has('issuehospOR') ? ($request->input('issuehospOR') ? 1 : 0) : 0;
@@ -241,14 +241,13 @@ class DoctorController extends Controller
             'issuehospOR' => $issuehospOR,
         ]);
 
-        // Detailed Comment: Mirror matching billing parameters on DoctorModel for unified access
+        // Detailed Comment: Mirror matching billing parameters on DoctorModel (doctorsrights table)
+        // Strictly update only columns that exist on doctorsrights (consultationfee, taxpercent, bankacct)
+        // to avoid SQLSTATE[42S22] 1054 Unknown column errors.
         DoctorModel::where('docrefno', $doctorAuth->docrefno)->update([
             'consultationfee' => $pfrate,
             'taxpercent' => $tax,
-            'withholdingtax' => $tax,
             'bankacct' => $accountno,
-            'autoAddVAT' => $autoAddVAT,
-            'issuehospOR' => $issuehospOR,
         ]);
 
         Log::info('Doctor updated default consultation fee and billing rates', [
@@ -812,7 +811,23 @@ class DoctorController extends Controller
         }
 
         $qty = (float)($request->qty ?: ($request->myquantity ?: 1));
-        $unitPrice = (float)($medicine->price_regular ?? $medicine->cost_ave ?? 0);
+
+        // Detailed Comment: Resolve medicine unit price matching patient type (PHIC, HMO, Others, Regular)
+        $classification = strtolower($consultation->classification ?? '');
+        $isPhic = $classification === 'phic' || !empty($consultation->phic_pin);
+        $isHmo = $classification === 'hmo' || !empty($consultation->hmocode);
+        $isOthers = $classification === 'others';
+
+        if ($isPhic && floatval($medicine->price_phic) > 0) {
+            $unitPrice = floatval($medicine->price_phic);
+        } elseif ($isHmo && floatval($medicine->price_hmo) > 0) {
+            $unitPrice = floatval($medicine->price_hmo);
+        } elseif ($isOthers && floatval($medicine->price_others) > 0) {
+            $unitPrice = floatval($medicine->price_others);
+        } else {
+            $unitPrice = floatval($medicine->price_regular ?? $medicine->cost_ave ?? 0);
+        }
+
         $totalAmt = $unitPrice * $qty;
         $instructions = $request->input('instructions', $request->input('myinstructions', ''));
 
@@ -1110,7 +1125,21 @@ class DoctorController extends Controller
                 continue;
             }
 
-            $unitPrice = (float)($item->price_regular ?? $item->cost_ave ?? 0);
+            // Detailed Comment: Resolve diagnostic fee based on patient type (PHIC, HMO, Others, Regular)
+            $classification = strtolower($patient->classification ?? '');
+            $isPhic = $classification === 'phic' || !empty($patient->phic_pin);
+            $isHmo = $classification === 'hmo' || !empty($patient->hmocode);
+            $isOthers = $classification === 'others';
+
+            if ($isPhic && floatval($item->price_phic) > 0) {
+                $unitPrice = floatval($item->price_phic);
+            } elseif ($isHmo && floatval($item->price_hmo) > 0) {
+                $unitPrice = floatval($item->price_hmo);
+            } elseif ($isOthers && floatval($item->price_others) > 0) {
+                $unitPrice = floatval($item->price_others);
+            } else {
+                $unitPrice = (float)($item->price_regular ?? $item->cost_ave ?? 0);
+            }
 
             StocksLedgerModel::create([
                 'transactiontype' => 'CHARGES',
@@ -1264,6 +1293,11 @@ class DoctorController extends Controller
      */
     public function fetchPatientCharges(Request $request)
     {
+        // Detailed Comment: Defensively return empty charges if consultationrefno is missing, preventing orphan queries
+        if (empty($request->consultationrefno)) {
+            return response()->json(['charges' => []]);
+        }
+
         // Detailed Comment: Auto-populate doctor consultation fee from doctor dashboard configuration if not yet present
         $consultation = ConsultationModel::where('consultationrefno', $request->consultationrefno)->first();
         if ($consultation && !empty($consultation->docrefno)) {
@@ -1278,9 +1312,16 @@ class DoctorController extends Controller
                     $isPhic = $classification === 'phic' || !empty($consultation->phic_pin);
 
                     if ($isPhic && $docProfile->phicenable && floatval($docProfile->phicrate) > 0) {
-                        $fee = floatval($docProfile->phicrate);
+                        $baseFee = floatval($docProfile->phicrate);
                     } else {
-                        $fee = floatval($docProfile->pfrate ?: ($docProfile->consultationfee ?? 0));
+                        $baseFee = floatval($docProfile->pfrate ?: ($docProfile->consultationfee ?? 0));
+                    }
+
+                    // Detailed Comment: Apply other related billing fields (Auto Add VAT based on vatrate)
+                    $fee = $baseFee;
+                    if (!empty($docProfile->autoAddVAT) && floatval($docProfile->vatrate) > 0) {
+                        $vatAmount = round($baseFee * (floatval($docProfile->vatrate) / 100), 2);
+                        $fee = $baseFee + $vatAmount;
                     }
 
                     if ($fee > 0) {
@@ -1297,8 +1338,8 @@ class DoctorController extends Controller
                             'retails' => $fee,
                             'totalamt' => $fee,
                             'item_grouping' => 'PROFESSIONAL FEE',
-                            'remarks' => 'Doctor Consultation Fee calculated from Doctor Dashboard',
-                            'updatedby' => auth()->guard('doctor')->user()->username ?? 'system',
+                            'remarks' => 'Doctor Consultation Fee calculated from Doctor Dashboard (VAT Applied: ' . (!empty($docProfile->autoAddVAT) ? 'Yes' : 'No') . ')',
+                            'updatedby' => auth()->guard('secretary')->user()->username ?? (auth()->guard('doctor')->user()->username ?? 'system'),
                             'updated' => now()
                         ]);
                     }
@@ -1310,29 +1351,76 @@ class DoctorController extends Controller
         // supplies, procedures, diagnostics, imaging, professional fees, and prescribed medicines (DRUGS AND MEDS).
         $charges = StocksLedgerModel::where('px_consultcode_cn', $request->consultationrefno)->get();
 
-        $charges->transform(function ($item) {
+        $charges->transform(function ($item) use ($consultation) {
             $qty = (float)($item->qty ?: 1);
             $total = ($item->totalamt !== null && $item->totalamt !== '') ? (float)$item->totalamt : null;
             $unitPrice = ($item->cost_ave !== null && $item->cost_ave !== '') ? (float)$item->cost_ave : null;
 
-            // If unit price or total is missing or zero, defensively look up catalog price from stocks_listing
-            if ($unitPrice === null || $total === null || $unitPrice <= 0 || $total <= 0) {
+            // Detailed Comment: Determine current price of the item based on patient type (PHIC, HMO, Others, Regular)
+            $classification = strtoupper($consultation->classification ?? 'REGULAR');
+            $isPhic = strtolower($classification) === 'phic' || !empty($consultation->phic_pin);
+            $isHmo = strtolower($classification) === 'hmo' || !empty($consultation->hmocode);
+            $isOthers = strtolower($classification) === 'others';
+
+            $tierPrice = null;
+            $regularPrice = 0;
+            $postedTier = $isPhic ? 'PHIC' : ($isHmo ? 'HMO' : ($isOthers ? 'OTHERS' : 'REGULAR'));
+
+            if ($item->prodcode === 'PF' || $item->item_grouping === 'PROFESSIONAL FEE') {
+                $item->is_pf = true;
+                $docProfile = !empty($consultation->docrefno)
+                    ? DoctorsProfileModel::where('docrefno', $consultation->docrefno)->first()
+                    : null;
+
+                $pfRate = $docProfile ? floatval($docProfile->pfrate ?: ($docProfile->consultationfee ?? 0)) : $unitPrice;
+                $rodRate = $docProfile ? floatval($docProfile->rodrate ?? 0) : 0;
+                $taxPercent = $docProfile ? floatval($docProfile->tax ?? 0) : 0;
+                $vatRate = $docProfile ? floatval($docProfile->vatrate ?? 0) : 0;
+                $vatable = $docProfile ? (!empty($docProfile->vatable) ? 1 : 0) : 0;
+                $autoAddVat = $docProfile ? (!empty($docProfile->autoAddVAT) ? 1 : 0) : 0;
+
+                $item->pf_rate = number_format($pfRate, 2, '.', '');
+                $item->rod_rate = number_format($rodRate, 2, '.', '');
+                $item->tax_percent = number_format($taxPercent, 2, '.', '');
+                $item->vat_rate = number_format($vatRate, 2, '.', '');
+                $item->vatable = $vatable;
+                $item->auto_add_vat = $autoAddVat;
+                $tierPrice = $unitPrice;
+            } else {
+                $item->is_pf = false;
                 $listing = StocksListingModel::where('prodcode', $item->prodcode)->first();
                 if ($listing) {
-                    $lookupPrice = (float)($listing->price_regular ?? $listing->cost_ave ?? 0);
-                    if ($unitPrice === null || $unitPrice <= 0) {
-                        $unitPrice = $lookupPrice;
+                    $regularPrice = floatval($listing->price_regular ?? $listing->cost_ave ?? 0);
+                    if ($isPhic && floatval($listing->price_phic) > 0) {
+                        $tierPrice = floatval($listing->price_phic);
+                    } elseif ($isHmo && floatval($listing->price_hmo) > 0) {
+                        $tierPrice = floatval($listing->price_hmo);
+                    } elseif ($isOthers && floatval($listing->price_others) > 0) {
+                        $tierPrice = floatval($listing->price_others);
+                    } else {
+                        $tierPrice = $regularPrice;
                     }
-                    if ($total === null || $total <= 0) {
-                        $total = $unitPrice * $qty;
-                    }
+                    $item->price_phic = number_format(floatval($listing->price_phic ?? 0), 2, '.', '');
+                    $item->price_hmo = number_format(floatval($listing->price_hmo ?? 0), 2, '.', '');
+                    $item->price_others = number_format(floatval($listing->price_others ?? 0), 2, '.', '');
                 } else {
-                    $unitPrice = $unitPrice ?: 0;
-                    $total = $total ?: 0;
+                    $regularPrice = $unitPrice ?: 0;
+                    $tierPrice = $unitPrice;
                 }
+                $item->regular_price = number_format($regularPrice, 2, '.', '');
+                $item->posted_tier = $postedTier;
+                $item->posted_tier_price = number_format($tierPrice ?? $unitPrice, 2, '.', '');
+            }
+
+            // If unit price or total is missing or zero, defensively look up catalog price from stocks_listing
+            if ($unitPrice === null || $total === null || $unitPrice <= 0 || $total <= 0) {
+                $unitPrice = $tierPrice ?? ($unitPrice ?: 0);
+                $total = $unitPrice * $qty;
             }
 
             $item->cost_ave = number_format($unitPrice, 2, '.', '');
+            $item->sellingprice = number_format($unitPrice, 2, '.', '');
+            $item->current_price = number_format($tierPrice ?? $unitPrice, 2, '.', '');
             $item->totalamt = number_format($total, 2, '.', '');
 
             return $item;

@@ -43,8 +43,8 @@
         </div>
     </div>
 
-    <!-- Detailed Comment: Modal for creating new Consultation Settlement Record -->
-    <div class="modal fade" id="add_settlement_modal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="addStlModalLabel" aria-hidden="true">
+    <!-- Detailed Comment: Modal for creating new Consultation Settlement Record (tabindex removed to prevent focus-trap issues with Select2 dropdown search) -->
+    <div class="modal fade" id="add_settlement_modal" data-bs-backdrop="static" aria-labelledby="addStlModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
@@ -101,22 +101,48 @@
 
                         <!-- Deductions & Coverage -->
                         <h6 class="fw-bold text-danger border-bottom pb-1 mb-2"><i class="fa-solid fa-tags me-1"></i> Deductions &amp; Coverage</h6>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="add_stl_less_srpwd">Senior / PWD Discount (₱)</label>
+                                <input type="number" class="form-control form-control-sm text-end calc-stl-add" name="less_srpwd" id="add_stl_less_srpwd" value="0.00" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="add_stl_srpwd_refno">Senior / PWD Ref #</label>
+                                <input type="text" class="form-control form-control-sm" name="srpwd_refno" id="add_stl_srpwd_refno" placeholder="Senior / PWD ID">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="add_stl_less_phic">Less PhilHealth (₱)</label>
+                                <input type="number" class="form-control form-control-sm text-end calc-stl-add" name="less_phic" id="add_stl_less_phic" value="0.00" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="add_stl_phic_icd_rvs">PHIC ICD / RVS</label>
+                                <input type="text" class="form-control form-control-sm" name="phic_icd_rvs" id="add_stl_phic_icd_rvs" placeholder="ICD-10 / RVS Code">
+                            </div>
+                        </div>
                         <div class="row g-2 mb-3">
-                            <div class="col-md-3">
-                                <label class="form-label small fw-bold" for="add_stl_less_vat">Less VAT (₱)</label>
-                                <input type="number" class="form-control form-control-sm text-end calc-stl-add" name="less_vat" id="add_stl_less_vat" value="0.00" min="0" step="0.01">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label small fw-bold" for="add_stl_less_discount">Senior / PWD / Promo Discount (₱)</label>
-                                <input type="number" class="form-control form-control-sm text-end calc-stl-add" name="less_discount" id="add_stl_less_discount" value="0.00" min="0" step="0.01">
-                            </div>
                             <div class="col-md-3">
                                 <label class="form-label small fw-bold" for="add_stl_less_hmo">Less HMO Covered (₱)</label>
                                 <input type="number" class="form-control form-control-sm text-end calc-stl-add" name="less_hmo" id="add_stl_less_hmo" value="0.00" min="0" step="0.01">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label small fw-bold" for="add_stl_less_phic">Less PhilHealth / Govt (₱)</label>
-                                <input type="number" class="form-control form-control-sm text-end calc-stl-add" name="less_phic" id="add_stl_less_phic" value="0.00" min="0" step="0.01">
+                                <label class="form-label small fw-bold" for="add_stl_hmo_type">HMO Provider</label>
+                                @php
+                                    $adminHmoMasterlist = \App\Models\HMOModel::whereNotNull('hmoname')->where('hmoname', '!=', '')->orderBy('hmoname', 'ASC')->get();
+                                @endphp
+                                <select class="form-select form-select-sm w-100" name="hmo_type" id="add_stl_hmo_type">
+                                    <option value="" selected disabled>-- Select HMO --</option>
+                                    @foreach($adminHmoMasterlist as $hmoItem)
+                                        <option value="{{ $hmoItem->hmocode }}">{{ $hmoItem->hmoname }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="add_stl_less_discount">Other Discount (₱)</label>
+                                <input type="number" class="form-control form-control-sm text-end calc-stl-add" name="less_discount" id="add_stl_less_discount" value="0.00" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="add_stl_discount_description">Discount Description</label>
+                                <input type="text" class="form-control form-control-sm" name="discount_description" id="add_stl_discount_description" placeholder="Description / note">
                             </div>
                         </div>
 
@@ -160,8 +186,8 @@
         </div>
     </div>
 
-    <!-- Detailed Comment: Modal for editing existing Consultation Settlement Record -->
-    <div class="modal fade" id="edit_settlement_modal" data-bs-backdrop="static" tabindex="-1" aria-labelledby="editStlModalLabel" aria-hidden="true">
+    <!-- Detailed Comment: Modal for editing existing Consultation Settlement Record (tabindex removed to prevent focus-trap issues with Select2 dropdown search) -->
+    <div class="modal fade" id="edit_settlement_modal" data-bs-backdrop="static" aria-labelledby="editStlModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
@@ -207,22 +233,45 @@
 
                         <!-- Deductions & Coverage -->
                         <h6 class="fw-bold text-danger border-bottom pb-1 mb-2"><i class="fa-solid fa-tags me-1"></i> Deductions &amp; Coverage</h6>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="edit_stl_less_srpwd">Senior / PWD Discount (₱)</label>
+                                <input type="number" class="form-control form-control-sm text-end calc-stl-edit" name="less_srpwd" id="edit_stl_less_srpwd" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="edit_stl_srpwd_refno">Senior / PWD Ref #</label>
+                                <input type="text" class="form-control form-control-sm" name="srpwd_refno" id="edit_stl_srpwd_refno" placeholder="Senior / PWD ID">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="edit_stl_less_phic">Less PhilHealth (₱)</label>
+                                <input type="number" class="form-control form-control-sm text-end calc-stl-edit" name="less_phic" id="edit_stl_less_phic" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="edit_stl_phic_icd_rvs">PHIC ICD / RVS</label>
+                                <input type="text" class="form-control form-control-sm" name="phic_icd_rvs" id="edit_stl_phic_icd_rvs" placeholder="ICD-10 / RVS Code">
+                            </div>
+                        </div>
                         <div class="row g-2 mb-3">
-                            <div class="col-md-3">
-                                <label class="form-label small fw-bold" for="edit_stl_less_vat">Less VAT (₱)</label>
-                                <input type="number" class="form-control form-control-sm text-end calc-stl-edit" name="less_vat" id="edit_stl_less_vat" min="0" step="0.01">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label small fw-bold" for="edit_stl_less_discount">Senior / PWD / Promo Discount (₱)</label>
-                                <input type="number" class="form-control form-control-sm text-end calc-stl-edit" name="less_discount" id="edit_stl_less_discount" min="0" step="0.01">
-                            </div>
                             <div class="col-md-3">
                                 <label class="form-label small fw-bold" for="edit_stl_less_hmo">Less HMO Covered (₱)</label>
                                 <input type="number" class="form-control form-control-sm text-end calc-stl-edit" name="less_hmo" id="edit_stl_less_hmo" min="0" step="0.01">
                             </div>
                             <div class="col-md-3">
-                                <label class="form-label small fw-bold" for="edit_stl_less_phic">Less PhilHealth / Govt (₱)</label>
-                                <input type="number" class="form-control form-control-sm text-end calc-stl-edit" name="less_phic" id="edit_stl_less_phic" min="0" step="0.01">
+                                <label class="form-label small fw-bold" for="edit_stl_hmo_type">HMO Provider</label>
+                                <select class="form-select form-select-sm w-100" name="hmo_type" id="edit_stl_hmo_type">
+                                    <option value="" selected disabled>-- Select HMO --</option>
+                                    @foreach($adminHmoMasterlist as $hmoItem)
+                                        <option value="{{ $hmoItem->hmocode }}">{{ $hmoItem->hmoname }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="edit_stl_less_discount">Other Discount (₱)</label>
+                                <input type="number" class="form-control form-control-sm text-end calc-stl-edit" name="less_discount" id="edit_stl_less_discount" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold" for="edit_stl_discount_description">Discount Description</label>
+                                <input type="text" class="form-control form-control-sm" name="discount_description" id="edit_stl_discount_description" placeholder="Description / note">
                             </div>
                         </div>
 

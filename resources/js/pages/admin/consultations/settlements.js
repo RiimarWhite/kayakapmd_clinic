@@ -41,13 +41,13 @@ $(function () {
         const lab = parseFloat($("#add_stl_lab").val()) || 0;
         const others = parseFloat($("#add_stl_others").val()) || 0;
 
-        const vat = parseFloat($("#add_stl_less_vat").val()) || 0;
+        const srpwd = parseFloat($("#add_stl_less_srpwd").val()) || 0;
         const discount = parseFloat($("#add_stl_less_discount").val()) || 0;
         const hmo = parseFloat($("#add_stl_less_hmo").val()) || 0;
         const phic = parseFloat($("#add_stl_less_phic").val()) || 0;
 
         const gross = pf + meds + lab + others;
-        const deductions = vat + discount + hmo + phic;
+        const deductions = srpwd + discount + hmo + phic;
         const netPayable = Math.max(0, gross - deductions);
 
         $("#add_stl_total_gross").val(gross.toFixed(2));
@@ -63,13 +63,13 @@ $(function () {
         const lab = parseFloat($("#edit_stl_lab").val()) || 0;
         const others = parseFloat($("#edit_stl_others").val()) || 0;
 
-        const vat = parseFloat($("#edit_stl_less_vat").val()) || 0;
+        const srpwd = parseFloat($("#edit_stl_less_srpwd").val()) || 0;
         const discount = parseFloat($("#edit_stl_less_discount").val()) || 0;
         const hmo = parseFloat($("#edit_stl_less_hmo").val()) || 0;
         const phic = parseFloat($("#edit_stl_less_phic").val()) || 0;
 
         const gross = pf + meds + lab + others;
-        const deductions = vat + discount + hmo + phic;
+        const deductions = srpwd + discount + hmo + phic;
         const netPayable = Math.max(0, gross - deductions);
 
         $("#edit_stl_total_gross").val(gross.toFixed(2));
@@ -144,10 +144,14 @@ $(function () {
                                     data-lab="${data.total_lab || 0}"
                                     data-others="${data.total_others || 0}"
                                     data-gross="${data.total_gross || 0}"
-                                    data-vat="${data.less_vat || 0}"
+                                    data-srpwd="${data.less_srpwd || 0}"
+                                    data-srpwdref="${data.srpwd_refno || ''}"
                                     data-discount="${data.less_discount || 0}"
+                                    data-discdesc="${data.discount_description || ''}"
                                     data-hmo="${data.less_hmo || 0}"
+                                    data-hmotype="${data.hmo_type || data.hmocode || ''}"
                                     data-phic="${data.less_phic || 0}"
+                                    data-phicrvs="${data.phic_icd_rvs || ''}"
                                     data-payable="${data.net_payable || 0}"
                                     data-cash="${data.payment_cash || 0}"
                                     data-card="${data.payment_card || 0}"
@@ -247,11 +251,46 @@ $(function () {
         initTableColumnFilters(settlementsTable, '#settlements_table');
     }
 
-    // Detailed Comment: Open Add Settlement Modal
+    // Detailed Comment: Re-adjust Select2 width and attach to modal container upon add modal being fully shown
+    $("#add_settlement_modal").on("shown.bs.modal", function () {
+        if (!$("#add_stl_hmo_type").hasClass("select2-hidden-accessible")) {
+            $("#add_stl_hmo_type").select2({
+                dropdownParent: $("#add_settlement_modal"),
+                width: "100%",
+                placeholder: "-- Select HMO --",
+                allowClear: true
+            });
+        }
+    });
+
+    // Detailed Comment: Re-adjust Select2 width and attach to modal container upon edit modal being fully shown
+    $("#edit_settlement_modal").on("shown.bs.modal", function () {
+        if (!$("#edit_stl_hmo_type").hasClass("select2-hidden-accessible")) {
+            $("#edit_stl_hmo_type").select2({
+                dropdownParent: $("#edit_settlement_modal"),
+                width: "100%",
+                placeholder: "-- Select HMO --",
+                allowClear: true
+            });
+        }
+    });
+
+    // Detailed Comment: Open Add Settlement Modal with searchable HMO Select2
     $("#btn_open_add_settlement").on("click", function () {
         $("#add_settlement_form")[0].reset();
         calcAddTotals();
         loadActiveConsultations();
+
+        if (!$("#add_stl_hmo_type").hasClass("select2-hidden-accessible")) {
+            $("#add_stl_hmo_type").select2({
+                dropdownParent: $("#add_settlement_modal"),
+                width: "100%",
+                placeholder: "-- Select HMO --",
+                allowClear: true
+            });
+        }
+        $("#add_stl_hmo_type").val("").trigger("change");
+
         new bootstrap.Modal("#add_settlement_modal").show();
     });
 
@@ -287,7 +326,7 @@ $(function () {
         });
     });
 
-    // Detailed Comment: Open Edit Settlement Modal
+    // Detailed Comment: Open Edit Settlement Modal with searchable HMO Select2
     $(document).on("click", ".edit-stl-btn", function () {
         const $this = $(this);
         $("#edit_stl_consultationrefno").val($this.data("ref"));
@@ -297,10 +336,31 @@ $(function () {
         $("#edit_stl_lab").val($this.data("lab"));
         $("#edit_stl_others").val($this.data("others"));
         $("#edit_stl_total_gross").val($this.data("gross"));
-        $("#edit_stl_less_vat").val($this.data("vat"));
+        $("#edit_stl_less_srpwd").val($this.data("srpwd"));
+        $("#edit_stl_srpwd_refno").val($this.data("srpwdref"));
         $("#edit_stl_less_discount").val($this.data("discount"));
+        $("#edit_stl_discount_description").val($this.data("discdesc"));
         $("#edit_stl_less_hmo").val($this.data("hmo"));
+
+        if (!$("#edit_stl_hmo_type").hasClass("select2-hidden-accessible")) {
+            $("#edit_stl_hmo_type").select2({
+                dropdownParent: $("#edit_settlement_modal"),
+                width: "100%",
+                placeholder: "-- Select HMO --",
+                allowClear: true
+            });
+        }
+        const hmoVal = $this.data("hmotype");
+        $("#edit_stl_hmo_type").val(hmoVal).trigger("change");
+        if (hmoVal && !$("#edit_stl_hmo_type").val()) {
+            $("#edit_stl_hmo_type option").each(function () {
+                if ($(this).text().trim().toLowerCase() === String(hmoVal).trim().toLowerCase()) {
+                    $("#edit_stl_hmo_type").val($(this).val()).trigger("change");
+                }
+            });
+        }
         $("#edit_stl_less_phic").val($this.data("phic"));
+        $("#edit_stl_phic_icd_rvs").val($this.data("phicrvs"));
         $("#edit_stl_net_payable").val($this.data("payable"));
         $("#edit_stl_payment_cash").val($this.data("cash"));
         $("#edit_stl_payment_card").val($this.data("card"));

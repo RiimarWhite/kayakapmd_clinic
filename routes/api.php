@@ -144,7 +144,9 @@ Route::middleware(['web', 'auth:secretary,doctor,admin'])->group(function () {
     Route::post('fetch_all_charges', [ManagementController::class, 'fetchAllCharges']);
     Route::post('fetch_charge_payments', [ManagementController::class, 'fetchChargePrice']);
 
+    // Detailed Comment: Consultation charges endpoints accessible across secretary, doctor, and admin consoles
     Route::post('fetch_patient_charges', [DoctorController::class, 'fetchPatientCharges'])->name('doctor.fetch_patient_charges');
+    Route::post('fetch_pxcharges', [DoctorController::class, 'fetchPatientCharges'])->name('secretary.fetch_pxcharges');
     Route::post('save_patient_charges', [DoctorController::class, 'saveAppendedCharges'])->name('doctor.save_appended_charges');
 
     Route::post('delete_patient_charge', [DoctorController::class, 'deleteCharge'])->name('doctor.delete_charge');

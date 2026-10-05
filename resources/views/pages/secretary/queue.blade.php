@@ -548,10 +548,11 @@
                                                     <caption>Charges for current consultation</caption>
                                                     <thead class="table-warning">
                                                         <tr>
-                                                            <th scope="col" style="width: 15%;">Actions</th>
+                                                            <th scope="col" style="width: 10%;" class="text-center">Actions</th>
                                                             <th scope="col">Description</th>
-                                                            <th scope="col" style="width: 15%;">Quantity</th>
-                                                            <th scope="col" style="width: 20%;">Amount</th>
+                                                            <th scope="col" style="width: 10%;" class="text-center">Quantity</th>
+                                                            <th scope="col" style="width: 15%;" class="text-end">Unit Price</th>
+                                                            <th scope="col" style="width: 15%;" class="text-end">Amount</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody></tbody>
@@ -564,8 +565,9 @@
                                                     <small class="text-muted" id="pay_tab_soaref_wrap">SOA / Trans No: <span id="pay_tab_soaref" class="fw-semibold">--</span></small>
                                                 </div>
                                                 <div class="d-flex gap-2">
+                                                    {{-- Detailed Comment: Target updated modal ID settlement_modal --}}
                                                     <button type="button" class="btn btn-primary" data-bs-toggle="modal"
-                                                        data-bs-target="#settlementModal" id="settlement_btn">
+                                                        data-bs-target="#settlement_modal" id="settlement_btn">
                                                         <i class="fa-solid fa-credit-card me-1"></i> Settlements
                                                     </button>
                                                 </div>

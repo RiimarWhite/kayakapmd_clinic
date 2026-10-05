@@ -8,6 +8,10 @@ class DoctorsProfileModel extends Model
 {
     protected $table = 'doctors';
 
+    protected $primaryKey = 'docrefno';
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
         'doccode',
         'docrefno',
@@ -49,6 +53,7 @@ class DoctorsProfileModel extends Model
         'profgroup',
         'autoAddVAT',
         'VAT',
+        'vatrate',
         'allowtextresult',
         'allowdocsystem',
         'phicexpiry',
@@ -90,5 +95,16 @@ class DoctorsProfileModel extends Model
     public function doctorrights()
     {
         return $this->hasOne(DoctorModel::class, 'docrefno', 'docrefno');
+    }
+
+    /**
+     * Detailed Comment: Accessor providing backwards and forwards compatibility between
+     * 'consultationfee' (from doctorsrights / DoctorModel) and 'pfrate' (from doctors / DoctorsProfileModel).
+     */
+    public function getConsultationfeeAttribute(): ?float
+    {
+        return isset($this->attributes['consultationfee'])
+            ? (float)$this->attributes['consultationfee']
+            : (isset($this->attributes['pfrate']) ? (float)$this->attributes['pfrate'] : 0.0);
     }
 }

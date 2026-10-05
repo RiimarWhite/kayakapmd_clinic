@@ -807,9 +807,31 @@ class SecretaryController extends Controller
 
         $computedGross = (float) $charges->sum('totalamt');
         $totalGross = $computedGross > 0 ? $computedGross : (float) ($request->total ?? 0);
+        // Detailed Comment: Extract deductions including Senior/PWD, PHIC, HMO, and custom discounts
+        $lessSrpwd = (float) ($request->less_srpwd ?: 0);
+        $srpwdRefNo = $request->srpwd_refno ?: null;
         $lessPhic = (float) ($request->phic ?: ($request->less_phic ?: 0));
+        $phicIcdRvs = $request->phic_icd_rvs ?: null;
         $lessHmo = (float) ($request->hmo ?: ($request->less_hmo ?: 0));
-        $netPayable = max(0, $totalGross - $lessPhic - $lessHmo);
+        $lessDiscount = (float) ($request->less_discount ?: ($request->discount ?: 0));
+        $discountDescription = $request->discount_description ?: null;
+        
+        // Detailed Comment: Compute net payable after all Senior/PWD, PhilHealth, HMO, and special discounts
+        $netPayable = max(0, $totalGross - $lessSrpwd - $lessPhic - $lessHmo - $lessDiscount);
+
+        // Detailed Comment: Resolve HMO code and name from authoritative HMO table "hmo_masterlist"
+        $hmoInput = $request->hmo_type;
+        $hmoCode = $hmoInput;
+        $hmoName = null;
+        if (!empty($hmoInput)) {
+            $hmoRecord = HMOModel::where('hmocode', $hmoInput)->orWhere('hmoname', $hmoInput)->first();
+            if ($hmoRecord) {
+                $hmoCode = $hmoRecord->hmocode;
+                $hmoName = $hmoRecord->hmoname;
+            } else {
+                $hmoName = $hmoInput;
+            }
+        }
 
         $record = SettlementsModel::updateOrCreate([
             'consultationrefno' => $request->sett_consultationrefno
@@ -827,10 +849,16 @@ class SecretaryController extends Controller
             'total_vaccines' => $totalVaccines,
             'total_immunizations' => $totalImmunizations,
             'total_others' => $totalOthers,
+            'less_srpwd' => $lessSrpwd,
+            'srpwd_refno' => $srpwdRefNo,
             'less_phic' => $lessPhic,
+            'phic_icd_rvs' => $phicIcdRvs,
             'less_hmo' => $lessHmo,
-            'hmo_type' => $request->hmo_type,
-            'hmocode' => $request->hmo_type,
+            'hmo_type' => $hmoName ?: $hmoCode,
+            'hmocode' => $hmoCode,
+            'hmoname' => $hmoName ?: $hmoCode,
+            'less_discount' => $lessDiscount,
+            'discount_description' => $discountDescription,
             'payment_cash' => (float) ($request->cash ?: 0),
             'payment_card' => (float) ($request->cta ?: 0),
             'cta_type' => $request->cta_type ?? $request->card_type,
@@ -846,12 +874,19 @@ class SecretaryController extends Controller
         }
 
         if ($record) {
-            // Detailed Comment: Log patient billing settlement save
+            // Detailed Comment: Log patient billing settlement save with complete discount audit trail
             Log::info('Consultation settlement saved', [
                 'consultationrefno' => $request->sett_consultationrefno,
                 'total_gross' => $totalGross,
+                'less_srpwd' => $lessSrpwd,
+                'srpwd_refno' => $srpwdRefNo,
                 'less_phic' => $lessPhic,
+                'phic_icd_rvs' => $phicIcdRvs,
                 'less_hmo' => $lessHmo,
+                'hmocode' => $hmoCode,
+                'hmoname' => $hmoName,
+                'less_discount' => $lessDiscount,
+                'discount_description' => $discountDescription,
                 'net_payable' => $netPayable,
                 'transactionrefno' => $record->transactionrefno,
                 'recorded_by' => auth()->guard('secretary')->check()
@@ -866,9 +901,10 @@ class SecretaryController extends Controller
     }
 
     /**
-     * Detailed Comment: Fetches available HMO entities for the queue settlement modal.
-     * Queries by dw_clientcode with fallback to application configuration and all active
-     * HMO records with non-empty names, ensuring the HMO selection dropdown is always populated.
+     * Detailed Comment: Fetches available HMO entities from the authoritative "hmo_masterlist" table
+     * for the queue settlement modal and secretary consultation consoles.
+     * Selects hmocode and hmoname, filters out null or empty names, and orders alphabetically by hmoname.
+     * Evaluates clientcode with fallback to session/config and global HMO records.
      */
     public function fetchHmo()
     {
@@ -876,10 +912,15 @@ class SecretaryController extends Controller
 
         $query = HMOModel::select(['hmocode', 'hmoname'])
             ->whereNotNull('hmoname')
-            ->where('hmoname', '!=', '');
+            ->where('hmoname', '!=', '')
+            ->orderBy('hmoname', 'ASC');
 
         if ($clientCode) {
-            $hmo = (clone $query)->where('dw_clientcode', $clientCode)->get();
+            $hmo = (clone $query)->where(function ($q) use ($clientCode) {
+                $q->where('dw_clientcode', $clientCode)
+                  ->orWhereNull('dw_clientcode')
+                  ->orWhere('dw_clientcode', '');
+            })->get();
             if ($hmo->isNotEmpty()) {
                 return response()->json(['hmo' => $hmo]);
             }

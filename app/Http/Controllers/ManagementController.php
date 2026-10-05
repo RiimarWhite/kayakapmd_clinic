@@ -3366,10 +3366,28 @@ class ManagementController extends Controller
         ]);
 
         $gross = (float) $request->total_gross;
-        $lessPhic = (float) ($request->less_phic ?? 0);
-        $lessHmo = (float) ($request->less_hmo ?? 0);
-        $netPayable = max(0, $gross - $lessPhic - $lessHmo);
+        // Detailed Comment: Extract deduction fields including Senior/PWD, PHIC with ICD/RVS, HMO, and special discounts
+        $lessSrpwd = (float) ($request->less_srpwd ?? 0);
+        $srpwdRefNo = $request->srpwd_refno ?? null;
+        $lessPhic = (float) ($request->less_phic ?? $request->phic ?? 0);
+        $phicIcdRvs = $request->phic_icd_rvs ?? null;
+        $lessHmo = (float) ($request->less_hmo ?? $request->hmo ?? 0);
+        $lessDiscount = (float) ($request->less_discount ?? $request->discount ?? 0);
+        $discountDescription = $request->discount_description ?? null;
+        $netPayable = max(0, $gross - $lessSrpwd - $lessPhic - $lessHmo - $lessDiscount);
         $trxRef = $request->transactionrefno ?: ('TRX' . Date::now()->format('mdYHis'));
+
+        // Detailed Comment: Resolve HMO code and name from authoritative HMO table "hmo_masterlist"
+        $hmoInput = $request->hmo_type ?? $request->hmocode ?? null;
+        $hmoCode = $hmoInput ?? '';
+        $hmoName = $request->hmoname ?? '';
+        if (!empty($hmoInput)) {
+            $hmoRecord = HMOModel::where('hmocode', $hmoInput)->orWhere('hmoname', $hmoInput)->first();
+            if ($hmoRecord) {
+                $hmoCode = $hmoRecord->hmocode;
+                $hmoName = !empty($request->hmoname) ? $request->hmoname : $hmoRecord->hmoname;
+            }
+        }
 
         $settlement = SettlementsModel::updateOrCreate(
             ['consultationrefno' => $request->consultationrefno],
@@ -3379,15 +3397,20 @@ class ManagementController extends Controller
                 'docrefno' => $request->docrefno ?? '',
                 'docname' => $request->docname ?? '',
                 'total_gross' => $gross,
+                'less_srpwd' => $lessSrpwd,
+                'srpwd_refno' => $srpwdRefNo,
                 'less_phic' => $lessPhic,
+                'phic_icd_rvs' => $phicIcdRvs,
                 'less_hmo' => $lessHmo,
+                'less_discount' => $lessDiscount,
+                'discount_description' => $discountDescription,
                 'net_payable' => $netPayable,
                 'payment_cash' => (float) ($request->payment_cash ?? 0),
                 'payment_card' => (float) ($request->payment_card ?? 0),
                 'cta_type' => $request->cta_type ?? '',
-                'hmocode' => $request->hmocode ?? $request->hmo_type ?? '',
-                'hmoname' => $request->hmoname ?? '',
-                'hmo_type' => $request->hmo_type ?? '',
+                'hmocode' => $hmoCode,
+                'hmoname' => $hmoName,
+                'hmo_type' => $hmoName ?: $hmoCode,
                 'created' => Carbon::now(),
                 'createdby' => auth()->guard('admin')->user()->name ?? 'Admin',
             ]
@@ -3396,6 +3419,12 @@ class ManagementController extends Controller
         Log::info('Admin created consultation settlement', [
             'consultationrefno' => $request->consultationrefno,
             'transactionrefno' => $trxRef,
+            'less_srpwd' => $lessSrpwd,
+            'less_phic' => $lessPhic,
+            'less_hmo' => $lessHmo,
+            'hmocode' => $hmoCode,
+            'hmoname' => $hmoName,
+            'less_discount' => $lessDiscount,
             'net_payable' => $netPayable
         ]);
 
@@ -3422,22 +3451,49 @@ class ManagementController extends Controller
         }
 
         $gross = (float) ($request->total_gross ?? $settlement->total_gross);
-        $lessPhic = (float) ($request->less_phic ?? $settlement->less_phic);
-        $lessHmo = (float) ($request->less_hmo ?? $settlement->less_hmo);
-        $netPayable = max(0, $gross - $lessPhic - $lessHmo);
+        // Detailed Comment: Support updating deductions and discounts from admin edit modal
+        $lessSrpwd = (float) ($request->less_srpwd ?? $settlement->less_srpwd ?? 0);
+        $srpwdRefNo = $request->has('srpwd_refno') ? $request->srpwd_refno : $settlement->srpwd_refno;
+        $lessPhic = (float) ($request->less_phic ?? $settlement->less_phic ?? 0);
+        $phicIcdRvs = $request->has('phic_icd_rvs') ? $request->phic_icd_rvs : $settlement->phic_icd_rvs;
+        $lessHmo = (float) ($request->less_hmo ?? $settlement->less_hmo ?? 0);
+        $lessDiscount = (float) ($request->less_discount ?? $settlement->less_discount ?? 0);
+        $discountDescription = $request->has('discount_description') ? $request->discount_description : $settlement->discount_description;
+        $netPayable = max(0, $gross - $lessSrpwd - $lessPhic - $lessHmo - $lessDiscount);
+
+        // Detailed Comment: Resolve HMO code and name from authoritative HMO table "hmo_masterlist"
+        $hmoInput = $request->hmo_type ?? $request->hmocode ?? $settlement->hmo_type ?? $settlement->hmocode;
+        $hmoCode = $settlement->hmocode ?? '';
+        $hmoName = $request->hmoname ?? $settlement->hmoname ?? '';
+        if (!empty($hmoInput)) {
+            $hmoRecord = HMOModel::where('hmocode', $hmoInput)->orWhere('hmoname', $hmoInput)->first();
+            if ($hmoRecord) {
+                $hmoCode = $hmoRecord->hmocode;
+                $hmoName = !empty($request->hmoname) ? $request->hmoname : $hmoRecord->hmoname;
+            } else {
+                $hmoCode = $hmoInput;
+                $hmoName = $hmoName ?: $hmoInput;
+            }
+        }
 
         $settlement->update([
             'pincode' => $request->pincode ?? $settlement->pincode,
             'docname' => $request->docname ?? $settlement->docname,
             'total_gross' => $gross,
+            'less_srpwd' => $lessSrpwd,
+            'srpwd_refno' => $srpwdRefNo,
             'less_phic' => $lessPhic,
+            'phic_icd_rvs' => $phicIcdRvs,
             'less_hmo' => $lessHmo,
+            'less_discount' => $lessDiscount,
+            'discount_description' => $discountDescription,
             'net_payable' => $netPayable,
             'payment_cash' => (float) ($request->payment_cash ?? $settlement->payment_cash),
             'payment_card' => (float) ($request->payment_card ?? $settlement->payment_card),
             'cta_type' => $request->cta_type ?? $settlement->cta_type,
-            'hmoname' => $request->hmoname ?? $settlement->hmoname,
-            'hmo_type' => $request->hmo_type ?? $settlement->hmo_type,
+            'hmocode' => $hmoCode,
+            'hmoname' => $hmoName,
+            'hmo_type' => $hmoName ?: $hmoCode,
         ]);
 
         Log::info('Admin updated settlement', ['consultationrefno' => $settlement->consultationrefno]);

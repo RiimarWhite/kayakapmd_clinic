@@ -129,7 +129,7 @@ $(function () {
                             $(this).data("orig-text", origText);
                         }
                         const count = response.counts[docref] || 0;
-                        $(this).text(`${origText} (${count} queued)`);
+                        $(this).text(`${origText} ${count > 0 ? `(${count} queued)` : ''}`);
                     });
                 }
             }
@@ -267,7 +267,7 @@ $(function () {
                 data: { consuldate: $("#queuedate").val(), consultime: $("#stime").val(), docrefno: $("#doctor_id").val() }
             },
             columns: [
-                { 
+                {
                     data: "queueno",
                     render: function (data, type, row) {
                         return `
@@ -278,8 +278,9 @@ $(function () {
                         `;
                     }
                 },
-                { data: null, render: function (data) {
-                    return `
+                {
+                    data: null, render: function (data) {
+                        return `
                         <div class="d-flex gap-1 justify-content-center align-items-center">
                             <!-- Show Info button: preserves .import-queue class and existing behavior with eye icon -->
                             <button class="btn btn-sm btn-primary import-queue" value="${data.pxrefno || ''}" data-pxrefno="${data.pxrefno || ''}" data-consultationrefno="${data.consultationrefno || ''}" title="Show Info"><i class="fa-solid fa-eye"></i></button>
@@ -309,12 +310,15 @@ $(function () {
                                 </ul>
                             </div>
                         </div>`;
-                }},
+                    }
+                },
                 { data: "patientname" },
-                { data: "status", render: function (data) {
-                    const badges = { WAITING: "bg-warning text-white fs-6", IN_CONSULTATION: "bg-info text-white fs-6", FOR_BILLING: "bg-primary text-white fs-6", COMPLETED: "bg-success fs-6", UNSCHEDULED: "bg-primary fs-6", CANCELLED: "bg-danger fs-6", NO_SHOW: "bg-danger fs-6" };
-                    return `<span class="badge ${badges[data] || 'bg-secondary fs-6'}">${data}</span>`;
-                }}
+                {
+                    data: "status", render: function (data) {
+                        const badges = { WAITING: "bg-warning text-white fs-6", IN_CONSULTATION: "bg-info text-white fs-6", FOR_BILLING: "bg-primary text-white fs-6", COMPLETED: "bg-success fs-6", UNSCHEDULED: "bg-primary fs-6", CANCELLED: "bg-danger fs-6", NO_SHOW: "bg-danger fs-6" };
+                        return `<span class="badge ${badges[data] || 'bg-secondary fs-6'}">${data}</span>`;
+                    }
+                }
             ],
             columnDefs: [
                 { target: 0, width: "1%", orderable: false, searchable: false, className: "text-nowrap text-center align-middle fw-bold" },
@@ -428,10 +432,12 @@ $(function () {
             columns: [
                 { data: null, render: function (data) { return `<button class="btn btn-sm btn-primary import-queue" value="${data.pxrefno}" data-consultationrefno="${data.consultationrefno || ''}" title="Show Info"><i class="fa-solid fa-eye"></i></button>`; } },
                 { data: "patientname" },
-                { data: "status", render: function (data) {
-                    const badges = { WAITING: "bg-warning text-white fs-6", IN_CONSULTATION: "bg-info text-white fs-6", FOR_BILLING: "bg-primary text-white fs-6", COMPLETED: "bg-success fs-6", UNSCHEDULED: "bg-primary fs-6", CANCELLED: "bg-danger fs-6", NO_SHOW: "bg-danger fs-6" };
-                    return `<span class="badge ${badges[data] || 'bg-secondary fs-6'}">${data}</span>`;
-                }}
+                {
+                    data: "status", render: function (data) {
+                        const badges = { WAITING: "bg-warning text-white fs-6", IN_CONSULTATION: "bg-info text-white fs-6", FOR_BILLING: "bg-primary text-white fs-6", COMPLETED: "bg-success fs-6", UNSCHEDULED: "bg-primary fs-6", CANCELLED: "bg-danger fs-6", NO_SHOW: "bg-danger fs-6" };
+                        return `<span class="badge ${badges[data] || 'bg-secondary fs-6'}">${data}</span>`;
+                    }
+                }
             ],
             columnDefs: [
                 { targets: [0, 2], width: "1%", orderable: false, searchable: false, className: "text-nowrap text-center align-middle" },
@@ -516,12 +522,12 @@ $(function () {
         loadSchedules(2);
         updateDoctorQueueBadges();
     });
-    $("#stime").on("change", function () { 
+    $("#stime").on("change", function () {
         // Detailed Comment: Match the schedule time set with the selected consultation schedule
         if ($("#stime").val()) {
             $("#sched_time").val($("#stime").val());
         }
-        loadPatientTable(); 
+        loadPatientTable();
     });
     $("#sched_date").on("change", function () { loadSchedules(2); });
     $("#resched_date").on("change", function () { loadSchedules(3); });
@@ -1111,15 +1117,14 @@ $(function () {
     });
 
     // Patient charges
-    $("#patient_charges_btn").on("click", function () { loadPatientCharges(); });
-
     /**
      * Detailed Comment: Load and display patient charges for the selected consultation.
-     * Safely checks and destroys any existing DataTable instance before re-initializing.
+     * Safely reloads existing DataTable instance or initializes it cleanly.
+     * Accurately renders 5 columns: Actions, Description, Quantity, Unit Price, Amount.
      * Handles missing consultation reference gracefully by resetting total to 0.00 and clearing records.
      */
     function loadPatientCharges() {
-        const refno = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
+        const refno = String($("#hidden_consultationrefno").val() || $("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
         const consulDate = $("#sched_date").val() || $("#queuedate").val() || todayStr;
         $("#pay_tab_consultdate_badge").text(`Date: ${consulDate}`);
         $("#pay_tab_consultref_badge").text(`Ref: ${refno || 'None'}`);
@@ -1137,12 +1142,23 @@ $(function () {
             .text(`Type: ${currentPatientType}`)
             .attr('class', `badge ${badgeClass} fs-6`);
 
-        // Detailed Comment: Safely destroy existing DataTable instance in DataTables 2 (clear then destroy)
+        // Detailed Comment: If DataTable is already initialized, reload cleanly without destroying the table structure
         if ($.fn.DataTable.isDataTable("#pxcharges_table")) {
-            $("#pxcharges_table").DataTable().clear().destroy();
+            const table = $("#pxcharges_table").DataTable();
+            if (!refno) {
+                $("#charges_total").text("0.00");
+                table.clear().draw();
+                return;
+            }
+            table.ajax.reload(function () {
+                table.columns.adjust();
+            }, false);
+            return;
         }
+
         $("#pxcharges_table tbody").empty();
 
+        // Detailed Comment: If no consultation is selected, initialize with all 5 matching empty columns
         if (!refno) {
             $("#charges_total").text("0.00");
             $("#pxcharges_table").DataTable({
@@ -1151,49 +1167,59 @@ $(function () {
                     { data: null, defaultContent: "" },
                     { data: 'item_dscr', defaultContent: "" },
                     { data: 'qty', defaultContent: "" },
+                    { data: 'cost_ave', defaultContent: "" },
                     { data: 'totalamt', defaultContent: "" }
                 ],
                 columnDefs: [
-                    { target: 0, width: '1%', orderable: false, className: 'text-nowrap text-center align-middle' },
-                    { target: '_all', orderable: false, className: 'text-nowrap align-middle' }
+                    { targets: 0, width: '1%', orderable: false, className: 'text-nowrap text-center align-middle' },
+                    { targets: '_all', orderable: false, className: 'text-nowrap align-middle' }
                 ],
+                language: {
+                    emptyTable: 'Please select a queued consultation record to view charges.'
+                },
                 layout: {
                     bottomStart: 'paging',
                     bottomEnd: null
                 },
-                searching: false, lengthChange: false, pageLength: 5, paging: true, order: [[1, 'asc']]
+                searching: false, lengthChange: false, pageLength: 5, paging: true, order: []
             });
             return;
         }
 
         $("#pxcharges_table").DataTable({
             ajax: {
-                url: "/api/fetch_pxcharges", type: "POST",
+                url: "/api/fetch_pxcharges",
+                type: "POST",
                 headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-                data: { consultationrefno: refno },
+                data: function (d) {
+                    d.consultationrefno = String($("#hidden_consultationrefno").val() || $("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
+                },
                 dataSrc: function (response) {
                     let total = 0;
-                    if (response.charges && Array.isArray(response.charges)) {
-                        response.charges.forEach(c => total += parseFloat(c.totalamt || 0));
-                    }
+                    const list = (response && response.charges && Array.isArray(response.charges)) ? response.charges : [];
+                    list.forEach(c => {
+                        const val = parseFloat(c.totalamt || c.cost_ave || 0);
+                        if (!isNaN(val)) total += val;
+                    });
                     $("#charges_total").text(total.toFixed(2));
-                    return response.charges || [];
+                    return list;
                 }
             },
             columns: [
                 {
                     data: null,
-                    render: function (data) {
-                        const chargeId = data.id || data.pxchargerefno || '';
-                        const itemDscr = (data.item_dscr || '').replace(/"/g, '&quot;');
-                        const unitPrice = parseFloat(data.sellingprice || (parseFloat(data.totalamt || 0) / Math.max(1, parseFloat(data.qty || 1)))).toFixed(2);
-                        const qty = data.qty || 1;
-                        const totalAmt = parseFloat(data.totalamt || 0).toFixed(2);
+                    render: function (data, type, row) {
+                        const r = row || data || {};
+                        const chargeId = r.id || r.pxchargerefno || '';
+                        const itemDscr = (r.item_dscr || '').replace(/"/g, '&quot;');
+                        const unitPrice = parseFloat(r.cost_ave || r.sellingprice || (parseFloat(r.totalamt || 0) / Math.max(1, parseFloat(r.qty || 1))) || 0).toFixed(2);
+                        const qty = r.qty || 1;
+                        const totalAmt = parseFloat(r.totalamt || 0).toFixed(2);
                         return `
                             <div class="d-flex gap-1 justify-content-center">
                                 <button class="btn btn-sm btn-outline-primary edit_charge_btn_sc" type="button"
                                     data-id="${chargeId}"
-                                    data-prodcode="${data.prodcode || ''}"
+                                    data-prodcode="${r.prodcode || ''}"
                                     data-item="${itemDscr}"
                                     data-price="${unitPrice}"
                                     data-qty="${qty}"
@@ -1202,7 +1228,7 @@ $(function () {
                                     <i class="fa-solid fa-pen-to-square"></i>
                                 </button>
                                 <button class="btn btn-sm btn-outline-danger remove_charge" type="button"
-                                    value="${data.prodcode}"
+                                    value="${r.prodcode}"
                                     data-id="${chargeId}"
                                     data-item="${itemDscr}"
                                     title="Delete Fee (Admin Protected)">
@@ -1212,20 +1238,101 @@ $(function () {
                         `;
                     }
                 },
-                { data: 'item_dscr', defaultContent: '' },
-                { data: 'qty', defaultContent: '' },
-                { data: 'totalamt', defaultContent: '' }
+                {
+                    data: 'item_dscr',
+                    defaultContent: '',
+                    render: function (data, type, row) {
+                        const r = row || {};
+                        const title = (data || r.item_dscr || 'Item / Service').replace(/"/g, '&quot;');
+                        // Detailed Comment: Enriched display for Professional Fee showing doctor billing rates (PF, Vatable, +VAT, W/Tax, ROD)
+                        if (r.is_pf || r.prodcode === 'PF' || r.item_grouping === 'PROFESSIONAL FEE') {
+                            const pfRate = parseFloat(r.pf_rate || r.cost_ave || 0).toFixed(2);
+                            const rodRate = parseFloat(r.rod_rate || 0).toFixed(2);
+                            const taxPct = parseFloat(r.tax_percent || 0).toFixed(1);
+                            const isVatable = Boolean(r.vatable);
+                            const isAutoAddVat = Boolean(r.auto_add_vat);
+                            return `
+                                <div>
+                                    <div class="fw-semibold text-dark">${title}</div>
+                                    <div class="d-flex flex-wrap gap-1 mt-1 small">
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">PF Rate: ₱${pfRate}</span>
+                                        <span class="badge ${isVatable ? 'bg-info-subtle text-info-emphasis border border-info-subtle' : 'bg-secondary-subtle text-secondary border'}">${isVatable ? 'Vatable (12%)' : 'Non-VAT'}</span>
+                                        ${isAutoAddVat ? '<span class="badge bg-secondary-subtle text-secondary border">+VAT Added</span>' : ''}
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">W/Tax: ${taxPct}%</span>
+                                        ${parseFloat(rodRate) > 0 ? `<span class="badge bg-light text-muted border">ROD: ₱${rodRate}</span>` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            // Detailed Comment: Enriched display for standard catalog charges showing applied patient tier and comparison with regular price
+                            const regPrice = parseFloat(r.regular_price || 0);
+                            const curPrice = parseFloat(r.cost_ave || r.sellingprice || 0);
+                            const tier = r.posted_tier || 'REGULAR';
+                            const tierBadgeClass = tier === 'PHIC' ? 'bg-success-subtle text-success-emphasis border border-success-subtle' :
+                                (tier === 'HMO' ? 'bg-info-subtle text-info-emphasis border border-info-subtle' :
+                                (tier === 'OTHERS' ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' :
+                                'bg-light text-dark border'));
+                            let diffHtml = '';
+                            if (regPrice > 0 && Math.abs(curPrice - regPrice) > 0.01) {
+                                if (curPrice < regPrice) {
+                                    diffHtml = `<span class="badge bg-success-subtle text-success border border-success-subtle ms-1">Saved ₱${(regPrice - curPrice).toFixed(2)}</span>`;
+                                } else {
+                                    diffHtml = `<span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1">+₱${(curPrice - regPrice).toFixed(2)}</span>`;
+                                }
+                            }
+                            return `
+                                <div>
+                                    <div class="fw-semibold text-dark">${title}</div>
+                                    <div class="d-flex flex-wrap align-items-center gap-1 mt-1 small">
+                                        <span class="badge ${tierBadgeClass}">${tier} Tier</span>
+                                        ${regPrice > 0 ? `<span class="text-muted" style="font-size: 0.78rem;">Reg: ₱${regPrice.toFixed(2)}</span>` : ''}
+                                        ${diffHtml}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                },
+                {
+                    data: 'qty',
+                    defaultContent: '1',
+                    className: 'text-center align-middle',
+                    render: function (data) { return parseFloat(data || 1); }
+                },
+                {
+                    data: 'cost_ave',
+                    defaultContent: '0.00',
+                    className: 'text-end align-middle fw-semibold',
+                    render: function (data, type, row) {
+                        const r = row || {};
+                        const price = parseFloat(data || r.sellingprice || r.current_price || (parseFloat(r.totalamt || 0) / Math.max(1, parseFloat(r.qty || 1))) || 0);
+                        return isNaN(price) ? '0.00' : price.toFixed(2);
+                    }
+                },
+                {
+                    data: 'totalamt',
+                    defaultContent: '0.00',
+                    className: 'text-end align-middle fw-bold text-primary',
+                    render: function (data, type, row) {
+                        const amt = parseFloat(data || (row && row.totalamt) || 0);
+                        return isNaN(amt) ? '0.00' : amt.toFixed(2);
+                    }
+                }
             ],
             columnDefs: [
-                { target: 0, width: '1%', orderable: false, className: 'text-nowrap text-center align-middle' },
-                { target: '_all', orderable: false, className: 'text-nowrap align-middle' }
+                { targets: 0, width: '1%', orderable: false, className: 'text-nowrap text-center align-middle' },
+                { targets: 1, orderable: false, className: 'align-middle' },
+                { targets: 2, width: '10%', orderable: false, className: 'text-center align-middle' },
+                { targets: [3, 4], width: '15%', orderable: false, className: 'text-end align-middle' }
             ],
-            // Detailed Comment: In DataTables 2, layout uses standard feature keys to avoid "Unknown feature: html" warning.
+            language: {
+                emptyTable: 'No charges recorded for this consultation yet.'
+            },
             layout: {
                 bottomStart: 'paging',
                 bottomEnd: null
             },
-            searching: false, lengthChange: false, pageLength: 5, paging: true, order: [[1, 'asc']]
+            searching: false, lengthChange: false, pageLength: 5, paging: true, order: []
         });
     }
 
@@ -1313,13 +1420,24 @@ $(function () {
                     };
                 },
                 processResults: function (response) {
+                    const ptype = ($("#patient_type").val() || "regular").toLowerCase();
                     return {
-                        results: (response.charges || []).map(item => ({
-                            id: item.prodcode,
-                            text: `${item.prod_itemdscr} [${item.item_grouping || 'CHARGE'}]`,
-                            price: item.price_regular || item.cost_ave || 0,
-                            data: item
-                        }))
+                        results: (response.charges || []).map(item => {
+                            let tierPrice = item.price_regular || item.cost_ave || 0;
+                            if (ptype === "hmo" && parseFloat(item.price_hmo) > 0) {
+                                tierPrice = item.price_hmo;
+                            } else if (ptype === "phic" && parseFloat(item.price_phic) > 0) {
+                                tierPrice = item.price_phic;
+                            } else if (ptype === "others" && parseFloat(item.price_others) > 0) {
+                                tierPrice = item.price_others;
+                            }
+                            return {
+                                id: item.prodcode,
+                                text: `${item.prod_itemdscr} [${item.item_grouping || 'CHARGE'}] - ₱${parseFloat(tierPrice).toFixed(2)}`,
+                                price: tierPrice,
+                                data: item
+                            };
+                        })
                     };
                 }
             }
@@ -1337,7 +1455,7 @@ $(function () {
     $("#sec_search_charge").on("select2:select", function (e) {
         const selectedData = e.params.data;
         const prodcode = selectedData.id;
-        const patientType = $("#patient_type").val();
+        const patientType = ($("#patient_type").val() || "regular").toLowerCase();
 
         let initialPrice = selectedData.price || 0;
         $("#sec_charge_amount").val(parseFloat(initialPrice).toFixed(2));
@@ -1354,6 +1472,8 @@ $(function () {
                         unitPrice = res.prices.price_hmo;
                     } else if (patientType === "phic" && parseFloat(res.prices.price_phic) > 0) {
                         unitPrice = res.prices.price_phic;
+                    } else if (patientType === "others" && parseFloat(res.prices.price_others) > 0) {
+                        unitPrice = res.prices.price_others;
                     }
                     $("#sec_charge_amount").val(parseFloat(unitPrice).toFixed(2));
                 }
@@ -1715,12 +1835,14 @@ $(function () {
                 }
             },
             columns: [
-                { data: null, render: function (data, type, row) { 
-                    return `<div class="d-flex gap-1">
+                {
+                    data: null, render: function (data, type, row) {
+                        return `<div class="d-flex gap-1">
                         <button class="btn btn-sm btn-primary import-btn" value="${row.casecode || ''}" data-pxrefno="${row.pxrefno || ''}" data-consultationrefno="${row.consultationrefno || ''}"><i class="fa-solid fa-share"></i> Import</button>
                         <button class="btn btn-sm btn-secondary view-btn" value="${row.pincode || ''}" data-pxrefno="${row.pxrefno || ''}" data-consultationrefno="${row.consultationrefno || ''}"><i class="fa-solid fa-clock-rotate-left"></i> History</button>
-                    </div>`; 
-                } },
+                    </div>`;
+                    }
+                },
                 { data: null, render: function (data, type, row) { return `<img src="${row.photo_path || '/images/blank_photo.png'}" alt="patient_photo" style="max-height: 80px; max-width: 80px; object-fit: cover;" class="rounded">`; } },
                 { data: null, render: function (data, type, row) { return [row.pxlastname, row.pxfirstname, row.pxmidname, row.pxsuffix].filter(Boolean).join(', ').toUpperCase(); } },
                 { data: 'mobilenumber' }, { data: 'emailaddress' }
@@ -1893,41 +2015,132 @@ $(function () {
     // and synchronizes both Generate Settlements and View Settlements tabs.
     let totalSettlementAmount = 0.00;
 
+    /**
+     * Detailed Comment: Computes total deductions (Senior/PWD, PhilHealth, HMO, Other discounts)
+     * and calculates Net Billing = max(0, totalGross - totalDeductions).
+     */
+    function calculateSettlementNetBilling() {
+        let deductions = 0;
+        if ($("#is_srpwd").is(":checked")) {
+            deductions += parseFloat($("#less_srpwd").val()) || 0;
+        }
+        deductions += parseFloat($("#phic").val()) || 0;
+        deductions += parseFloat($("#hmo").val()) || 0;
+        deductions += parseFloat($("#less_discount").val()) || 0;
+        deductions = Math.round(deductions * 100) / 100;
+
+        let netBilling = Math.max(0, totalSettlementAmount - deductions);
+        return Math.round(netBilling * 100) / 100;
+    }
+
+    /**
+     * Detailed Comment: Computes remaining balance to be dispersed into Cash and CTA payments.
+     * Remaining = max(0, Net Billing - (Cash + CTA)).
+     */
     function calculateSettlementRemaining() {
-        let used = 0;
-        $("#settlement_form .settlement-input").each(function () {
-            used += parseFloat($(this).val()) || 0;
-        });
-        used = Math.round(used * 100) / 100;
-        let rem = totalSettlementAmount - used;
-        if (rem < 0) rem = 0;
+        const netBilling = calculateSettlementNetBilling();
+        let payments = 0;
+        payments += parseFloat($("#cash").val()) || 0;
+        payments += parseFloat($("#cta").val()) || 0;
+        payments = Math.round(payments * 100) / 100;
+
+        let rem = Math.max(0, netBilling - payments);
         return Math.round(rem * 100) / 100;
     }
 
+    /**
+     * Detailed Comment: Synchronizes Net Billing and Remaining balance displays and hidden form fields.
+     */
     function updateSettlementRemaining() {
+        const netBilling = calculateSettlementNetBilling();
         const rem = calculateSettlementRemaining();
+        $("#net_billing_display").text(netBilling.toFixed(2));
+        $("#net_payable_input").val(netBilling.toFixed(2));
         $("#remaining").text(rem.toFixed(2));
     }
 
+    /**
+     * Detailed Comment: Populates the View Settlements tab with itemized totals, deductions,
+     * reference numbers, Net Billing, and payment receipt breakdown.
+     */
     function populateViewSettlements(r) {
-        if (!r) return;
+        if (!r) {
+            $("#info_total").val('PHP ' + totalSettlementAmount.toFixed(2));
+            $("#info_srpwd").val('PHP 0.00');
+            $("#info_srpwd_ref").val('None');
+            $("#info_phic").val('PHP 0.00');
+            $("#info_phic_icd").val('None');
+            $("#info_hmo").val('PHP 0.00');
+            $("#info_hmo_type").val('None');
+            $("#info_discount").val('PHP 0.00');
+            $("#info_discount_desc").val('None');
+            $("#info_net_payable").val('PHP ' + totalSettlementAmount.toFixed(2));
+            $("#info_cash").val('PHP 0.00');
+            $("#info_cta").val('PHP 0.00');
+            $("#info_cta_type").val('None');
+            return;
+        }
+
         const cardMap = { 'cc': 'Credit Card', 'dc': 'Debit Card' };
         const cardLabel = cardMap[r.cta_type] || r.cta_type || 'None';
 
-        $("#info_total").val(r.net_total ? 'PHP ' + parseFloat(r.net_total).toFixed(2) : 'PHP 0.00');
-        $("#info_cash").val(r.cash ? 'PHP ' + parseFloat(r.cash).toFixed(2) : 'PHP 0.00');
-        $("#info_cta").val(r.cta ? 'PHP ' + parseFloat(r.cta).toFixed(2) : 'PHP 0.00');
-        $("#info_cta_type").val(cardLabel);
-        $("#info_hmo").val(r.hmo ? 'PHP ' + parseFloat(r.hmo).toFixed(2) : 'PHP 0.00');
-        $("#info_phic").val(r.phic ? 'PHP ' + parseFloat(r.phic).toFixed(2) : 'PHP 0.00');
+        const grossVal = parseFloat(r.total_gross || r.net_total || totalSettlementAmount || 0);
+        const srpwdVal = parseFloat(r.less_srpwd || 0);
+        const srpwdRef = r.srpwd_refno || 'None';
+        const phicVal = parseFloat(r.less_phic || r.phic || 0);
+        const phicIcd = r.phic_icd_rvs || 'None';
+        const hmoVal = parseFloat(r.less_hmo || r.hmo || 0);
+        const discountVal = parseFloat(r.less_discount || 0);
+        const discountDesc = r.discount_description || 'None';
+        const netPayableVal = parseFloat(r.net_payable !== undefined && r.net_payable !== null ? r.net_payable : (grossVal - srpwdVal - phicVal - hmoVal - discountVal));
+        const cashVal = parseFloat(r.payment_cash || r.cash || 0);
+        const ctaVal = parseFloat(r.payment_card || r.cta || 0);
 
-        let hmoLabel = r.hmo_type || 'None';
-        const hmoOption = $(`#hmo_type option[value="${r.hmo_type}"]`).text();
+        let hmoLabel = r.hmoname || r.hmo_type || r.hmocode || 'None';
+        const hmoOption = $(`#hmo_type option[value="${r.hmocode || r.hmo_type}"]`).text();
         if (hmoOption && hmoOption !== '-- Select HMO --') {
             hmoLabel = hmoOption;
         }
+
+        $("#info_total").val('PHP ' + grossVal.toFixed(2));
+        $("#info_srpwd").val('PHP ' + srpwdVal.toFixed(2));
+        $("#info_srpwd_ref").val(srpwdRef);
+        $("#info_phic").val('PHP ' + phicVal.toFixed(2));
+        $("#info_phic_icd").val(phicIcd);
+        $("#info_hmo").val('PHP ' + hmoVal.toFixed(2));
         $("#info_hmo_type").val(hmoLabel);
+        $("#info_discount").val('PHP ' + discountVal.toFixed(2));
+        $("#info_discount_desc").val(discountDesc);
+        $("#info_net_payable").val('PHP ' + Math.max(0, netPayableVal).toFixed(2));
+        $("#info_cash").val('PHP ' + cashVal.toFixed(2));
+        $("#info_cta").val('PHP ' + ctaVal.toFixed(2));
+        $("#info_cta_type").val(cardLabel);
     }
+
+    // Detailed Comment: Toggle Senior/PWD discount fields and trigger recomputation
+    $("#is_srpwd").on("change", function () {
+        if ($(this).is(":checked")) {
+            $("#srpwd_fields_wrap").removeClass("d-none");
+            $("#less_srpwd").focus();
+        } else {
+            $("#srpwd_fields_wrap").addClass("d-none");
+            $("#srpwd_refno").val("");
+            $("#less_srpwd").val("");
+        }
+        updateSettlementRemaining();
+    });
+
+    // Detailed Comment: Re-adjust Select2 width and attach to modal container upon settlement modal being fully shown
+    $("#settlement_modal").on("shown.bs.modal", function () {
+        if (!$("#hmo_type").hasClass("select2-hidden-accessible")) {
+            $("#hmo_type").select2({
+                dropdownParent: $("#settlement_modal"),
+                width: "100%",
+                placeholder: "-- Select HMO --",
+                allowClear: true
+            });
+        }
+    });
 
     $("#settlement_btn").on("click", function () {
         const refno = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
@@ -1945,24 +2158,46 @@ $(function () {
         // Reset form & set consultation refno
         $("#settlement_form")[0].reset();
         $("#sett_consultationrefno").val(refno);
+        $("#is_srpwd").prop("checked", false);
+        $("#srpwd_fields_wrap").addClass("d-none");
 
-        // Fetch and populate HMO options
+        // Detailed Comment: Initialize searchable Select2 dropdown for HMO provider inside settlement modal
+        if (!$("#hmo_type").hasClass("select2-hidden-accessible")) {
+            $("#hmo_type").select2({
+                dropdownParent: $("#settlement_modal"),
+                width: "100%",
+                placeholder: "-- Select HMO --",
+                allowClear: true
+            });
+        }
+        $("#hmo_type").val("").trigger("change");
+
+        // Fetch and populate HMO options from hmo_masterlist
         $.ajax({
             url: "/api/fetch_hmo",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             success: function (response) {
                 const $select = $("#hmo_type");
-                $select.empty().append('<option value="" selected disabled>-- Select HMO --</option>');
+                const currentVal = $select.val() || $("#hmo_input").val();
                 if (response.hmo && response.hmo.length > 0) {
-                    response.hmo.forEach(h => {
-                        $select.append(`<option value="${h.hmocode}">${h.hmoname}</option>`);
-                    });
+                    if ($select.children('option').length <= 1) {
+                        $select.empty().append('<option value="" selected disabled>-- Select HMO --</option>');
+                        response.hmo.forEach(h => {
+                            $select.append(`<option value="${h.hmocode}">${h.hmoname}</option>`);
+                        });
+                    }
                 }
-                // Preselect HMO if patient already has an assigned HMO code
-                const patHmo = $("#hmo_input").val();
-                if (patHmo) {
-                    $select.val(patHmo);
+                // Preselect HMO if current value or patient already has an assigned HMO code
+                if (currentVal) {
+                    $select.val(currentVal).trigger("change");
+                    if (!$select.val()) {
+                        $select.find("option").each(function () {
+                            if ($(this).text().trim().toLowerCase() === String(currentVal).trim().toLowerCase()) {
+                                $select.val($(this).val()).trigger("change");
+                            }
+                        });
+                    }
                 }
             }
         });
@@ -1980,7 +2215,6 @@ $(function () {
                 }
                 totalSettlementAmount = Math.round(total * 100) / 100;
                 $("#total_amount").text(totalSettlementAmount.toFixed(2));
-                $("#remaining").text(totalSettlementAmount.toFixed(2));
                 $("#total").val(totalSettlementAmount.toFixed(2));
 
                 // Fetch any existing saved settlement to populate form and view tab
@@ -1992,22 +2226,67 @@ $(function () {
                     success: function (resSett) {
                         if (resSett.success && resSett.record) {
                             const r = resSett.record;
-                            if (parseFloat(r.cash) > 0) $("#cash").val(parseFloat(r.cash).toFixed(2));
-                            if (parseFloat(r.cta) > 0) $("#cta").val(parseFloat(r.cta).toFixed(2));
+                            // Senior / PWD discount population
+                            if (parseFloat(r.less_srpwd || 0) > 0 || r.srpwd_refno) {
+                                $("#is_srpwd").prop("checked", true);
+                                $("#srpwd_fields_wrap").removeClass("d-none");
+                                if (r.srpwd_refno) $("#srpwd_refno").val(r.srpwd_refno);
+                                if (parseFloat(r.less_srpwd || 0) > 0) $("#less_srpwd").val(parseFloat(r.less_srpwd).toFixed(2));
+                            } else {
+                                $("#is_srpwd").prop("checked", false);
+                                $("#srpwd_fields_wrap").addClass("d-none");
+                                $("#srpwd_refno").val("");
+                                $("#less_srpwd").val("");
+                            }
+
+                            // PHIC with ICD/RVS
+                            if (r.phic_icd_rvs) $("#phic_icd_rvs").val(r.phic_icd_rvs);
+                            if (parseFloat(r.phic || r.less_phic || 0) > 0) $("#phic").val(parseFloat(r.phic || r.less_phic).toFixed(2));
+
+                            // HMO with dropdown from hmo_masterlist
+                            const hmoVal = r.hmocode || r.hmo_type;
+                            if (hmoVal) {
+                                $("#hmo_type").val(hmoVal).trigger("change");
+                                if (!$("#hmo_type").val()) {
+                                    $("#hmo_type option").each(function () {
+                                        if ($(this).text().trim().toLowerCase() === String(hmoVal).trim().toLowerCase()) {
+                                            $("#hmo_type").val($(this).val()).trigger("change");
+                                        }
+                                    });
+                                }
+                            } else {
+                                $("#hmo_type").val("").trigger("change");
+                            }
+                            if (parseFloat(r.hmo || r.less_hmo || 0) > 0) $("#hmo").val(parseFloat(r.hmo || r.less_hmo).toFixed(2));
+
+                            // Other discount with description
+                            if (r.discount_description) $("#discount_description").val(r.discount_description);
+                            if (parseFloat(r.less_discount || 0) > 0) $("#less_discount").val(parseFloat(r.less_discount).toFixed(2));
+
+                            // Payment channels (Cash & CTA)
+                            if (parseFloat(r.cash || r.payment_cash || 0) > 0) $("#cash").val(parseFloat(r.cash || r.payment_cash).toFixed(2));
+                            if (parseFloat(r.cta || r.payment_card || 0) > 0) $("#cta").val(parseFloat(r.cta || r.payment_card).toFixed(2));
                             if (r.cta_type) $("#card_type").val(r.cta_type);
-                            if (parseFloat(r.hmo) > 0) $("#hmo").val(parseFloat(r.hmo).toFixed(2));
-                            if (r.hmo_type) $("#hmo_type").val(r.hmo_type);
-                            if (parseFloat(r.phic) > 0) $("#phic").val(parseFloat(r.phic).toFixed(2));
+
                             updateSettlementRemaining();
                             populateViewSettlements(r);
                         } else {
-                            $("#info_total").val('PHP ' + totalSettlementAmount.toFixed(2));
-                            $("#info_cash").val('PHP 0.00');
-                            $("#info_cta").val('PHP 0.00');
-                            $("#info_cta_type").val('None');
-                            $("#info_hmo").val('PHP 0.00');
-                            $("#info_phic").val('PHP 0.00');
-                            $("#info_hmo_type").val('None');
+                            $("#is_srpwd").prop("checked", false);
+                            $("#srpwd_fields_wrap").addClass("d-none");
+                            $("#srpwd_refno").val("");
+                            $("#less_srpwd").val("");
+                            $("#phic_icd_rvs").val("");
+                            $("#phic").val("");
+                            $("#hmo_type").val("").trigger("change");
+                            $("#hmo").val("");
+                            $("#discount_description").val("");
+                            $("#less_discount").val("");
+                            $("#cash").val("");
+                            $("#cta").val("");
+                            $("#card_type").val("");
+
+                            updateSettlementRemaining();
+                            populateViewSettlements(null);
                         }
 
                         // Detailed Comment: Auto-focus the corresponding settlement channel matching the patient's type
@@ -2030,25 +2309,52 @@ $(function () {
         });
     });
 
-    // Import total remaining amount into target settlement channel
-    $(document).on("click", ".import-total", function () {
-        const input = $(this).closest(".input-group").find(".settlement-input");
-        const remaining = calculateSettlementRemaining();
-        input.val(remaining.toFixed(2)).trigger("input");
+    // Detailed Comment: Import Net Billing into target settlement payment channel (Cash or CTA)
+    $(document).on("click", ".import-net-billing", function () {
+        const targetInput = $(this).closest(".input-group").find(".settlement-payment-input");
+        const netBilling = calculateSettlementNetBilling();
+        let otherPayment = 0;
+        $(".settlement-payment-input").not(targetInput).each(function () {
+            otherPayment += parseFloat($(this).val()) || 0;
+        });
+        const needed = Math.max(0, netBilling - otherPayment);
+        targetInput.val(needed > 0 ? needed.toFixed(2) : "").trigger("input");
     });
 
-    // Dynamic remainder calculation and dispersion bounding
-    $(document).on("input", ".settlement-input", function () {
+    // Detailed Comment: Dynamic deduction calculation with Gross bounding
+    $(document).on("input", ".deduction-input", function () {
         const currentInput = $(this);
         let value = parseFloat(currentInput.val()) || 0;
         if (value < 0) value = 0;
 
         let usedExceptCurrent = 0;
-        $("#settlement_form .settlement-input").not(currentInput).each(function () {
+        $(".deduction-input").not(currentInput).each(function () {
+            if ($(this).attr("id") === "less_srpwd" && !$("#is_srpwd").is(":checked")) return;
             usedExceptCurrent += parseFloat($(this).val()) || 0;
         });
 
         const maxAllowed = Math.max(0, totalSettlementAmount - usedExceptCurrent);
+        if (value > maxAllowed) {
+            value = maxAllowed;
+        }
+        value = Math.round(value * 100) / 100;
+        currentInput.val(value > 0 ? value.toFixed(2) : "");
+        updateSettlementRemaining();
+    });
+
+    // Detailed Comment: Dynamic payment dispersion calculation bounded by Net Billing
+    $(document).on("input", ".settlement-payment-input", function () {
+        const currentInput = $(this);
+        let value = parseFloat(currentInput.val()) || 0;
+        if (value < 0) value = 0;
+
+        const netBilling = calculateSettlementNetBilling();
+        let otherPayment = 0;
+        $(".settlement-payment-input").not(currentInput).each(function () {
+            otherPayment += parseFloat($(this).val()) || 0;
+        });
+
+        const maxAllowed = Math.max(0, netBilling - otherPayment);
         if (value > maxAllowed) {
             value = maxAllowed;
         }
@@ -2134,13 +2440,7 @@ $(function () {
                 if (response.success && response.record) {
                     populateViewSettlements(response.record);
                 } else {
-                    $("#info_total").val('PHP ' + totalSettlementAmount.toFixed(2));
-                    $("#info_cash").val('PHP 0.00');
-                    $("#info_cta").val('PHP 0.00');
-                    $("#info_cta_type").val('None');
-                    $("#info_hmo").val('PHP 0.00');
-                    $("#info_phic").val('PHP 0.00');
-                    $("#info_hmo_type").val('None');
+                    populateViewSettlements(null);
                 }
             }
         });
@@ -2237,6 +2537,87 @@ $(function () {
 
         if (!refno || (!prodcode && !chargeId)) return;
 
+        const $row = $btn.closest("tr");
+        const rowData = $("#pxcharges_table").DataTable().row($row).data() || {};
+        const isPf = Boolean(rowData.is_pf || prodcode === 'PF' || (rowData.item_grouping === 'PROFESSIONAL FEE'));
+
+        // Detailed Comment: Build contextual information card based on whether the charge is PF or catalog item
+        let detailsCardHtml = '';
+        if (isPf) {
+            const pfRate = parseFloat(rowData.pf_rate || currentPrice || 0).toFixed(2);
+            const rodRate = parseFloat(rowData.rod_rate || 0).toFixed(2);
+            const taxPercent = parseFloat(rowData.tax_percent || 0).toFixed(1);
+            const vatable = Boolean(rowData.vatable);
+            const autoAddVat = Boolean(rowData.auto_add_vat);
+
+            detailsCardHtml = `
+                <div class="card bg-light border-primary mb-3 text-start">
+                    <div class="card-header bg-primary text-white py-1 px-2 fw-bold small">
+                        <i class="fa-solid fa-user-doctor me-1"></i> Professional Fee &amp; Billing Rates
+                    </div>
+                    <div class="card-body p-2 small">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Doctor Base PF / Consultation Fee:</span>
+                            <strong class="text-primary">₱${pfRate}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">ROD Rate (PHP):</span>
+                            <span>₱${rodRate}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Withholding Tax (%):</span>
+                            <span>${taxPercent}%</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted">Tax Status:</span>
+                            <div>
+                                <input type="checkbox" class="form-check-input me-1" ${vatable ? 'checked' : ''} disabled>
+                                <span class="badge ${vatable ? 'bg-info text-dark' : 'bg-secondary'}">${vatable ? 'Vatable (12%)' : 'Non-VAT'}</span>
+                                ${autoAddVat ? '<span class="badge bg-secondary ms-1">+VAT Auto-Added</span>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            const regPrice = parseFloat(rowData.regular_price || currentPrice || 0).toFixed(2);
+            const phicPrice = parseFloat(rowData.price_phic || 0).toFixed(2);
+            const hmoPrice = parseFloat(rowData.price_hmo || 0).toFixed(2);
+            const othersPrice = parseFloat(rowData.price_others || 0).toFixed(2);
+            const postedTier = rowData.posted_tier || 'REGULAR';
+            const postedTierPrice = parseFloat(rowData.posted_tier_price || currentPrice || 0).toFixed(2);
+
+            detailsCardHtml = `
+                <div class="card bg-light border-secondary mb-3 text-start">
+                    <div class="card-header bg-secondary text-white py-1 px-2 fw-bold small">
+                        <i class="fa-solid fa-tags me-1"></i> Catalog Pricing Comparison
+                    </div>
+                    <div class="card-body p-2 small">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Regular Catalog Price:</span>
+                            <strong>₱${regPrice}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">PHIC Tier Price:</span>
+                            <span class="${postedTier === 'PHIC' ? 'fw-bold text-success' : ''}">₱${phicPrice}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">HMO Tier Price:</span>
+                            <span class="${postedTier === 'HMO' ? 'fw-bold text-info' : ''}">₱${hmoPrice}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted">Others / Special Price:</span>
+                            <span class="${postedTier === 'OTHERS' ? 'fw-bold text-warning' : ''}">₱${othersPrice}</span>
+                        </div>
+                        <div class="d-flex justify-content-between pt-1 border-top">
+                            <span class="text-muted">Applied Classification Tier:</span>
+                            <span class="badge bg-primary">${postedTier} (₱${postedTierPrice})</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         requireAdminAuth(function () {
             Swal.fire({
                 title: `<i class="fa-solid fa-pen-to-square text-primary me-2"></i>Edit Fee`,
@@ -2245,6 +2626,7 @@ $(function () {
                         <label class="form-label fw-bold small text-muted">Item Description</label>
                         <input class="form-control bg-light" type="text" value="${itemDscr}" readonly>
                     </div>
+                    ${detailsCardHtml}
                     <div class="row g-2 text-start">
                         <div class="col-6">
                             <label class="form-label fw-bold small">Unit Price (PHP) <span class="text-danger">*</span></label>
@@ -2558,12 +2940,15 @@ $(function () {
         });
     });
 
-    // Detailed Comment: Refresh charges and past payments whenever Payment Details tab is shown
+    // Detailed Comment: Refresh charges and past payments whenever Payment Details tab is shown, adjusting table widths to visible container
     $(document).on('shown.bs.tab', 'button[data-bs-target="#payment_info"]', function () {
         loadPatientCharges();
+        if ($.fn.DataTable.isDataTable("#pxcharges_table")) {
+            $("#pxcharges_table").DataTable().columns.adjust().draw(false);
+        }
         const pincode = $("#pincode").val();
         const pxrefno = $("#pxidno").text() || $("#pxidno").val();
-        const consultationrefno = $("#pxconsultationrefno").text() || $("#pxconsultationrefno").val();
+        const consultationrefno = String($("#hidden_consultationrefno").val() || $("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
         loadPatientPaymentHistory(pincode, pxrefno, consultationrefno);
     });
 

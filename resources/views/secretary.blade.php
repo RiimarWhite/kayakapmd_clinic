@@ -421,32 +421,27 @@
 
                                         <div class="d-flex flex-column">
                                             <div class="table-responsive">
-                                                <table class="table table-sm table-bordered caption-top" id="pxcharges_table">
-                                                    <caption>List of charges</caption>
+                                                {{-- Detailed Comment: Enriched 5-column charges table matching current queue console layout --}}
+                                                <table class="table table-sm table-bordered caption-top w-100" id="pxcharges_table">
+                                                    <caption>Charges for current consultation</caption>
                                                     <thead class="table-warning">
                                                         <tr>
-                                                            <th scope="col">Actions</th>
-                                                            <th scope="col">Charge</th>
-                                                            <th scope="col">Discount</th>
-                                                            <th scope="col">Amount</th>
+                                                            <th scope="col" style="width: 10%;" class="text-center">Actions</th>
+                                                            <th scope="col">Description</th>
+                                                            <th scope="col" style="width: 10%;" class="text-center">Quantity</th>
+                                                            <th scope="col" style="width: 15%;" class="text-end">Unit Price</th>
+                                                            <th scope="col" style="width: 15%;" class="text-end">Amount</th>
                                                         </tr>
                                                     </thead>
-
-                                                    <tbody>
-                                                        <tr>
-                                                            <td></td>
-                                                            <td></td>
-                                                            <td></td>
-                                                            <td></td>
-                                                        </tr>
-                                                    </tbody>
+                                                    <tbody></tbody>
                                                 </table>
                                             </div>
 
                                             <!-- Detailed Comment: Position charges total element cleanly below table beside Settlements button -->
                                             <div class="d-flex justify-content-between align-items-center mt-2">
                                                 <h4 class="fw-bold m-0">Total: ₱<span class="fw-normal ms-1" id="charges_total">0.00</span></h4>
-                                                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#settlementModal" id="settlement_btn">
+                                                {{-- Detailed Comment: Target updated modal ID settlement_modal --}}
+                                                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#settlement_modal" id="settlement_btn">
                                                     <i class="fa-solid fa-credit-card"></i> Settlements
                                                 </button>
                                             </div>

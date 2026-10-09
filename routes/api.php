@@ -138,6 +138,13 @@ Route::middleware(['web', 'auth:secretary,doctor,admin'])->group(function () {
     Route::post('fetch_patient_details', [ManagementController::class, 'fetchPatientDetails'])->name('patient.details');
     Route::post('get_hmo_price', [DoctorController::class, 'getHmoPrice']);
 
+    // Detailed Comment: Permanent Patient Medical History endpoints accessible across secretary, doctor, and admin consoles
+    Route::post('fetch_patient_medical_history', [SecretaryController::class, 'fetchPatientMedicalHistory'])->name('patient.medical_history.fetch');
+    Route::post('save_patient_medical_history', [SecretaryController::class, 'savePatientMedicalHistory'])->name('patient.medical_history.save');
+
+    // Detailed Comment: Patient Queue Consolidated Daily Financial Income Summary endpoint
+    Route::post('fetch_queue_financial_summary', [SecretaryController::class, 'fetchQueueFinancialSummary'])->name('secretary.queue_financial_summary');
+
     Route::post('fetch_charge_categories_dr', [ManagementController::class, 'fetchChargeCategories']);
     Route::post('fetch_charge_categories_sc', [ManagementController::class, 'fetchChargeCategoriesSc']);
 
@@ -205,6 +212,11 @@ Route::middleware(['web', 'auth:admin'])->group(function () {
     Route::post('update_profile', [ManagementController::class, 'updateProfile']);
     // Detailed Comment: Self-service profile update route allowing logged in administrator to update own account info and credentials
     Route::post('admin/update_profile', [ManagementController::class, 'updateAdminProfile'])->name('admin.update_own_profile');
+
+    // Detailed Comment: Theme customization API routes for fetching, updating, and resetting clinic theme settings
+    Route::post('admin/theme/fetch', [ManagementController::class, 'fetchThemeSettings'])->name('admin.theme.fetch');
+    Route::post('admin/theme/update', [ManagementController::class, 'updateThemeSettings'])->name('admin.theme.update');
+    Route::post('admin/theme/reset', [ManagementController::class, 'resetThemeSettings'])->name('admin.theme.reset');
 
     Route::post('fetch_address_data', [ManagementController::class, 'fetchAddressData']);
     Route::post('load_company_profile', [ManagementController::class, 'loadCompanyProfile']);

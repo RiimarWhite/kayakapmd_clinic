@@ -57,109 +57,157 @@
         </script>
     @endif
 
-    <div class="d-flex gap-1 h-100">
-        <!-- Left Column -->
-        <div class="h-100" style="min-width: 45rem;">
-            <div class="m-0 pb-5 h-100 d-flex flex-column gap-2 overflow-auto">
-                <div class="card d-flex flex-column shadow-sm">
-                    <div class="card-header fw-semibold bg-primary text-white">
-                        <i class="fa-solid fa-list-ul"></i> Patient Queue
+    <div class="row g-3">
+        <!-- 1. Patient Queue Column (Left on Desktop, Top on Tablet/Mobile) -->
+        <div class="col-12 col-xl-5 col-xxl-5 d-flex flex-column gap-3">
+            <div class="card d-flex flex-column shadow-sm">
+                <div class="card-header fw-semibold bg-primary text-white">
+                    <i class="fa-solid fa-list-ul"></i> Patient Queue
+                </div>
+                <div class="card-body d-flex flex-column flex-grow-1 gap-2 p-3">
+                    <div class="d-flex flex-column gap-2 w-100">
+                        <div class="w-100">
+                            <select class="form-select form-select-sm" name="doctor_id" id="doctor_id" required>
+                                <option value="" selected>None</option>
+                                @foreach ($doctors as $doctor)
+                                    <option value="{{ $doctor->docrefno }}">
+                                        DR. {{ strtoupper($doctor->docname) }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <div class="form-text">Select doctor to view doctor's patient queue.</div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <div class="w-50">
+                                <div class="d-flex input-group">
+                                    <button type="button" class="btn btn-sm btn-primary fw-bold" id="sprevious">
+                                        <i class="fa-solid fa-angle-left"></i>
+                                    </button>
+
+                                    <input class="form-control form-control-sm" type="date" name="queuedate"
+                                        id="queuedate" value="{{ now()->toDateString() }}">
+
+                                    <button type="button" class="btn btn-sm btn-primary fw-bold" id="snext">
+                                        <i class="fa-solid fa-angle-right"></i>
+                                    </button>
+                                </div>
+                                <div class="form-text">Enter consultation date.</div>
+                            </div>
+
+                            <div class=" w-50">
+                                <div class="input-group">
+                                    <select class="form-select form-select-sm" name="stime" id="stime"></select>
+                                </div>
+                                <div class="form-text">Enter consultation time.</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body d-flex flex-column flex-grow-1 gap-2 p-3">
-                        <div class="d-flex flex-column gap-2 w-100">
-                            <div class="w-100">
-                                <select class="form-select form-select-sm" name="doctor_id" id="doctor_id" required>
-                                    <option value="" selected>None</option>
-                                    @foreach ($doctors as $doctor)
-                                        <option value="{{ $doctor->docrefno }}">
-                                            DR. {{ strtoupper($doctor->docname) }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                <div class="form-text">Select doctor to view doctor's patient queue.</div>
-                            </div>
 
-                            <div class="d-flex gap-2">
-                                <div class="w-50">
-                                    <div class="d-flex input-group">
-                                        <button type="button" class="btn btn-sm btn-primary fw-bold" id="sprevious">
-                                            <i class="fa-solid fa-angle-left"></i>
-                                        </button>
-
-                                        <input class="form-control form-control-sm" type="date" name="queuedate"
-                                            id="queuedate" value="{{ now()->toDateString() }}">
-
-                                        <button type="button" class="btn btn-sm btn-primary fw-bold" id="snext">
-                                            <i class="fa-solid fa-angle-right"></i>
-                                        </button>
-                                    </div>
-                                    <div class="form-text">Enter consultation date.</div>
-                                </div>
-
-                                <div class=" w-50">
-                                    <div class="input-group">
-                                        <select class="form-select form-select-sm" name="stime" id="stime"></select>
-                                    </div>
-                                    <div class="form-text">Enter consultation time.</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="table-responsive mt-2">
-                            <table class="table table-sm table-bordered table-hover" id="patients_queue_table">
-                                <thead class="table-success">
-                                    <tr>
-                                        <!-- Detailed Comment: Draggable queue column header per user requirement -->
-                                        <th scope="col" style="width: 55px;" class="text-center" title="Drag row to reorder queue"><i class="fa-solid fa-grip-vertical me-1 text-muted"></i>#</th>
-                                        <th scope="col">Actions</th>
-                                        <th scope="col">Patient Name <span class="text-secondary">(First, Middle, Last,
-                                                Suffix)</span></th>
-                                        <th scope="col">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td></td>
-                                        <td></td>
-                                        <td></td>
-                                        <td></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                    <div class="table-responsive mt-2">
+                        <table class="table table-sm table-bordered table-hover" id="patients_queue_table">
+                            <thead class="table-success">
+                                <tr>
+                                    <!-- Detailed Comment: Draggable queue column header per user requirement -->
+                                    <th scope="col" style="width: 55px;" class="text-center" title="Drag row to reorder queue"><i class="fa-solid fa-grip-vertical me-1 text-muted"></i>#</th>
+                                    <th scope="col">Actions</th>
+                                    <th scope="col">Patient Name <span class="text-secondary">(First, Middle, Last,
+                                            Suffix)</span></th>
+                                    <th scope="col">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
+            </div>
 
-                <div class="card d-flex flex-column shadow-sm">
-                    <div class="card-header fw-semibold bg-secondary text-white d-flex justify-content-between align-items-center">
-                        <span><i class="fa-solid fa-address-book me-1"></i> Patient Masterlist</span>
-                        <button type="button" class="btn btn-sm btn-success fw-bold" id="btn_add_patient_masterlist" data-bs-toggle="modal" data-bs-target="#add_patient_modal">
-                            <i class="fa-solid fa-user-plus me-1"></i> Add Patient
+            {{-- Detailed Comment: Queue Financial Report & Daily Income Summary card placed at the bottom of the Patient Queue card --}}
+            <div class="card d-flex flex-column shadow-sm border-primary" id="financial_summary_card">
+                <div class="card-header fw-semibold bg-light text-primary d-flex justify-content-between align-items-center py-2">
+                    <span><i class="fa-solid fa-chart-line me-1"></i> Daily Income &amp; Financial Summary</span>
+                    <div class="d-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="refresh_financial_summary_btn" title="Refresh Income Summary">
+                            <i class="fa-solid fa-arrows-rotate"></i>
                         </button>
+                        <a href="#" target="_blank" class="btn btn-sm btn-primary fw-bold" id="print_financial_report_btn" title="Print Consolidated Financial Report">
+                            <i class="fa-solid fa-print me-1"></i> Print Report
+                        </a>
                     </div>
-                    <div class="card-body p-2">
-                        <div class="table-responsive">
-                            <table class="table table-sm table-bordered table-hover w-100" id="patient_masterlist_queue_table">
-                                <thead class="table-secondary">
-                                    <tr>
-                                        <th scope="col" style="width: 140px;" class="text-center">Action</th>
-                                        <th scope="col">Patient Name <span class="text-secondary">(Last, First, Middle, Suffix)</span></th>
-                                    </tr>
-                                </thead>
-                                <tbody></tbody>
-                            </table>
+                </div>
+                <div class="card-body p-2">
+                    <!-- KPI metrics pills -->
+                    <div class="row g-2 text-center mb-2">
+                        <div class="col-4">
+                            <div class="border rounded p-1 bg-light">
+                                <div class="text-muted small" style="font-size: 10px;">Total Gross</div>
+                                <div class="fw-bold text-dark fs-6" id="fin_sum_gross">₱0.00</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="border rounded p-1 bg-light">
+                                <div class="text-muted small" style="font-size: 10px;">Net Billing</div>
+                                <div class="fw-bold text-primary fs-6" id="fin_sum_net">₱0.00</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="border rounded p-1 bg-light">
+                                <div class="text-muted small" style="font-size: 10px;">Collected</div>
+                                <div class="fw-bold text-success fs-6" id="fin_sum_paid">₱0.00</div>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Collections & Deductions breakdown table -->
+                    <table class="table table-sm table-borderless m-0 small" style="font-size: 11px;">
+                        <tbody>
+                            <tr>
+                                <td class="text-muted py-0">Less PHIC Deductions:</td>
+                                <td class="text-end text-success py-0 fw-semibold" id="fin_sum_phic">-₱0.00</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted py-0">Less HMO Deductions:</td>
+                                <td class="text-end text-primary py-0 fw-semibold" id="fin_sum_hmo">-₱0.00</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted py-0">Less Senior/PWD:</td>
+                                <td class="text-end text-warning py-0 fw-semibold" id="fin_sum_senior">-₱0.00</td>
+                            </tr>
+                            <tr class="border-top">
+                                <td class="text-muted py-1">Cash Collected:</td>
+                                <td class="text-end py-1 fw-semibold" id="fin_sum_cash">₱0.00</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted py-0">Card / CTA:</td>
+                                <td class="text-end py-0 fw-semibold" id="fin_sum_card">₱0.00</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted py-0">PhilHealth Yakap Co-Pay:</td>
+                                <td class="text-end text-info py-0 fw-semibold" id="fin_sum_copay">₱0.00</td>
+                            </tr>
+                            <tr class="border-top fw-bold">
+                                <td class="text-danger py-1">Remaining Balance:</td>
+                                <td class="text-end text-danger py-1" id="fin_sum_balance">₱0.00</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
-        <!-- Right Column -->
-        <div class="h-100 d-flex flex-column p-0">
-            <form class="h-100" id="consultation_form">
+        <!-- 2. Patient Consultation Details Column (Right on Desktop, Middle on Tablet/Mobile) -->
+        <div class="col-12 col-xl-7 col-xxl-7">
+            <form id="consultation_form">
                 @csrf
 
-                <div class="card shadow-sm d-flex flex-column" style="height: 90vh;">
+                <div class="card shadow-sm d-flex flex-column">
                     <div class="card-header">
                         <!-- Topbar Buttons -->
                         <div class="d-flex gap-1 align-items-center">
@@ -187,6 +235,14 @@
                         <!-- Patient Information -->
                         <div class="d-flex gap-3">
                             <div class="d-flex flex-column gap-2 w-100">
+                                {{-- Detailed Comment: Prominent Secretary Allergy Alert Banner --}}
+                                <div class="alert alert-danger py-1 px-3 mb-1 d-none align-items-center gap-2 border-danger" id="sec_allergy_alert_bar" role="alert">
+                                    <i class="fa-solid fa-triangle-exclamation text-danger fs-5"></i>
+                                    <div class="small">
+                                        <strong class="text-danger">KNOWN ALLERGIES:</strong> <span id="sec_allergy_alert_text" class="fw-bold"></span>
+                                    </div>
+                                </div>
+
                                 <div class="d-flex flex-column gap-0 ms-1">
                                     <input type="hidden" name="pincode" id="pincode">
                                     <input type="hidden" name="consultationrefno" id="hidden_consultationrefno">
@@ -321,6 +377,14 @@
                                         data-bs-target="#payment_info" role="tab" aria-controls="payment_info"
                                         aria-selected="false" id="patient_charges_btn">
                                         <i class="fa-solid fa-credit-card me-1"></i> Payment Details
+                                    </button>
+                                </li>
+
+                                <li class="nav-item" role="presentation">
+                                    <button type="button" class="nav-link" data-bs-toggle="tab"
+                                        data-bs-target="#permanent_medhistory_info" role="tab" aria-controls="permanent_medhistory_info"
+                                        aria-selected="false" id="patient_permanent_medhistory_tab_btn">
+                                        <i class="fa-solid fa-file-waveform me-1"></i> Medical History
                                     </button>
                                 </li>
                             </ul>
@@ -609,6 +673,77 @@
                                         </div>
                                     </div>
                                 </div>
+
+                                {{-- Detailed Comment: Dedicated Permanent Patient Medical History tab pane --}}
+                                <div class="tab-pane" id="permanent_medhistory_info" role="tabpanel">
+                                    <div class="card border-0">
+                                        <div class="card-body p-1">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="fw-bold text-dark"><i class="fa-solid fa-notes-medical text-primary me-1"></i> Permanent Patient Medical History</span>
+                                                <button type="button" class="btn btn-sm btn-primary fw-bold" id="save_sec_medhistory_btn">
+                                                    <i class="fa-solid fa-floppy-disk me-1"></i> Save Medical History
+                                                </button>
+                                            </div>
+
+                                            <div class="row g-2">
+                                                <div class="col-12 col-md-6">
+                                                    <div class="p-2 border rounded bg-light mb-2">
+                                                        <label class="form-label fw-bold text-danger small mb-1" for="sec_allergies">
+                                                            <i class="fa-solid fa-triangle-exclamation me-1"></i> Allergies &amp; Drug Reactions:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm border-danger" id="sec_allergies" rows="2" placeholder="e.g. Seafood, Penicillin, Aspirin, Latex"></textarea>
+                                                    </div>
+
+                                                    <div class="p-2 border rounded bg-light mb-2">
+                                                        <label class="form-label fw-bold text-dark small mb-1" for="sec_injections">
+                                                            <i class="fa-solid fa-syringe me-1 text-primary"></i> Injections &amp; Immunizations:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm" id="sec_injections" rows="2" placeholder="e.g. Flu Vaccine (2025), Pneumococcal, Tetanus Toxoid"></textarea>
+                                                    </div>
+
+                                                    <div class="p-2 border rounded bg-light">
+                                                        <label class="form-label fw-bold text-dark small mb-1" for="sec_maintenance_meds">
+                                                            <i class="fa-solid fa-pills me-1 text-info"></i> Maintenance Medications:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm" id="sec_maintenance_meds" rows="2" placeholder="e.g. Amlodipine 5mg OD, Metformin 500mg BID"></textarea>
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-12 col-md-6">
+                                                    <div class="p-2 border rounded bg-light mb-2">
+                                                        <label class="form-label fw-bold text-dark small mb-1" for="sec_past_medical_history">
+                                                            <i class="fa-solid fa-heart-pulse me-1 text-secondary"></i> Past Medical Conditions:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm" id="sec_past_medical_history" rows="2" placeholder="e.g. Hypertension (5 yrs), Type 2 Diabetes, Asthma"></textarea>
+                                                    </div>
+
+                                                    <div class="p-2 border rounded bg-light mb-2">
+                                                        <label class="form-label fw-bold text-dark small mb-1" for="sec_surgical_history">
+                                                            <i class="fa-solid fa-bandage me-1 text-warning"></i> Surgical History:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm" id="sec_surgical_history" rows="2" placeholder="e.g. Appendectomy (2018), C-Section (2021)"></textarea>
+                                                    </div>
+
+                                                    <div class="p-2 border rounded bg-light">
+                                                        <label class="form-label fw-bold text-dark small mb-1" for="sec_family_history">
+                                                            <i class="fa-solid fa-users me-1 text-success"></i> Family Medical History:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm" id="sec_family_history" rows="2" placeholder="e.g. Maternal DM, Paternal CVD / Stroke"></textarea>
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-12">
+                                                    <div class="p-2 border rounded bg-light">
+                                                        <label class="form-label fw-bold text-dark small mb-1" for="sec_clinical_notes">
+                                                            <i class="fa-solid fa-comment-medical me-1 text-secondary"></i> Special Clinical Notes &amp; Warnings:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm" id="sec_clinical_notes" rows="2" placeholder="Special patient precautions, dietary restrictions, or notes"></textarea>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -623,6 +758,31 @@
                     </div>
                 </div>
             </form>
+        </div>
+
+        <!-- 3. Patient Masterlist Column (Positioned below queue and consultation per requested layout) -->
+        <div class="col-12 mt-3">
+            <div class="card d-flex flex-column shadow-sm">
+                <div class="card-header fw-semibold bg-secondary text-white d-flex justify-content-between align-items-center">
+                    <span><i class="fa-solid fa-address-book me-1"></i> Patient Masterlist</span>
+                    <button type="button" class="btn btn-sm btn-success fw-bold" id="btn_add_patient_masterlist" data-bs-toggle="modal" data-bs-target="#add_patient_modal">
+                        <i class="fa-solid fa-user-plus me-1"></i> Add Patient
+                    </button>
+                </div>
+                <div class="card-body p-2">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-hover w-100" id="patient_masterlist_queue_table">
+                            <thead class="table-secondary">
+                                <tr>
+                                    <th scope="col" style="width: 140px;" class="text-center">Action</th>
+                                    <th scope="col">Patient Name <span class="text-secondary">(Last, First, Middle, Suffix)</span></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 @endsection

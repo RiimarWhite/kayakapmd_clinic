@@ -54,6 +54,8 @@ Route::middleware('auth:secretary,doctor,admin')->group(function () {
     Route::get('print_pdf', [DoctorController::class, 'printPDF'])->name('print.pdf');
     Route::get('doctor/print_diagnostics', [DoctorController::class, 'printDiagnostics'])->name('doctor.print_diagnostics');
     Route::get('print_diagnostics', [DoctorController::class, 'printDiagnostics'])->name('print_diagnostics');
+    // Detailed Comment: Daily financial summary report PDF print view accessible across authorized clinic staff
+    Route::get('print_financial_report', [SecretaryController::class, 'printFinancialReport'])->name('print.financial_report');
 });
 
 // Admin Routes — page views only
@@ -61,6 +63,8 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('admin', [ManagementController::class, 'index'])->name('admin');
     Route::get('admin/dashboard', [ManagementController::class, 'dashboardPage'])->name('admin.dashboard');
     Route::get('admin/profile', [ManagementController::class, 'profilePage'])->name('admin.profile');
+    // Detailed Comment: Admin Theme Settings customization view route
+    Route::get('admin/settings/theme', [ManagementController::class, 'themeSettingsPage'])->name('admin.settings.theme');
     Route::get('admin/secretary', [ManagementController::class, 'secretaryPanelPage'])->name('admin.secretary');
     Route::get('admin/hmo', [ManagementController::class, 'hmoPanelPage'])->name('admin.hmo');
 

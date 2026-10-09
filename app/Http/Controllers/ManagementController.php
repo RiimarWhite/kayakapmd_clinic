@@ -35,6 +35,7 @@ use App\Models\SecretaryDoctorsModel;
 use App\Models\SecretaryModel;
 use App\Models\SettlementsModel;
 use App\Models\AdminModel;
+use App\Models\ThemeModel;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Log;
@@ -64,6 +65,17 @@ class ManagementController extends Controller
     public function profilePage()
     {
         return view('pages.admin.profile');
+    }
+
+    /**
+     * Detailed Comment: Serves the Admin Theme Settings customization page,
+     * providing current active theme configuration and facility profile data.
+     */
+    public function themeSettingsPage()
+    {
+        $profile = KayakapProfileModel::first();
+        $theme = ThemeModel::getActiveTheme($profile?->clientcode);
+        return view('pages.admin.settings.theme', compact('theme', 'profile'));
     }
 
     public function secretariesPage()
@@ -1697,6 +1709,144 @@ class ManagementController extends Controller
         }
 
         return response()->json(['success' => false]);
+    }
+
+    /**
+     * Detailed Comment: Fetches current active theme settings for the facility.
+     */
+    public function fetchThemeSettings(Request $request)
+    {
+        $profile = KayakapProfileModel::first();
+        $theme = ThemeModel::getActiveTheme($profile?->clientcode);
+
+        return response()->json([
+            'success' => true,
+            'theme' => $theme,
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Updates facility visual theme settings (colors, buttons, header/footer,
+     * text colors, and optional custom logo file upload), persisting to the 'theme' table
+     * linked to the facility profile via clientcode.
+     */
+    public function updateThemeSettings(Request $request)
+    {
+        $hexRegex = 'regex:/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/';
+
+        $request->validate([
+            'theme_name'           => 'nullable|string|max:100',
+            'app_background'       => ['required', $hexRegex],
+            'header_bg'            => ['required', $hexRegex],
+            'header_text_color'    => ['required', $hexRegex],
+            'header_accent_color'  => ['required', $hexRegex],
+            'footer_bg'            => ['required', $hexRegex],
+            'footer_text_color'    => ['required', $hexRegex],
+            'sidebar_bg'           => ['required', $hexRegex],
+            'sidebar_text_color'   => ['required', $hexRegex],
+            'primary_button_bg'    => ['required', $hexRegex],
+            'primary_button_text'  => ['required', $hexRegex],
+            'secondary_button_bg'  => ['required', $hexRegex],
+            'secondary_button_text'=> ['required', $hexRegex],
+            'text_color'           => ['required', $hexRegex],
+            'logo_file'            => 'nullable|image|mimes:jpg,jpeg,png,svg,webp|max:2048',
+        ]);
+
+        $profile = KayakapProfileModel::first();
+        $clientcode = $profile?->clientcode;
+
+        $theme = ThemeModel::where('clientcode', $clientcode)->first()
+            ?? ThemeModel::first()
+            ?? new ThemeModel(['clientcode' => $clientcode]);
+
+        $theme->clientcode           = $clientcode;
+        $theme->theme_name           = $request->theme_name ?: ($theme->theme_name ?: 'Custom Theme');
+        $theme->app_background       = $request->app_background;
+        $theme->header_bg            = $request->header_bg;
+        $theme->header_text_color    = $request->header_text_color;
+        $theme->header_accent_color  = $request->header_accent_color;
+        $theme->footer_bg            = $request->footer_bg;
+        $theme->footer_text_color    = $request->footer_text_color;
+        $theme->sidebar_bg           = $request->sidebar_bg;
+        $theme->sidebar_text_color   = $request->sidebar_text_color;
+        $theme->primary_button_bg    = $request->primary_button_bg;
+        $theme->primary_button_text  = $request->primary_button_text;
+        $theme->secondary_button_bg  = $request->secondary_button_bg;
+        $theme->secondary_button_text= $request->secondary_button_text;
+        $theme->text_color           = $request->text_color;
+        $theme->is_active            = true;
+
+        if ($request->hasFile('logo_file')) {
+            $file = $request->file('logo_file');
+            $extension = $file->getClientOriginalExtension();
+            $filename = 'clinic_custom_logo_' . time() . '.' . $extension;
+
+            // Detailed Comment: Store uploaded theme logo in public/images/theme
+            $destinationPath = public_path('images/theme');
+            if (!file_exists($destinationPath)) {
+                mkdir($destinationPath, 0755, true);
+            }
+
+            $file->move($destinationPath, $filename);
+            $theme->logo_path = 'images/theme/' . $filename;
+        }
+
+        $theme->save();
+
+        Log::info('Theme settings successfully updated by admin', [
+            'clientcode' => $clientcode,
+            'theme_id'   => $theme->id,
+            'theme_name' => $theme->theme_name,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Theme updated successfully.',
+            'theme'   => $theme,
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Resets facility visual theme to factory default branding colors.
+     */
+    public function resetThemeSettings(Request $request)
+    {
+        $profile = KayakapProfileModel::first();
+        $clientcode = $profile?->clientcode;
+
+        $theme = ThemeModel::where('clientcode', $clientcode)->first()
+            ?? ThemeModel::first()
+            ?? new ThemeModel(['clientcode' => $clientcode]);
+
+        $theme->clientcode           = $clientcode;
+        $theme->theme_name           = 'Default Theme';
+        $theme->app_background       = '#f8f9fa';
+        $theme->header_bg            = '#f4c79f';
+        $theme->header_text_color    = '#212529';
+        $theme->header_accent_color  = '#ffa500';
+        $theme->footer_bg            = '#f8f9fa';
+        $theme->footer_text_color    = '#6c757d';
+        $theme->sidebar_bg           = '#e9ecef';
+        $theme->sidebar_text_color   = '#212529';
+        $theme->primary_button_bg    = '#0d6efd';
+        $theme->primary_button_text  = '#ffffff';
+        $theme->secondary_button_bg  = '#6c757d';
+        $theme->secondary_button_text= '#ffffff';
+        $theme->text_color           = '#212529';
+        $theme->logo_path            = 'images/logo.png';
+        $theme->is_active            = true;
+        $theme->save();
+
+        Log::info('Theme settings reset to factory defaults by admin', [
+            'clientcode' => $clientcode,
+            'theme_id'   => $theme->id,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Theme has been reset to defaults.',
+            'theme'   => $theme,
+        ]);
     }
 
     // Medicine-related

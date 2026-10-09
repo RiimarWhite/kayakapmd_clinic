@@ -54,6 +54,11 @@ $(function () {
         }
     });
 
+    // Detailed Comment: Tab shown event listener for Doctor Permanent Medical History tab
+    $(document).on('shown.bs.tab', 'button[data-bs-target="#main_permanent_medhistory_pane"], #main_permanent_medhistory_tab_btn', function () {
+        loadDoctorPermanentMedicalHistory();
+    });
+
     // Detailed Comment: Support manual refresh button inside the Consultation History tab pane
     $(document).on("click", "#refresh_medhistory_btn, #medhistory_btn", function () {
         loadMedicalHistory();
@@ -186,6 +191,160 @@ $(function () {
         });
     }
     window.loadMedicalHistory = loadMedicalHistory;
+
+    /**
+     * Detailed Comment: Fetches and populates permanent medical history for the Doctor Consultation modal.
+     * Maps allergies, injections/immunizations, past medical illnesses, surgical history, family history,
+     * daily maintenance medications, and special clinical notes from pxmedicalhistory.
+     * Immediately toggles the prominent Allergy Alert Banner (#doc_allergy_alert_bar) in the Patient Info card.
+     */
+    function loadDoctorPermanentMedicalHistory(pxrefno, pincode, consultationrefno) {
+        const consulRef = consultationrefno || $("#consultationrefno").val() || "";
+        const pxRef = pxrefno || $("#consultation_modal").data("pxrefno") || "";
+        const pinCode = pincode || $("#consultation_modal").data("pincode") || "";
+
+        if (!consulRef && !pxRef && !pinCode) {
+            $("#doc_allergies").val("");
+            $("#doc_injections").val("");
+            $("#doc_past_medical_history").val("");
+            $("#doc_surgical_history").val("");
+            $("#doc_family_history").val("");
+            $("#doc_maintenance_meds").val("");
+            $("#doc_clinical_notes").val("");
+            $("#doc_allergy_alert_bar").addClass("d-none").removeClass("d-flex");
+            $("#doc_allergy_alert_text").text("");
+            return;
+        }
+
+        $.ajax({
+            url: "/api/fetch_patient_medical_history",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: {
+                pxrefno: pxRef,
+                pincode: pinCode,
+                consultationrefno: consulRef
+            },
+            success: function (res) {
+                if (res.success && res.data) {
+                    const d = res.data;
+                    $("#doc_allergies").val(d.allergies || "");
+                    $("#doc_injections").val(d.injections_immunization || "");
+                    $("#doc_past_medical_history").val(d.past_medical_history || "");
+                    $("#doc_surgical_history").val(d.surgical_history || "");
+                    $("#doc_family_history").val(d.family_history || "");
+                    $("#doc_maintenance_meds").val(d.maintenance_medications || "");
+                    $("#doc_clinical_notes").val(d.notes || "");
+
+                    // Update Allergy Alert Banner
+                    if (d.allergies && d.allergies.trim() !== "") {
+                        $("#doc_allergy_alert_text").text(d.allergies.trim());
+                        $("#doc_allergy_alert_bar").removeClass("d-none").addClass("d-flex");
+                    } else {
+                        $("#doc_allergy_alert_bar").addClass("d-none").removeClass("d-flex");
+                        $("#doc_allergy_alert_text").text("");
+                    }
+                } else {
+                    $("#doc_allergies").val("");
+                    $("#doc_injections").val("");
+                    $("#doc_past_medical_history").val("");
+                    $("#doc_surgical_history").val("");
+                    $("#doc_family_history").val("");
+                    $("#doc_maintenance_meds").val("");
+                    $("#doc_clinical_notes").val("");
+                    $("#doc_allergy_alert_bar").addClass("d-none").removeClass("d-flex");
+                    $("#doc_allergy_alert_text").text("");
+                }
+            },
+            error: function (err) {
+                console.warn("Failed to load doctor permanent medical history:", err);
+            }
+        });
+    }
+    window.loadDoctorPermanentMedicalHistory = loadDoctorPermanentMedicalHistory;
+
+    /**
+     * Detailed Comment: Event handler for saving permanent medical history from the Doctor Consultation Modal.
+     * Persists allergies, injections, maintenance meds, past medical/surgical/family history, and clinical notes to pxmedicalhistory.
+     * Updates the doctor allergy alert banner dynamically upon successful persistence.
+     */
+    $(document).on("click", "#save_doctor_medhistory_btn", function () {
+        const $btn = $(this);
+        const consulRef = $("#consultationrefno").val() || "";
+        const pxRef = $("#consultation_modal").data("pxrefno") || "";
+        const pinCode = $("#consultation_modal").data("pincode") || "";
+
+        if (!consulRef && !pxRef && !pinCode) {
+            Swal.fire({
+                title: "No Patient Selected",
+                text: "Please open a patient consultation first before saving medical history.",
+                icon: "warning"
+            });
+            return;
+        }
+
+        const originalHtml = $btn.html();
+        $btn.prop("disabled", true).html('<i class="fa-solid fa-spinner fa-spin me-1"></i> Saving...');
+
+        const payload = {
+            consultationrefno: consulRef,
+            pxrefno: pxRef,
+            pincode: pinCode,
+            allergies: $("#doc_allergies").val(),
+            injections_immunization: $("#doc_injections").val(),
+            past_medical_history: $("#doc_past_medical_history").val(),
+            surgical_history: $("#doc_surgical_history").val(),
+            family_history: $("#doc_family_history").val(),
+            maintenance_medications: $("#doc_maintenance_meds").val(),
+            notes: $("#doc_clinical_notes").val()
+        };
+
+        $.ajax({
+            url: "/api/save_patient_medical_history",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: payload,
+            success: function (res) {
+                if (res.success) {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: 'Medical history saved successfully',
+                        showConfirmButton: false,
+                        timer: 2000
+                    });
+
+                    // Update local allergy alert banner dynamically
+                    const currentAllergies = ($("#doc_allergies").val() || "").trim();
+                    if (currentAllergies) {
+                        $("#doc_allergy_alert_text").text(currentAllergies);
+                        $("#doc_allergy_alert_bar").removeClass("d-none").addClass("d-flex");
+                    } else {
+                        $("#doc_allergy_alert_bar").addClass("d-none").removeClass("d-flex");
+                        $("#doc_allergy_alert_text").text("");
+                    }
+                } else {
+                    Swal.fire({
+                        title: "Error",
+                        text: res.message || "Failed to save medical history.",
+                        icon: "error"
+                    });
+                }
+            },
+            error: function (xhr) {
+                console.error("Save doctor medical history error:", xhr);
+                Swal.fire({
+                    title: "Error",
+                    text: xhr.responseJSON?.message || "An error occurred while saving medical history.",
+                    icon: "error"
+                });
+            },
+            complete: function () {
+                $btn.prop("disabled", false).html(originalHtml);
+            }
+        });
+    });
 
     /**
      * Detailed Comment: Populates and displays the dedicated Consultation Details Viewer modal

@@ -17,6 +17,10 @@ use App\Models\SettlementsModel;
 use App\Models\ServicesGroupManagementModel;
 use App\Models\ServicesManagementModel;
 use App\Models\Stocks\StocksLedgerModel;
+use App\Models\PatientMasterlist;
+use App\Models\PxMedicalHistoryModel;
+use App\Models\KayakapProfileModel;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 
@@ -650,24 +654,51 @@ class SecretaryController extends Controller
         $pincode = $request->input('pincode');
         $pxrefno = $request->input('pxrefno');
         $consultationrefno = $request->input('consultationrefno');
+        $patientname = $request->input('patientname');
+        $birthday = $request->input('birthday');
 
-        $query = ConsultationModel::query();
-        $hasIdentifier = false;
-        if (!empty($pincode) && $pincode !== 'undefined') {
-            $query->where('pincode', $pincode);
-            $hasIdentifier = true;
-        } elseif (!empty($pxrefno) && $pxrefno !== 'undefined') {
-            $query->where('pxrefno', $pxrefno);
-            $hasIdentifier = true;
-        } elseif (!empty($consultationrefno) && $consultationrefno !== 'undefined') {
-            $px = ConsultationModel::where('consultationrefno', $consultationrefno)->value('pxrefno');
-            if ($px) {
-                $query->where('pxrefno', $px);
-            } else {
-                $query->where('consultationrefno', $consultationrefno);
-            }
-            $hasIdentifier = true;
+        // Detailed Comment: Collect and cross-reference all possible patient identifiers
+        // across pxmasterlist and pxwalkinconsultation so that past consultations always appear
+        // regardless of whether older records used pincode, pxrefno, or name+birthday.
+        $pxrefnoList = [];
+        $pincodeList = [];
+
+        if (!empty($pxrefno) && $pxrefno !== 'undefined') {
+            $pxrefnoList[] = $pxrefno;
         }
+        if (!empty($pincode) && $pincode !== 'undefined') {
+            $pincodeList[] = $pincode;
+        }
+
+        if (!empty($consultationrefno) && $consultationrefno !== 'undefined') {
+            $activeConsult = ConsultationModel::where('consultationrefno', $consultationrefno)->first();
+            if ($activeConsult) {
+                if (!empty($activeConsult->pxrefno)) $pxrefnoList[] = $activeConsult->pxrefno;
+                if (!empty($activeConsult->pincode)) $pincodeList[] = $activeConsult->pincode;
+                if (empty($patientname)) $patientname = $activeConsult->patientname;
+                if (empty($birthday)) $birthday = $activeConsult->birthday;
+            }
+        }
+
+        // Cross-reference with pxmasterlist to find associated pincode/pxrefno
+        $masterMatch = null;
+        if (!empty($pxrefnoList)) {
+            $masterMatch = PatientMasterlist::whereIn('pxrefno', $pxrefnoList)->first();
+        }
+        if (!$masterMatch && !empty($pincodeList)) {
+            $masterMatch = PatientMasterlist::whereIn('pincode', $pincodeList)->first();
+        }
+        if ($masterMatch) {
+            if (!empty($masterMatch->pxrefno)) $pxrefnoList[] = $masterMatch->pxrefno;
+            if (!empty($masterMatch->pincode)) $pincodeList[] = $masterMatch->pincode;
+            if (empty($birthday) && !empty($masterMatch->birthday)) $birthday = $masterMatch->birthday;
+            if (empty($patientname) && !empty($masterMatch->patientname)) $patientname = $masterMatch->patientname;
+        }
+
+        $pxrefnoList = array_values(array_unique(array_filter($pxrefnoList)));
+        $pincodeList = array_values(array_unique(array_filter($pincodeList)));
+
+        $hasIdentifier = !empty($pxrefnoList) || !empty($pincodeList) || (!empty($patientname) && !empty($birthday)) || (!empty($consultationrefno) && $consultationrefno !== 'undefined');
 
         // Detailed Comment: If no patient identifier was provided, return empty payload safely without querying entire table
         if (!$hasIdentifier) {
@@ -681,6 +712,36 @@ class SecretaryController extends Controller
                 'data' => []
             ]);
         }
+
+        $query = ConsultationModel::query();
+        $query->where(function ($sub) use ($pxrefnoList, $pincodeList, $patientname, $birthday, $consultationrefno) {
+            $hasAny = false;
+            if (!empty($pxrefnoList)) {
+                $sub->whereIn('pxrefno', $pxrefnoList);
+                $hasAny = true;
+            }
+            if (!empty($pincodeList)) {
+                if ($hasAny) {
+                    $sub->orWhereIn('pincode', $pincodeList);
+                } else {
+                    $sub->whereIn('pincode', $pincodeList);
+                    $hasAny = true;
+                }
+            }
+            if (!empty($patientname) && !empty($birthday)) {
+                if ($hasAny) {
+                    $sub->orWhere(function ($q) use ($patientname, $birthday) {
+                        $q->where('patientname', $patientname)->where('birthday', $birthday);
+                    });
+                } else {
+                    $sub->where('patientname', $patientname)->where('birthday', $birthday);
+                    $hasAny = true;
+                }
+            }
+            if (!$hasAny && !empty($consultationrefno)) {
+                $sub->where('consultationrefno', $consultationrefno);
+            }
+        });
 
         $history = $query->select([
                 'id',
@@ -792,10 +853,11 @@ class SecretaryController extends Controller
      * and logs structured audit events.
      */
     public function saveSettlements(Request $request) {
-        $consultation = ConsultationModel::where('consultationrefno', $request->sett_consultationrefno)->first();
+        $consultRef = $request->sett_consultationrefno ?: $request->consultationrefno;
+        $consultation = ConsultationModel::where('consultationrefno', $consultRef)->first();
 
         // Detailed Comment: Compute categorized charge totals from stocks_ledger for billing auditing and SOA breakdown
-        $charges = StocksLedgerModel::where('px_consultcode_cn', $request->sett_consultationrefno)->get();
+        $charges = StocksLedgerModel::where('px_consultcode_cn', $consultRef)->get();
         $totalMeds = (float) $charges->where('item_grouping', 'DRUGS AND MEDS')->sum('totalamt');
         $totalLab = (float) $charges->where('item_grouping', 'DIAGNOSTIC')->sum('totalamt');
         $totalPf = (float) $charges->where('item_grouping', 'PROFESSIONAL FEE')->sum('totalamt');
@@ -813,8 +875,11 @@ class SecretaryController extends Controller
         $lessPhic = (float) ($request->phic ?: ($request->less_phic ?: 0));
         $phicIcdRvs = $request->phic_icd_rvs ?: null;
         $lessHmo = (float) ($request->hmo ?: ($request->less_hmo ?: 0));
+        $hmoLoaNo = $request->hmo_loa_no ?: null;
         $lessDiscount = (float) ($request->less_discount ?: ($request->discount ?: 0));
         $discountDescription = $request->discount_description ?: null;
+        $isYakap = ($request->boolean('is_philhealth_yakap') || $request->is_philhealth_yakap == '1' || $request->is_philhealth_yakap === true) ? 1 : 0;
+        $copay = (float) ($request->copay ?: 0);
         
         // Detailed Comment: Compute net payable after all Senior/PWD, PhilHealth, HMO, and special discounts
         $netPayable = max(0, $totalGross - $lessSrpwd - $lessPhic - $lessHmo - $lessDiscount);
@@ -834,7 +899,7 @@ class SecretaryController extends Controller
         }
 
         $record = SettlementsModel::updateOrCreate([
-            'consultationrefno' => $request->sett_consultationrefno
+            'consultationrefno' => $consultRef
         ], [
             'pincode' => $consultation->pincode ?? $request->pincode ?? null,
             'docrefno' => $consultation->docrefno ?? null,
@@ -856,10 +921,13 @@ class SecretaryController extends Controller
             'less_hmo' => $lessHmo,
             'hmo_type' => $hmoName ?: $hmoCode,
             'hmocode' => $hmoCode,
+            'hmo_loa_no' => $hmoLoaNo,
             'hmoname' => $hmoName ?: $hmoCode,
             'less_discount' => $lessDiscount,
             'discount_description' => $discountDescription,
             'payment_cash' => (float) ($request->cash ?: 0),
+            'is_philhealth_yakap' => $isYakap,
+            'copay' => $copay,
             'payment_card' => (float) ($request->cta ?: 0),
             'cta_type' => $request->cta_type ?? $request->card_type,
             'created' => Date::now(),
@@ -884,9 +952,12 @@ class SecretaryController extends Controller
                 'phic_icd_rvs' => $phicIcdRvs,
                 'less_hmo' => $lessHmo,
                 'hmocode' => $hmoCode,
+                'hmo_loa_no' => $hmoLoaNo,
                 'hmoname' => $hmoName,
                 'less_discount' => $lessDiscount,
                 'discount_description' => $discountDescription,
+                'is_philhealth_yakap' => $isYakap,
+                'copay' => $copay,
                 'net_payable' => $netPayable,
                 'transactionrefno' => $record->transactionrefno,
                 'recorded_by' => auth()->guard('secretary')->check()
@@ -981,6 +1052,386 @@ class SecretaryController extends Controller
             'success' => true,
             'payments' => $payments
         ]);
+    }
+
+    /**
+     * Detailed Comment: Fetches permanent medical history records (allergies, injections/immunizations,
+     * past medical history, surgical history, family history, and maintenance medications) for a patient.
+     * Cross-references pxrefno and pincode across masterlist and active consultation.
+     */
+    public function fetchPatientMedicalHistory(Request $request)
+    {
+        $pxrefno = $request->input('pxrefno');
+        $pincode = $request->input('pincode');
+        $consultationrefno = $request->input('consultationrefno');
+
+        if (empty($pxrefno) && !empty($consultationrefno)) {
+            $consult = ConsultationModel::where('consultationrefno', $consultationrefno)->first();
+            if ($consult) {
+                $pxrefno = $consult->pxrefno;
+                if (empty($pincode)) $pincode = $consult->pincode;
+            }
+        }
+
+        if (empty($pxrefno) && !empty($pincode)) {
+            $pMaster = PatientMasterlist::where('pincode', $pincode)->first();
+            if ($pMaster) {
+                $pxrefno = $pMaster->pxrefno;
+            }
+        }
+
+        $medHistory = null;
+        if (!empty($pxrefno) || !empty($pincode)) {
+            $medHistory = PxMedicalHistoryModel::where(function ($q) use ($pxrefno, $pincode) {
+                if (!empty($pxrefno)) $q->where('pxrefno', $pxrefno);
+                if (!empty($pincode)) $q->orWhere('pincode', $pincode);
+            })->first();
+        }
+
+        return response()->json([
+            'success' => true,
+            'pxrefno' => $pxrefno,
+            'pincode' => $pincode,
+            'data' => $medHistory
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Creates or updates permanent medical history records for a patient.
+     * Persists allergies, injections/immunizations, past medical illnesses, surgical operations,
+     * family medical history, and maintenance medications with audit logging of recordedby/updatedby.
+     */
+    public function savePatientMedicalHistory(Request $request)
+    {
+        $pxrefno = $request->input('pxrefno');
+        $pincode = $request->input('pincode');
+        $consultationrefno = $request->input('consultationrefno');
+
+        // Resolve missing pxrefno from consultation or masterlist
+        if (empty($pxrefno) && !empty($consultationrefno)) {
+            $consult = ConsultationModel::where('consultationrefno', $consultationrefno)->first();
+            if ($consult) {
+                $pxrefno = $consult->pxrefno;
+                if (empty($pincode)) $pincode = $consult->pincode;
+            }
+        }
+
+        if (empty($pxrefno) && !empty($pincode)) {
+            $pMaster = PatientMasterlist::where('pincode', $pincode)->first();
+            if ($pMaster) {
+                $pxrefno = $pMaster->pxrefno;
+            }
+        }
+
+        if (empty($pxrefno) && empty($pincode)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot save medical history: Patient reference number (pxrefno) or PIN code is required.'
+            ], 422);
+        }
+
+        // Determine current user across secretary, doctor, or admin guards
+        $userDisplay = 'System';
+        if (auth()->guard('secretary')->check()) {
+            $sec = auth()->guard('secretary')->user();
+            $userDisplay = trim(($sec->secfname ?? '') . ' ' . ($sec->seclname ?? '')) ?: ($sec->secname ?? 'Secretary');
+        } elseif (auth()->guard('doctor')->check()) {
+            $doc = auth()->guard('doctor')->user();
+            $userDisplay = 'Dr. ' . ($doc->docname ?? 'Physician');
+        } elseif (auth()->guard('admin')->check()) {
+            $userDisplay = auth()->guard('admin')->user()->name ?? 'Administrator';
+        }
+
+        $existing = PxMedicalHistoryModel::where(function ($q) use ($pxrefno, $pincode) {
+            if (!empty($pxrefno)) $q->where('pxrefno', $pxrefno);
+            if (!empty($pincode)) $q->orWhere('pincode', $pincode);
+        })->first();
+
+        $data = [
+            'pxrefno' => $pxrefno ?: ($existing->pxrefno ?? null),
+            'pincode' => $pincode ?: ($existing->pincode ?? null),
+            'allergies' => $request->input('allergies'),
+            'injections_immunization' => $request->input('injections_immunization'),
+            'past_medical_history' => $request->input('past_medical_history'),
+            'surgical_history' => $request->input('surgical_history'),
+            'family_history' => $request->input('family_history'),
+            'maintenance_medications' => $request->input('maintenance_medications'),
+            'notes' => $request->input('notes'),
+            'updatedby' => $userDisplay,
+        ];
+
+        if (!$existing) {
+            $data['recordedby'] = $userDisplay;
+            $record = PxMedicalHistoryModel::create($data);
+        } else {
+            $existing->update($data);
+            $record = $existing;
+        }
+
+        Log::info('Saved patient permanent medical history', [
+            'pxrefno' => $pxrefno,
+            'pincode' => $pincode,
+            'updatedby' => $userDisplay,
+            'has_allergies' => !empty($request->input('allergies')),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Patient medical history successfully saved.',
+            'data' => $record
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Computes aggregated daily income financial report for all patients in queue.
+     * Calculates total gross billing, PhilHealth deductions, HMO coverage, Senior/PWD discounts,
+     * net payable, cash collected, card/CTA, PhilHealth Yakap/Co-Pay, total collected, and remaining balance.
+     */
+    public function fetchQueueFinancialSummary(Request $request)
+    {
+        $queueDate = $request->input('queuedate') ?: $request->input('date') ?: now()->toDateString();
+        $docrefno = $request->input('docrefno');
+
+        $query = ConsultationModel::whereDate('consultation_date', $queueDate);
+        if (!empty($docrefno) && $docrefno !== 'null' && $docrefno !== 'all') {
+            $query->where('docrefno', $docrefno);
+        }
+
+        $consultations = $query->orderBy('queueno', 'asc')->orderBy('id', 'asc')->get();
+        $consultationRefNos = $consultations->pluck('consultationrefno')->filter()->toArray();
+
+        $settlements = SettlementsModel::whereIn('consultationrefno', $consultationRefNos)
+            ->get()
+            ->keyBy('consultationrefno');
+
+        $totalGross = 0;
+        $totalPhic = 0;
+        $totalHmo = 0;
+        $totalSenior = 0;
+        $totalNet = 0;
+        $totalCash = 0;
+        $totalCard = 0;
+        $totalCopay = 0;
+        $totalPaid = 0;
+        $totalBalance = 0;
+
+        $items = [];
+
+        foreach ($consultations as $consult) {
+            $ref = $consult->consultationrefno;
+            $settle = $settlements->get($ref);
+
+            $gross = (float)($settle->total_gross ?? $settle->total_amount ?? 0);
+            $phic = (float)($settle->less_phic ?? 0);
+            $hmo = (float)($settle->less_hmo ?? 0);
+            $senior = (float)($settle->less_srpwd ?? $settle->discount_senior ?? 0);
+            $net = (float)($settle->net_payable ?? $settle->net_billing ?? 0);
+            $cash = (float)($settle->payment_cash ?? 0);
+            $card = (float)($settle->payment_card ?? 0);
+            $copay = (float)($settle->copay ?? 0);
+            $paid = $cash + $card + $copay;
+            $balance = max(0, $net - $paid);
+
+            $totalGross += $gross;
+            $totalPhic += $phic;
+            $totalHmo += $hmo;
+            $totalSenior += $senior;
+            $totalNet += $net;
+            $totalCash += $cash;
+            $totalCard += $card;
+            $totalCopay += $copay;
+            $totalPaid += $paid;
+            $totalBalance += $balance;
+
+            $status = 'UNPAID';
+            if ($settle) {
+                if ($paid >= $net && $net > 0) {
+                    $status = 'PAID';
+                } elseif ($paid > 0) {
+                    $status = 'PARTIAL';
+                }
+            }
+
+            $items[] = [
+                'queueno' => $consult->queueno ?: '--',
+                'consultationrefno' => $consult->consultationrefno,
+                'patientname' => $consult->patientname,
+                'docname' => $consult->docname,
+                'gross' => $gross,
+                'phic' => $phic,
+                'hmo' => $hmo,
+                'senior' => $senior,
+                'net' => $net,
+                'cash' => $cash,
+                'card' => $card,
+                'copay' => $copay,
+                'paid' => $paid,
+                'balance' => $balance,
+                'status' => $status,
+                'is_philhealth_yakap' => (bool)($settle->is_philhealth_yakap ?? false),
+                'hmo_loa_no' => $settle->hmo_loa_no ?? '',
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'queuedate' => $queueDate,
+            'date' => $queueDate,
+            'total_patients' => $consultations->count(),
+            'settled_patients' => $settlements->count(),
+            'summary' => [
+                'total_patients' => $consultations->count(),
+                'total_gross' => round($totalGross, 2),
+                'gross_total' => round($totalGross, 2),
+                'total_phic' => round($totalPhic, 2),
+                'total_hmo' => round($totalHmo, 2),
+                'total_senior' => round($totalSenior, 2),
+                'total_srpwd' => round($totalSenior, 2),
+                'total_net' => round($totalNet, 2),
+                'total_cash' => round($totalCash, 2),
+                'total_card' => round($totalCard, 2),
+                'total_copay' => round($totalCopay, 2),
+                'total_paid' => round($totalPaid, 2),
+                'total_balance' => round($totalBalance, 2),
+            ],
+            'items' => $items,
+        ]);
+    }
+
+    /**
+     * Detailed Comment: Streams PDF printable report for the daily queue financial summary.
+     * Formats consolidated billing, PhilHealth/HMO deductions, cash/card/copay collections,
+     * and itemized patient billing slips for clinic administration and financial audit.
+     */
+    public function printFinancialReport(Request $request)
+    {
+        $queueDate = $request->input('queuedate') ?: $request->input('date') ?: now()->toDateString();
+        $docrefno = $request->input('docrefno');
+
+        $query = ConsultationModel::whereDate('consultation_date', $queueDate);
+        $doctorName = 'All Attending Doctors';
+        if (!empty($docrefno) && $docrefno !== 'null' && $docrefno !== 'all') {
+            $query->where('docrefno', $docrefno);
+            $doc = DoctorsProfileModel::where('docrefno', $docrefno)->first();
+            if ($doc) {
+                $doctorName = 'Dr. ' . $doc->docname;
+            }
+        }
+
+        $consultations = $query->orderBy('queueno', 'asc')->orderBy('id', 'asc')->get();
+        $consultationRefNos = $consultations->pluck('consultationrefno')->filter()->toArray();
+
+        $settlements = SettlementsModel::whereIn('consultationrefno', $consultationRefNos)
+            ->get()
+            ->keyBy('consultationrefno');
+
+        $totalGross = 0;
+        $totalPhic = 0;
+        $totalHmo = 0;
+        $totalSenior = 0;
+        $totalNet = 0;
+        $totalCash = 0;
+        $totalCard = 0;
+        $totalCopay = 0;
+        $totalPaid = 0;
+        $totalBalance = 0;
+
+        $items = [];
+
+        foreach ($consultations as $consult) {
+            $ref = $consult->consultationrefno;
+            $settle = $settlements->get($ref);
+
+            $gross = (float)($settle->total_gross ?? 0);
+            $phic = (float)($settle->less_phic ?? 0);
+            $hmo = (float)($settle->less_hmo ?? 0);
+            $senior = (float)($settle->discount_senior ?? 0);
+            $net = (float)($settle->net_payable ?? 0);
+            $cash = (float)($settle->payment_cash ?? 0);
+            $card = (float)($settle->payment_card ?? 0);
+            $copay = (float)($settle->copay ?? 0);
+            $paid = $cash + $card + $copay;
+            $balance = max(0, $net - $paid);
+
+            $totalGross += $gross;
+            $totalPhic += $phic;
+            $totalHmo += $hmo;
+            $totalSenior += $senior;
+            $totalNet += $net;
+            $totalCash += $cash;
+            $totalCard += $card;
+            $totalCopay += $copay;
+            $totalPaid += $paid;
+            $totalBalance += $balance;
+
+            $status = 'UNPAID';
+            if ($settle) {
+                if ($paid >= $net && $net > 0) {
+                    $status = 'PAID';
+                } elseif ($paid > 0) {
+                    $status = 'PARTIAL';
+                }
+            }
+
+            $items[] = (object)[
+                'queueno' => $consult->queueno ?: '--',
+                'consultationrefno' => $consult->consultationrefno,
+                'patientname' => $consult->patientname,
+                'docname' => $consult->docname,
+                'gross' => $gross,
+                'phic' => $phic,
+                'hmo' => $hmo,
+                'senior' => $senior,
+                'net' => $net,
+                'cash' => $cash,
+                'card' => $card,
+                'copay' => $copay,
+                'paid' => $paid,
+                'balance' => $balance,
+                'status' => $status,
+                'is_philhealth_yakap' => (bool)($settle->is_philhealth_yakap ?? false),
+                'hmo_loa_no' => $settle->hmo_loa_no ?? '',
+            ];
+        }
+
+        $summary = (object)[
+            'total_gross' => $totalGross,
+            'total_phic' => $totalPhic,
+            'total_hmo' => $totalHmo,
+            'total_senior' => $totalSenior,
+            'total_net' => $totalNet,
+            'total_cash' => $totalCash,
+            'total_card' => $totalCard,
+            'total_copay' => $totalCopay,
+            'total_paid' => $totalPaid,
+            'total_balance' => $totalBalance,
+            'total_patients' => $consultations->count(),
+        ];
+
+        $profile = KayakapProfileModel::first() ?? (object)[
+            'HOSP_NAME' => config('app.name', 'KayakapMD Clinic'),
+            'HOSP_ADDBRGY' => ''
+        ];
+
+        $generatedBy = 'Secretary';
+        if (auth()->guard('secretary')->check()) {
+            $sec = auth()->guard('secretary')->user();
+            $generatedBy = trim(($sec->secfname ?? '') . ' ' . ($sec->seclname ?? '')) ?: 'Secretary';
+        }
+
+        try {
+            return Pdf::loadView('printables.financial_report_print', compact('summary', 'items', 'queueDate', 'doctorName', 'profile', 'generatedBy'))
+                ->setPaper('A4', 'landscape')
+                ->stream('daily_financial_report_' . $queueDate . '.pdf');
+        } catch (\Throwable $e) {
+            Log::error('Failed to generate daily financial report PDF', [
+                'queuedate' => $queueDate,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response('Error generating financial report PDF: ' . $e->getMessage(), 500)
+                ->header('Content-Type', 'text/plain');
+        }
     }
 }
 

@@ -231,6 +231,33 @@ Tenant/facility-level configuration for a single clinic ('client') using this sy
 | `created_at` | datetime | NULL | NULL |  |
 | `updated_at` | datetime | NULL | NULL |  |
 
+### `theme`
+
+Theme branding and color customization settings for clinic facilities. Linked to `kayakapmd_profile` via `clientcode`.
+
+| Column | Type | Null? | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint UNSIGNED | NOT NULL, AUTO_INCREMENT |  | Primary Key |
+| `clientcode` | varchar(12) | NULL | NULL | Foreign business key linked to `kayakapmd_profile.clientcode` |
+| `theme_name` | varchar(100) | NO | 'Default Theme' | Descriptive name for the theme preset |
+| `app_background` | varchar(50) | NO | '#f8f9fa' | Global application background color |
+| `header_bg` | varchar(50) | NO | '#f4c79f' | Top navigation header / navbar background color |
+| `header_text_color` | varchar(50) | NO | '#212529' | Header navigation text and icon color |
+| `header_accent_color` | varchar(50) | NO | '#ffa500' | Navbar bottom accent strip color |
+| `footer_bg` | varchar(50) | NO | '#f8f9fa' | Application footer background color |
+| `footer_text_color` | varchar(50) | NO | '#6c757d' | Application footer text color |
+| `sidebar_bg` | varchar(50) | NO | '#e9ecef' | Left sidebar background color |
+| `sidebar_text_color` | varchar(50) | NO | '#212529' | Left sidebar navigation text and link color |
+| `primary_button_bg` | varchar(50) | NO | '#0d6efd' | Primary action button background color |
+| `primary_button_text` | varchar(50) | NO | '#ffffff' | Primary action button text color |
+| `secondary_button_bg` | varchar(50) | NO | '#6c757d' | Secondary button background color |
+| `secondary_button_text` | varchar(50) | NO | '#ffffff' | Secondary button text color |
+| `text_color` | varchar(50) | NO | '#212529' | General body text color |
+| `logo_path` | varchar(255) | NULL | 'images/logo.png' | Relative public path to facility logo image |
+| `is_active` | tinyint(1) | NO | 1 | Flag indicating if this theme configuration is currently active |
+| `created_at` | timestamp | NULL | NULL | Standard Laravel record creation timestamp |
+| `updated_at` | timestamp | NULL | NULL | Standard Laravel record update timestamp |
+
 ### `adminrights`
 
 | Column | Type | Null? | Default | Notes |
@@ -689,6 +716,27 @@ The front-desk / EMR core: the patient master list, the walk-in consultation que
 | `transactedby` | varchar(100) | NULL | NULL |  |
 | `transacteddate` | datetime | NULL | NULL |  |
 
+### `pxmedicalhistory`
+
+Permanent patient clinical history records (allergies such as seafood, injection/immunization log, past medical conditions, surgical history, family history, maintenance medications, and special clinical warnings), which persist across all patient visits.
+
+| Column | Type | Null? | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint UNSIGNED | NO | NULL | Primary key (auto-increment) |
+| `pxrefno` | varchar(50) | NO | NULL | Patient master reference number matching `pxmasterlist.pxrefno` (indexed) |
+| `pincode` | varchar(50) | YES | NULL | Patient PhilHealth or internal PIN matching `pxmasterlist.pincode` |
+| `allergies` | text | YES | NULL | Permanent patient allergies (food e.g. seafood, drug e.g. penicillin, environmental) |
+| `injections_immunization` | text | YES | NULL | Patient immunization and injection administration history |
+| `past_medical_history` | text | YES | NULL | Past medical illnesses, hypertension, diabetes, asthma, and chronic conditions |
+| `surgical_history` | text | YES | NULL | Past surgical procedures and prior hospitalizations |
+| `family_history` | text | YES | NULL | Hereditary family diseases and medical history |
+| `maintenance_medications` | text | YES | NULL | Ongoing maintenance medications and dosages |
+| `notes` | text | YES | NULL | General clinical remarks, precautions, or special medical warnings |
+| `recordedby` | varchar(80) | YES | NULL | Staff/physician who recorded initial medical history entry |
+| `updatedby` | varchar(80) | YES | NULL | Staff/physician who last updated medical history entry |
+| `created_at` | timestamp | YES | NULL | Record creation timestamp |
+| `updated_at` | timestamp | YES | NULL | Record last update timestamp |
+
 ## 5. Billing, Charges & Settlements
 
 Point-of-care billing: charge line items posted against a doctor/consultation, per-encounter financial settlement/reconciliation (splitting the bill across VAT, senior/PWD discount, HMO, PhilHealth, and payment method), and the master price/category lists charges are drawn from.
@@ -753,12 +801,15 @@ Point-of-care billing: charge line items posted against a doctor/consultation, p
 | `less_discount` | double(11, 2) | NULL | NULL |  |
 | `discount_description` | varchar(255) | YES | NULL | Description or authorization note for other consultation discount |
 | `net_payable` | double(11, 2) | NULL | NULL |  |
-| `payment_cash` | double(11, 2) | NULL | NULL |  |
+| `payment_cash` | double(11, 2) | NULL | NULL | Cash payment amount |
+| `is_philhealth_yakap` | tinyint(1) | YES | 0 | Flag indicating charge to PhilHealth Yakap primary care coverage |
+| `copay` | double(11, 2) | YES | 0.00 | Patient copayment balance after PhilHealth Yakap / primary care coverage |
 | `payment_card` | double(11, 2) | NULL | NULL |  |
 | `cta_type` | varchar(50) | NULL | NULL | Card transaction subtype (cc for Credit Card, dc for Debit Card) |
 | `payment_wallet` | double(11, 2) | NULL | NULL |  |
 | `payment_pn` | double(11, 2) | NULL | NULL |  |
 | `hmocode` | varchar(50) | NULL | NULL |  |
+| `hmo_loa_no` | varchar(100) | YES | NULL | HMO Letter of Authorization (LOA) approval / reference number |
 | `hmoname` | varchar(180) | NULL | NULL |  |
 | `hmo_type` | varchar(80) | NULL | NULL |  |
 | `createdby` | varchar(80) | NULL | NULL |  |

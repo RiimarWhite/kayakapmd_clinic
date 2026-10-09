@@ -89,11 +89,27 @@
 
 
 
+    {{-- Detailed Comment: Collapsible Settings menu providing access to Theme Settings and Facility Profile --}}
     <li class="nav-item">
-        <a class="nav-link text-dark {{ request()->routeIs('admin.profile') ? 'active' : '' }}"
-            href="{{ route('admin.profile') }}">
-            <i class="fa-solid fa-building"></i> Profile
-        </a>
+        <button class="d-flex align-items-center gap-2 nav-link w-100 text-start text-dark"
+            data-bs-toggle="collapse" data-bs-target="#settingsBtn" type="button" aria-controls="settingsBtn"
+            aria-expanded="{{ (request()->routeIs('admin.settings.*') || request()->routeIs('admin.profile')) ? 'true' : 'false' }}">
+            <i class="fa-solid fa-sliders"></i>
+            Settings
+            <i class="fa-solid fa-caret-down ms-auto"></i>
+        </button>
+        <div class="collapse {{ (request()->routeIs('admin.settings.*') || request()->routeIs('admin.profile')) ? 'show' : '' }}" id="settingsBtn">
+            <div class="card card-body bg-transparent border-0 p-0 gap-1 flex-column">
+                <a class="nav-link text-dark {{ request()->routeIs('admin.settings.theme') ? 'active' : '' }}"
+                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.settings.theme') }}">
+                    <i class="fa-solid fa-palette me-1"></i> Theme Settings
+                </a>
+                <a class="nav-link text-dark {{ request()->routeIs('admin.profile') ? 'active' : '' }}"
+                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.profile') }}">
+                    <i class="fa-solid fa-building me-1"></i> Facility Profile
+                </a>
+            </div>
+        </div>
     </li>
 
     <li class="nav-item">

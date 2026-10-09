@@ -403,6 +403,23 @@ $(function () {
 
                 if (response.patient != null) {
                     $("#consultationrefno").val(response.patient.consultationrefno);
+                    // Detailed Comment: Store patient identifiers on consultation modal element for tab data lookups
+                    $("#consultation_modal").data("pxrefno", response.patient.pxrefno || "");
+                    $("#consultation_modal").data("pincode", response.patient.pincode || "");
+                    $("#genpincode").text(response.patient.pincode || 'N/A');
+                    $("#genpxrefno").text(response.patient.pxrefno || 'N/A');
+
+                    // Detailed Comment: Display patient classification badge (REGULAR, HMO, PHIC) in Patient Information card header
+                    const ptype = (response.patient.classification || (response.patient.hmocode ? 'HMO' : (response.patient.phic_pin ? 'PHIC' : 'REGULAR'))).toUpperCase();
+                    $("#doctor_modal_patient_type_badge").text(ptype);
+                    if (ptype === 'HMO') {
+                        $("#doctor_modal_patient_type_badge").attr('class', 'badge bg-info text-white');
+                    } else if (ptype === 'PHIC') {
+                        $("#doctor_modal_patient_type_badge").attr('class', 'badge bg-primary text-white');
+                    } else {
+                        $("#doctor_modal_patient_type_badge").attr('class', 'badge bg-secondary text-white');
+                    }
+
                     $("#consulname").text([response.patient.patientname, response.patient.pxmidname, response.patient.pxlastname, response.patient.pxsuffix].filter(v => v).join(' '));
                     $("#consulsex").text(response.patient.gender);
                     $("#consulbday").text(new Date((response.patient.birthday).replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
@@ -417,8 +434,6 @@ $(function () {
                     $("#consulpulserate").text(response.patient.pulserate);
                     $("#consulbp").text(response.patient.bpnumerator != null && response.patient.bpdenominator != null ? (`${response.patient.bpnumerator}/${response.patient.bpdenominator}`) : '');
                     $("#patient_instructions").val(response.patient.instructions);
-
-                    $("#consultationrefno").val(response.patient.consultationrefno);
 
                     $("#genname").text([
                         response.patient.patientname,
@@ -463,7 +478,13 @@ $(function () {
                 }
 
                 loadQuestions();
-                loadMedicalHistory();
+                // Detailed Comment: Safely invoke consultation history and permanent medical history loaders if defined
+                if (typeof window.loadMedicalHistory === 'function') {
+                    window.loadMedicalHistory();
+                }
+                if (typeof window.loadDoctorPermanentMedicalHistory === 'function') {
+                    window.loadDoctorPermanentMedicalHistory(response.patient ? response.patient.pxrefno : '', response.patient ? response.patient.pincode : '', rowConsultationRefno);
+                }
                 loadDashboardRx();
             }
         });

@@ -24,6 +24,14 @@
                         </div>
                     </div>
                     <div class="card-body p-3" id="rx_patient_info">
+                        {{-- Detailed Comment: Prominent Allergy Alert Banner visible when patient has recorded allergies --}}
+                        <div class="alert alert-danger py-1 px-3 mb-2 d-none align-items-center gap-2 border-danger" id="doc_allergy_alert_bar" role="alert">
+                            <i class="fa-solid fa-triangle-exclamation text-danger fs-5"></i>
+                            <div class="small">
+                                <strong class="text-danger">KNOWN ALLERGIES:</strong> <span id="doc_allergy_alert_text" class="fw-bold"></span>
+                            </div>
+                        </div>
+
                         <div class="d-flex gap-3 align-items-center mb-3">
                             <img id="genphoto" src="/images/blank_photo.png" class="rounded rounded-circle border shadow-sm" style="width: 60px; height: 60px; object-fit: cover;" alt="Patient Photo" onerror="this.src='/images/blank_photo.png'">
                             <div>
@@ -64,7 +72,7 @@
                     </div>
                 </div>
 
-                {{-- Detailed Comment: Lower Card with Card-Header separating Consultation clinical tabs from Consultation History per user requirements --}}
+                {{-- Detailed Comment: Lower Card with Card-Header separating Consultation clinical tabs from Consultation History and Permanent Medical History --}}
                 <div class="card h-100 border shadow-sm">
                     <div class="card-header bg-light p-2 pb-0 border-bottom">
                         <ul class="nav nav-tabs card-header-tabs" id="consultation_main_tabs" role="tablist">
@@ -76,6 +84,11 @@
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link fw-bold text-dark px-3" id="main_medhistory_tab_btn" data-bs-toggle="tab" data-bs-target="#main_medhistory_pane" type="button" role="tab" aria-controls="main_medhistory_pane" aria-selected="false">
                                     <i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Consultation History
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link fw-bold text-dark px-3" id="main_permanent_medhistory_tab_btn" data-bs-toggle="tab" data-bs-target="#main_permanent_medhistory_pane" type="button" role="tab" aria-controls="main_permanent_medhistory_pane" aria-selected="false">
+                                    <i class="fa-solid fa-notes-medical text-danger me-2"></i> Medical History
                                 </button>
                             </li>
                         </ul>
@@ -341,6 +354,92 @@
                             </thead>
                             <tbody></tbody>
                         </table>
+                </div>
+            </div>
+
+            <!-- TAB 3: PERMANENT MEDICAL HISTORY (Allergies, Injections, Medical/Surgical/Family history, Maintenance meds) -->
+            <div class="tab-pane fade h-100" id="main_permanent_medhistory_pane" role="tabpanel" aria-labelledby="main_permanent_medhistory_tab_btn" tabindex="0">
+                <div class="d-flex flex-column h-100 p-2 overflow-y-auto">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h5 class="fw-bold m-0 text-dark"><i class="fa-solid fa-notes-medical text-danger me-2"></i> Permanent Clinical &amp; Medical History</h5>
+                            <small class="text-muted">Lifetime clinical profile, allergies, injections, chronic conditions, and surgical history persisting across all visits</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-primary fw-bold" id="save_doctor_medhistory_btn">
+                            <i class="fa-solid fa-floppy-disk me-1"></i> Save Medical History
+                        </button>
+                    </div>
+
+                    <div class="row g-2 flex-grow-1">
+                        <div class="col-12 col-lg-6">
+                            <div class="card h-100 border">
+                                <div class="card-header bg-light py-1 fw-bold text-dark small">
+                                    <i class="fa-solid fa-triangle-exclamation text-danger me-1"></i> Critical Alerts &amp; Immunizations
+                                </div>
+                                <div class="card-body p-2 d-flex flex-column gap-2">
+                                    <div>
+                                        <label class="form-label fw-bold text-danger small mb-1" for="doc_allergies">
+                                            Allergies &amp; Adverse Drug Reactions:
+                                        </label>
+                                        <textarea class="form-control form-control-sm border-danger" id="doc_allergies" rows="2" placeholder="e.g. Seafood, Penicillin, Aspirin, Latex"></textarea>
+                                        <div class="form-text text-danger" style="font-size: 10px;">Warning banner appears in patient summary card if allergies are specified.</div>
+                                    </div>
+
+                                    <div>
+                                        <label class="form-label fw-bold text-dark small mb-1" for="doc_injections">
+                                            <i class="fa-solid fa-syringe text-primary me-1"></i> Injections &amp; Immunization Log:
+                                        </label>
+                                        <textarea class="form-control form-control-sm" id="doc_injections" rows="2" placeholder="e.g. Flu Vaccine (2025), Pneumococcal, Tetanus Toxoid"></textarea>
+                                    </div>
+
+                                    <div>
+                                        <label class="form-label fw-bold text-dark small mb-1" for="doc_maintenance_meds">
+                                            <i class="fa-solid fa-pills text-info me-1"></i> Daily Maintenance Medications:
+                                        </label>
+                                        <textarea class="form-control form-control-sm" id="doc_maintenance_meds" rows="2" placeholder="e.g. Amlodipine 5mg OD, Losartan 50mg OD, Metformin 500mg BID"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6">
+                            <div class="card h-100 border">
+                                <div class="card-header bg-light py-1 fw-bold text-dark small">
+                                    <i class="fa-solid fa-heart-pulse text-secondary me-1"></i> Medical, Surgical &amp; Family History
+                                </div>
+                                <div class="card-body p-2 d-flex flex-column gap-2">
+                                    <div>
+                                        <label class="form-label fw-bold text-dark small mb-1" for="doc_past_medical_history">
+                                            Past Medical History (Chronic Illnesses):
+                                        </label>
+                                        <textarea class="form-control form-control-sm" id="doc_past_medical_history" rows="2" placeholder="e.g. Hypertension (5 yrs), Type 2 Diabetes Mellitus, Bronchial Asthma"></textarea>
+                                    </div>
+
+                                    <div>
+                                        <label class="form-label fw-bold text-dark small mb-1" for="doc_surgical_history">
+                                            <i class="fa-solid fa-bandage text-warning me-1"></i> Past Surgical History:
+                                        </label>
+                                        <textarea class="form-control form-control-sm" id="doc_surgical_history" rows="2" placeholder="e.g. Appendectomy (2018), Cholecystectomy (2022)"></textarea>
+                                    </div>
+
+                                    <div>
+                                        <label class="form-label fw-bold text-dark small mb-1" for="doc_family_history">
+                                            <i class="fa-solid fa-users text-success me-1"></i> Family Medical History:
+                                        </label>
+                                        <textarea class="form-control form-control-sm" id="doc_family_history" rows="2" placeholder="e.g. Maternal DM, Paternal CAD/Stroke"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="p-2 border rounded bg-light">
+                                <label class="form-label fw-bold text-dark small mb-1" for="doc_clinical_notes">
+                                    <i class="fa-solid fa-comment-medical text-secondary me-1"></i> Special Clinical Notes &amp; Precautions:
+                                </label>
+                                <textarea class="form-control form-control-sm" id="doc_clinical_notes" rows="2" placeholder="Special patient precautions, dietary restrictions, or notes"></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

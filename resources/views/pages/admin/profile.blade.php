@@ -6,8 +6,14 @@
 
 @section('content')
     <div class="card p-3" id="admin_page">
-        <h1 class="m-0">Profile</h1>
-        <hr>
+        {{-- Detailed Comment: Header bar featuring title and quick link tab to Theme Settings --}}
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h1 class="m-0">Profile</h1>
+            <a href="{{ route('admin.settings.theme') }}" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-2">
+                <i class="fa-solid fa-palette"></i> Theme & Branding Settings
+            </a>
+        </div>
+        <hr class="mt-0">
 
         <form class="d-flex flex-column gap-3" id="profile_form">
             @csrf

@@ -12,6 +12,7 @@ export default defineConfig({
                 // Admin pages
                 'resources/js/pages/admin/dashboard.js',
                 'resources/js/pages/admin/profile.js',
+                'resources/js/pages/admin/settings/theme.js',
                 'resources/js/pages/admin/users/secretaries.js',
                 'resources/js/pages/admin/users/doctors.js',
                 'resources/js/pages/admin/diagnostics/requests.js',

@@ -1,10 +1,11 @@
-<nav class="navbar p-0 gap-1" style="background-color: #f4c79f;">
+{{-- Detailed Comment: Top navigation header with dynamic background, logo, and accent strip driven by active clinic theme --}}
+<nav class="navbar p-0 gap-1" style="background-color: var(--header-bg, #f4c79f);">
     <div class="container-fluid m-0">
         <div class="navbar-brand d-flex gap-1 align-items-center">
-            <button class="btn btn-lg" id="hide-sidebar">
+            <button class="btn btn-lg" id="hide-sidebar" style="color: inherit;">
                 <i class="fa-solid fa-bars"></i>
             </button>
-            <img class="antialiased" style="height: 80px;" src="{{ asset('images/logo.png') }}" alt="company_logo">
+            <img class="antialiased" style="height: 80px; max-height: 80px; object-fit: contain;" src="{{ asset($activeTheme->logo_path ?? 'images/logo.png') }}" alt="company_logo" id="app_navbar_logo">
         </div>
 
         <div class="d-flex gap-2">
@@ -36,5 +37,5 @@
         </div>
     </div>
 
-    <span style="background-color: orange; height: 0.25rem; width: 100%;"></span>
+    <span class="navbar-accent-line" style="background-color: var(--header-accent, orange); height: 0.25rem; width: 100%;"></span>
 </nav>

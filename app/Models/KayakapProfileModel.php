@@ -68,4 +68,13 @@ class KayakapProfileModel extends Model
             'enable_radiology' => 'boolean'
         ];
     }
+
+    /**
+     * Detailed Comment: Defines a has-one relationship linking the facility profile
+     * to its active visual theme configuration via the matching clientcode key.
+     */
+    public function theme()
+    {
+        return $this->hasOne(ThemeModel::class, 'clientcode', 'clientcode');
+    }
 }

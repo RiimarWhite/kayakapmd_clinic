@@ -86,10 +86,17 @@
                                     ->orderBy('hmoname', 'ASC')
                                     ->get();
                             @endphp
+                            {{-- Detailed Comment: HMO Coverage with Provider dropdown and LOA reference number --}}
+                            @php
+                                $hmoMasterlist = \App\Models\HMOModel::whereNotNull('hmoname')
+                                    ->where('hmoname', '!=', '')
+                                    ->orderBy('hmoname', 'ASC')
+                                    ->get();
+                            @endphp
                             <div class="card p-2 border bg-light mb-1">
                                 <div class="fw-bold text-info mb-1 small"><i class="fa-solid fa-shield-halved me-1"></i> HMO Coverage</div>
                                 <div class="row g-2">
-                                    <div class="col-md-6">
+                                    <div class="col-md-5">
                                         <div class="input-group input-group-sm flex-nowrap">
                                             <span class="input-group-text fw-bold">HMO</span>
                                             {{-- Detailed Comment: Add min-width: 0 to ensure Select2 container inside input-group flexbox expands fully without collapsing --}}
@@ -105,7 +112,13 @@
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text fw-bold">LOA Ref #</span>
+                                            <input class="form-control" type="text" name="hmo_loa_no" id="hmo_loa_no" placeholder="LOA Reference Number">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
                                         <div class="input-group input-group-sm">
                                             <span class="input-group-text fw-bold text-info">Amount (₱)</span>
                                             <input class="form-control deduction-input text-end" type="number" step="0.01" min="0.00" placeholder="0.00" name="hmo" id="hmo">
@@ -141,17 +154,39 @@
                                 <p class="text-secondary fw-bold small m-0 mt-1">Remaining to Settle: PHP <span class="fw-normal" id="remaining">0.00</span></p>
                             </div>
 
-                            {{-- Detailed Comment: Payment settlement channels (CASH and CTA) moved to the bottom part per user requirements --}}
+                            {{-- Detailed Comment: Payment settlement channels (CASH, PhilHealth Yakap Co-Pay, and CTA) --}}
                             <div class="d-flex flex-column gap-2 mt-1">
+                                {{-- Row 1: CASH payment --}}
                                 <div class="input-group">
                                     <div class="input-group-text justify-content-center d-flex fw-bold bg-success text-white" style="width: 5.5rem">CASH</div>
-                                    <input class="form-control settlement-payment-input" type="number" step="0.01" min="0.00" placeholder="0.00" name="cash" id="cash">
+                                    <input class="form-control settlement-payment-input text-end" type="number" step="0.01" min="0.00" placeholder="0.00" name="cash" id="cash">
                                     <button class="btn btn-secondary import-net-billing" type="button" title="Import Net Billing"><i class="fa-solid fa-circle-arrow-down"></i></button>
                                 </div>
 
+                                {{-- Row 2: Charge to PhilHealth Yakap with automated Co-Pay (between Cash and CTA) --}}
+                                <div class="card p-2 border bg-light shadow-sm">
+                                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                        <div class="form-check form-switch m-0">
+                                            <input class="form-check-input" type="checkbox" id="is_philhealth_yakap" name="is_philhealth_yakap" value="1">
+                                            <label class="form-check-label fw-bold text-success small" for="is_philhealth_yakap">
+                                                <i class="fa-solid fa-heart-pulse me-1"></i> Charge to PhilHealth Yakap
+                                            </label>
+                                        </div>
+                                        <div class="d-flex align-items-center gap-1 d-none" id="yakap_copay_wrap">
+                                            <span class="fw-bold text-dark small text-nowrap">Co-Pay:</span>
+                                            <div class="input-group input-group-sm" style="max-width: 14rem;">
+                                                <span class="input-group-text fw-bold text-primary">₱</span>
+                                                <input class="form-control text-end fw-bold text-primary settlement-payment-input" type="number" step="0.01" min="0.00" placeholder="0.00" name="copay" id="copay">
+                                                <button class="btn btn-secondary import-net-billing" type="button" title="Import Remaining to Co-Pay"><i class="fa-solid fa-circle-arrow-down"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Row 3: CTA payment --}}
                                 <div class="input-group">
                                     <div class="input-group-text justify-content-center fw-bold bg-primary text-white" style="width: 5.5rem">CTA</div>
-                                    <input class="form-control settlement-payment-input" step="0.01" min="0.00" placeholder="0.00" type="number" name="cta" id="cta">
+                                    <input class="form-control settlement-payment-input text-end" step="0.01" min="0.00" placeholder="0.00" type="number" name="cta" id="cta">
                                     <select class="form-select" name="card_type" id="card_type" style="max-width: 12rem;">
                                         <option value="" selected disabled>-- Select Card Type --</option>
                                         <option value="cc">Credit Card</option>
@@ -190,6 +225,8 @@
                                 <input class="form-control" type="text" id="info_hmo" readonly>
                                 <span class="input-group-text">Provider</span>
                                 <input class="form-control" type="text" id="info_hmo_type" readonly>
+                                <span class="input-group-text">LOA Ref #</span>
+                                <input class="form-control" type="text" id="info_hmo_loa" readonly>
                             </div>
 
                             <div class="input-group">
@@ -211,6 +248,13 @@
                                 <input class="form-control" type="text" id="info_cash" readonly>
                             </div>
 
+                            <div class="input-group" id="info_yakap_row">
+                                <span class="input-group-text fw-bold text-success" style="width: 12rem;">Yakap Co-Pay</span>
+                                <input class="form-control" type="text" id="info_copay" readonly>
+                                <span class="input-group-text">Yakap Status</span>
+                                <input class="form-control" type="text" id="info_yakap_status" readonly>
+                            </div>
+
                             <div class="input-group">
                                 <span class="input-group-text fw-bold text-primary" style="width: 12rem;">CTA / CARD PAID</span>
                                 <input class="form-control" type="text" id="info_cta" readonly>
@@ -223,7 +267,9 @@
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-primary" id="save_settlements">Save</button>
+                <button type="button" class="btn btn-primary fw-bold" id="save_settlements">
+                    <i class="fa-solid fa-receipt me-1"></i> Record Payment
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="closeTakePhoto">Close</button>
             </div>
         </div>

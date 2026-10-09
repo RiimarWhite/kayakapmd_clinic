@@ -1,3 +1,8 @@
+@php
+    // Detailed Comment: Identify if document format should be half-A4 landscape (A5 landscape, 210mm x 148mm)
+    // for Rx prescriptions and Diagnostic requests, while keeping A4 portrait for admission and SOA.
+    $isHalfA4 = in_array($type ?? 'rx', ['rx', 'diagnostics']);
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,13 +10,13 @@
     <title>{{ strtoupper($type) }} - {{ $patient->patientname ?? 'Consultation' }}</title>
     <style>
         @page {
-            margin: 10mm 10mm 10mm 10mm;
-            size: A4 portrait;
+            margin: {{ $isHalfA4 ? '5mm 7mm 5mm 7mm' : '10mm 10mm 10mm 10mm' }};
+            size: {{ $isHalfA4 ? 'A5 landscape' : 'A4 portrait' }};
         }
 
         body {
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            font-size: 11px;
+            font-size: {{ $isHalfA4 ? '9.5px' : '11px' }};
             color: #2d3748;
             margin: 0;
             padding: 0;
@@ -20,10 +25,10 @@
 
         /* Outer Frame matching reference image */
         .rx-outer-border {
-            border: 3.5px solid #286aa0;
-            border-radius: 8px;
-            padding: 16px 20px;
-            min-height: 980px;
+            border: {{ $isHalfA4 ? '2.5px' : '3.5px' }} solid #286aa0;
+            border-radius: 6px;
+            padding: {{ $isHalfA4 ? '8px 12px' : '16px 20px' }};
+            min-height: {{ $isHalfA4 ? 'auto' : '980px' }};
             position: relative;
             box-sizing: border-box;
         }
@@ -44,20 +49,20 @@
         /* Patient Information Box */
         .patient-info-box {
             background-color: #edf5fc;
-            border-radius: 6px;
-            padding: 8px 14px;
-            margin-top: 10px;
-            margin-bottom: 16px;
+            border-radius: 5px;
+            padding: {{ $isHalfA4 ? '5px 10px' : '8px 14px' }};
+            margin-top: {{ $isHalfA4 ? '5px' : '10px' }};
+            margin-bottom: {{ $isHalfA4 ? '8px' : '16px' }};
         }
 
         .info-row-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 11px;
+            font-size: {{ $isHalfA4 ? '9.5px' : '11px' }};
         }
 
         .info-row-table td {
-            padding: 3px 0;
+            padding: {{ $isHalfA4 ? '1.5px 0' : '3px 0' }};
             vertical-align: bottom;
         }
 
@@ -77,22 +82,22 @@
 
         /* Rx Section */
         .rx-symbol {
-            font-size: 42px;
+            font-size: {{ $isHalfA4 ? '28px' : '42px' }};
             font-family: "Times New Roman", Times, serif;
             font-weight: 900;
             color: #286aa0;
             line-height: 1;
-            margin-right: 12px;
+            margin-right: 8px;
         }
 
         .med-item-name {
-            font-size: 13px;
+            font-size: {{ $isHalfA4 ? '11px' : '13px' }};
             font-weight: bold;
             color: #1a202c;
         }
 
         .med-item-sig {
-            font-size: 12px;
+            font-size: {{ $isHalfA4 ? '10px' : '12px' }};
             color: #2d3748;
             margin-top: 2px;
             padding-left: 8px;
@@ -106,9 +111,9 @@
         }
 
         .contact-item {
-            font-size: 9px;
+            font-size: {{ $isHalfA4 ? '8px' : '9px' }};
             color: #4a5568;
-            line-height: 1.4;
+            line-height: 1.3;
         }
     </style>
 </head>
@@ -117,9 +122,9 @@
         {{-- Header Section: Left Stethoscope/Heart Logo + Doctor Details, Right Hospital / Clinic Title --}}
         <table style="width: 100%; border-collapse: collapse;">
             <tr>
-                <td style="width: 58px; vertical-align: middle;">
+                <td style="width: {{ $isHalfA4 ? '44px' : '58px' }}; vertical-align: middle;">
                     {{-- Detailed Comment: Scalable Stethoscope forming Heart vector icon matching reference image --}}
-                    <svg width="52" height="58" viewBox="0 0 64 74" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg width="{{ $isHalfA4 ? '38' : '52' }}" height="{{ $isHalfA4 ? '42' : '58' }}" viewBox="0 0 64 74" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M14 6 V22 C14 32 26 38 32 44 C38 38 50 32 50 22 V6" stroke="#286aa0" stroke-width="4" stroke-linecap="round" fill="none"/>
                         <circle cx="14" cy="6" r="3.5" fill="#286aa0"/>
                         <circle cx="50" cy="6" r="3.5" fill="#286aa0"/>
@@ -128,8 +133,8 @@
                         <path d="M32 52 H41" stroke="#286aa0" stroke-width="3" stroke-linecap="round"/>
                     </svg>
                 </td>
-                <td style="vertical-align: middle; padding-left: 12px;">
-                    <div style="font-size: 19px; font-weight: bold; color: #286aa0; letter-spacing: 0.3px;">
+                <td style="vertical-align: middle; padding-left: {{ $isHalfA4 ? '8px' : '12px' }};">
+                    <div style="font-size: {{ $isHalfA4 ? '15px' : '19px' }}; font-weight: bold; color: #286aa0; letter-spacing: 0.3px;">
                         @php
                             $docDisplayName = $doctor->docname ?? 'Attending Physician';
                             if (!empty($docDisplayName) && !preg_match('/^dr\.?\s+/i', $docDisplayName)) {
@@ -138,21 +143,21 @@
                         @endphp
                         {{ $docDisplayName }}
                     </div>
-                    <div style="font-size: 10px; font-weight: bold; color: #4a5568; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px;">
+                    <div style="font-size: {{ $isHalfA4 ? '8.5px' : '10px' }}; font-weight: bold; color: #4a5568; letter-spacing: {{ $isHalfA4 ? '1px' : '2px' }}; text-transform: uppercase; margin-top: 1px;">
                         {{ $doctor->specialization ?? 'QUALIFICATION / GENERAL PRACTITIONER' }}
                     </div>
-                    <div style="width: 100%; border-bottom: 2px solid #7ea6cb; margin-top: 4px; margin-bottom: 4px;"></div>
-                    <div style="font-size: 9px; color: #718096;">
+                    <div style="width: 100%; border-bottom: 2px solid #7ea6cb; margin-top: 3px; margin-bottom: 3px;"></div>
+                    <div style="font-size: {{ $isHalfA4 ? '8px' : '9px' }}; color: #718096;">
                         @if(!empty($doctor->Licno)) Lic. No.: <strong>{{ $doctor->Licno }}</strong> &nbsp;|&nbsp; @endif
                         @if(!empty($doctor->PTR)) PTR No.: <strong>{{ $doctor->PTR }}</strong> &nbsp;|&nbsp; @endif
                         @if(!empty($doctor->S2no)) S2 No.: <strong>{{ $doctor->S2no }}</strong> @endif
                     </div>
                 </td>
-                <td style="width: 180px; vertical-align: middle; text-align: right;">
-                    <div style="font-size: 15px; font-weight: bold; color: #286aa0; text-transform: uppercase; letter-spacing: 0.5px;">
+                <td style="width: {{ $isHalfA4 ? '190px' : '180px' }}; vertical-align: middle; text-align: right;">
+                    <div style="font-size: {{ $isHalfA4 ? '13px' : '15px' }}; font-weight: bold; color: #286aa0; text-transform: uppercase; letter-spacing: 0.5px;">
                         {{ $profile->HOSP_NAME ?? config('app.name', 'KayakapMD Clinic') }}
                     </div>
-                    <div style="font-size: 8.5px; color: #718096; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px;">
+                    <div style="font-size: {{ $isHalfA4 ? '7.5px' : '8.5px' }}; color: #718096; margin-top: 1px; text-transform: uppercase; letter-spacing: 1px;">
                         {{ $profile->businessgroup_name ?? 'CLINICAL CARE & SERVICES' }}
                     </div>
                 </td>
@@ -163,7 +168,7 @@
         <div class="patient-info-box">
             <table class="info-row-table">
                 <tr>
-                    <td class="info-label" style="width: 85px;">Patient Name:</td>
+                    <td class="info-label" style="width: {{ $isHalfA4 ? '75px' : '85px' }};">Patient Name:</td>
                     <td class="info-underline" colspan="3">{{ $patient->patientname ?? 'N/A' }}</td>
                 </tr>
                 <tr>
@@ -172,13 +177,13 @@
                 </tr>
                 <tr>
                     <td colspan="4" style="padding: 0;">
-                        <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: {{ $isHalfA4 ? '9.5px' : '11px' }};">
                             <tr>
-                                <td class="info-label" style="width: 40px;">Age:</td>
+                                <td class="info-label" style="width: 35px;">Age:</td>
                                 <td class="info-underline" style="width: 25%;">{{ $patient->age ?? 'N/A' }}</td>
-                                <td class="info-label" style="width: 40px; padding-left: 12px;">Sex:</td>
+                                <td class="info-label" style="width: 35px; padding-left: 8px;">Sex:</td>
                                 <td class="info-underline" style="width: 25%;">{{ $patient->gender ?? 'N/A' }}</td>
-                                <td class="info-label" style="width: 40px; padding-left: 12px;">Date:</td>
+                                <td class="info-label" style="width: 35px; padding-left: 8px;">Date:</td>
                                 <td class="info-underline" style="width: 25%;">{{ now()->format('m/d/Y') }}</td>
                             </tr>
                         </table>
@@ -194,21 +199,21 @@
         </div>
 
         {{-- Main Document Content Area --}}
-        <div style="min-height: 480px; padding: 4px 6px;">
+        <div style="{{ $isHalfA4 ? 'min-height: 140px;' : 'min-height: 480px;' }} padding: 3px 4px;">
             @if ($type === "rx")
                 <table style="width: 100%; border-collapse: collapse;">
                     <tr>
                         {{-- Detailed Comment: Prominent theme-matching blue Rx Symbol image with ASCII Latin 'Rx' fallback to prevent Dompdf '?' missing glyphs --}}
-                        <td style="vertical-align: top; width: 48px;">
+                        <td style="vertical-align: top; width: {{ $isHalfA4 ? '36px' : '48px' }};">
                             @php
                                 $rxImgPath = file_exists(public_path('images/rx_icon_blue.png'))
                                     ? public_path('images/rx_icon_blue.png')
                                     : (file_exists(public_path('images/rx_icon.png')) ? public_path('images/rx_icon.png') : null);
                             @endphp
                             @if ($rxImgPath)
-                                <img src="{{ $rxImgPath }}" style="width: 44px; height: auto;" alt="Rx">
+                                <img src="{{ $rxImgPath }}" style="width: {{ $isHalfA4 ? '30px' : '44px' }}; height: auto;" alt="Rx">
                             @else
-                                <div style="font-size: 32px; font-weight: bold; font-family: 'Times New Roman', serif; color: #286aa0; line-height: 1;">Rx</div>
+                                <div style="font-size: {{ $isHalfA4 ? '24px' : '32px' }}; font-weight: bold; font-family: 'Times New Roman', serif; color: #286aa0; line-height: 1;">Rx</div>
                             @endif
                         </td>
 
@@ -223,15 +228,15 @@
                                         $dosage = is_array($medicine) ? ($medicine['medicinedosage'] ?? '') : ($medicine->medicinedosage ?? '');
                                         $duration = is_array($medicine) ? ($medicine['medicineduration'] ?? '') : ($medicine->medicineduration ?? '');
                                     @endphp
-                                    <div style="margin-bottom: 16px;">
+                                    <div style="margin-bottom: {{ $isHalfA4 ? '8px' : '16px' }};">
                                         {{-- Line 1: Name / Description and Quantity --}}
                                         <div class="med-item-name">
                                             {{ $loop->iteration }}. {{ $medName }}
                                             @if(!empty($dosage))
-                                                <span style="font-weight: normal; color: #4a5568; font-size: 11.5px;">({{ $dosage }})</span>
+                                                <span style="font-weight: normal; color: #4a5568; font-size: {{ $isHalfA4 ? '10px' : '11.5px' }};">({{ $dosage }})</span>
                                             @endif
                                             @if (!empty($qty) && (float)$qty > 0)
-                                                <span style="font-weight: 600; font-size: 12px; color: #286aa0; margin-left: 8px;">
+                                                <span style="font-weight: 600; font-size: {{ $isHalfA4 ? '10.5px' : '12px' }}; color: #286aa0; margin-left: 6px;">
                                                     # {{ (int)$qty == $qty ? (int)$qty : $qty }}
                                                 </span>
                                             @endif
@@ -240,7 +245,7 @@
                                         <div class="med-item-sig">
                                             <strong style="color: #286aa0;">Sig:</strong> {{ !empty($instruction) ? $instruction : 'As directed by physician' }}
                                             @if(!empty($duration))
-                                                <span style="color: #718096; font-size: 10.5px; margin-left: 8px;">(Duration: {{ $duration }})</span>
+                                                <span style="color: #718096; font-size: {{ $isHalfA4 ? '9px' : '10.5px' }}; margin-left: 6px;">(Duration: {{ $duration }})</span>
                                             @endif
                                         </div>
                                     </div>
@@ -251,11 +256,11 @@
 
                             {{-- Detailed Comment: General Rx instructions placed strictly at the bottommost part of the prescription --}}
                             @if (!empty($patient->instructions))
-                                <div style="margin-top: 35px; border-top: 1px dashed #cbd5e0; padding-top: 8px;">
-                                    <div style="font-size: 11px; font-weight: bold; color: #286aa0; text-transform: uppercase; margin-bottom: 3px;">
+                                <div style="margin-top: {{ $isHalfA4 ? '10px' : '35px' }}; border-top: 1px dashed #cbd5e0; padding-top: 4px;">
+                                    <div style="font-size: {{ $isHalfA4 ? '9.5px' : '11px' }}; font-weight: bold; color: #286aa0; text-transform: uppercase; margin-bottom: 2px;">
                                         General Advice / Special Instructions:
                                     </div>
-                                    <div style="font-size: 11px; color: #4a5568; white-space: pre-wrap; line-height: 1.5;">{{ $patient->instructions }}</div>
+                                    <div style="font-size: {{ $isHalfA4 ? '9.5px' : '11px' }}; color: #4a5568; white-space: pre-wrap; line-height: 1.4;">{{ $patient->instructions }}</div>
                                 </div>
                             @endif
                         </td>
@@ -267,16 +272,25 @@
                 <p style="font-size: 13px; white-space: pre-wrap; line-height: 1.6; color: #2d3748;">{{ !empty($patient->instructions) ? $patient->instructions : 'No special instructions recorded.' }}</p>
 
             @elseif ($type === "diagnostics")
-                <h4 style="border-bottom: 2px solid #286aa0; padding-bottom: 4px; color: #286aa0; margin-top: 0;">DIAGNOSTICS &amp; LABORATORY REQUEST</h4>
+                <h4 style="border-bottom: 2px solid #286aa0; padding-bottom: 3px; color: #286aa0; margin-top: 0; font-size: {{ $isHalfA4 ? '12px' : '14px' }};">DIAGNOSTICS &amp; LABORATORY REQUEST</h4>
                 @if (!empty($requests) && count($requests) > 0)
-                    <ul style="font-size: 13px; line-height: 1.8; color: #2d3748;">
-                        @foreach ($requests as $request)
-                            @php
-                                $diagName = is_object($request) ? ($request->diagnostic_name ?? $request->item_dscr ?? '') : (is_array($request) ? ($request['diagnostic_name'] ?? $request['item_dscr'] ?? '') : (string)$request);
-                            @endphp
-                            <li><strong>{{ $diagName }}</strong></li>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        @foreach ($requests->chunk(2) as $chunk)
+                            <tr>
+                                @foreach ($chunk as $request)
+                                    @php
+                                        $diagName = is_object($request) ? ($request->diagnostic_name ?? $request->item_dscr ?? '') : (is_array($request) ? ($request['diagnostic_name'] ?? $request['item_dscr'] ?? '') : (string)$request);
+                                    @endphp
+                                    <td style="width: 50%; padding: 3px 6px; font-size: {{ $isHalfA4 ? '10px' : '12px' }}; color: #2d3748; vertical-align: top;">
+                                        &#8226; <strong>{{ $diagName }}</strong>
+                                    </td>
+                                @endforeach
+                                @if ($chunk->count() === 1)
+                                    <td style="width: 50%;"></td>
+                                @endif
+                            </tr>
                         @endforeach
-                    </ul>
+                    </table>
                 @else
                     <p style="color: #a0aec0; font-style: italic;">No diagnostic requests recorded.</p>
                 @endif
@@ -409,17 +423,17 @@
         </div>
 
         {{-- Physician Signature Block (Aligned to the Right) --}}
-        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+        <table style="width: 100%; border-collapse: collapse; margin-top: {{ $isHalfA4 ? '6px' : '15px' }};">
             <tr>
                 <td style="width: 60%;"></td>
                 <td style="width: 40%; text-align: center;">
-                    <div style="height: 30px;"></div>
-                    <div style="border-top: 1.5px solid #4a5568; padding-top: 4px; display: inline-block; width: 220px;">
-                        <div style="font-weight: bold; font-size: 11.5px; color: #1a202c; text-transform: uppercase;">
+                    <div style="height: {{ $isHalfA4 ? '12px' : '30px' }};"></div>
+                    <div style="border-top: 1.5px solid #4a5568; padding-top: 3px; display: inline-block; width: {{ $isHalfA4 ? '180px' : '220px' }};">
+                        <div style="font-weight: bold; font-size: {{ $isHalfA4 ? '10px' : '11.5px' }}; color: #1a202c; text-transform: uppercase;">
                             {{ $docDisplayName }}
                         </div>
-                        <div style="font-size: 9px; color: #718096; margin-top: 1px;">Physician's Signature</div>
-                        <div style="font-size: 8.5px; color: #718096; margin-top: 1px;">
+                        <div style="font-size: {{ $isHalfA4 ? '8px' : '9px' }}; color: #718096; margin-top: 1px;">Physician's Signature</div>
+                        <div style="font-size: {{ $isHalfA4 ? '7.5px' : '8.5px' }}; color: #718096; margin-top: 1px;">
                             @if(!empty($doctor->Licno)) Lic. No.: {{ $doctor->Licno }} @endif
                             @if(!empty($doctor->PTR)) &nbsp;|&nbsp; PTR: {{ $doctor->PTR }} @endif
                         </div>
@@ -429,7 +443,7 @@
         </table>
 
         {{-- Bottom 2x2 Contact Info Footer + Translucent Watermark Curve matching reference image --}}
-        <div style="position: absolute; bottom: 16px; left: 20px; right: 20px; border-top: 1px solid #e2e8f0; padding-top: 8px;">
+        <div style="{{ $isHalfA4 ? 'margin-top: 6px; border-top: 1px solid #e2e8f0; padding-top: 4px;' : 'position: absolute; bottom: 16px; left: 20px; right: 20px; border-top: 1px solid #e2e8f0; padding-top: 8px;' }}">
             <table style="width: 100%; border-collapse: collapse;">
                 <tr>
                     {{-- Contact Strip (Left Column: Phone & Address) --}}
@@ -437,17 +451,17 @@
                         <table style="border-collapse: collapse;">
                             <tr>
                                 <td style="width: 16px; vertical-align: middle;">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#286aa0"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.36 11.36 0 003.58.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1 11.36 11.36 0 00.57 3.58 1 1 0 01-.25 1.02l-2.2 2.19z"/></svg>
+                                    <svg width="{{ $isHalfA4 ? '10' : '12' }}" height="{{ $isHalfA4 ? '10' : '12' }}" viewBox="0 0 24 24" fill="#286aa0"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24 11.36 11.36 0 003.58.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1 11.36 11.36 0 00.57 3.58 1 1 0 01-.25 1.02l-2.2 2.19z"/></svg>
                                 </td>
                                 <td class="contact-item" style="padding-left: 4px;">
                                     {{ !empty($profile->TEL_NO) ? $profile->TEL_NO : (!empty($doctor->mobileno) ? $doctor->mobileno : '(02) 8800-0000') }}
                                 </td>
                             </tr>
                             <tr>
-                                <td style="width: 16px; vertical-align: middle; padding-top: 4px;">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#286aa0"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
+                                <td style="width: 16px; vertical-align: middle; padding-top: {{ $isHalfA4 ? '2px' : '4px' }};">
+                                    <svg width="{{ $isHalfA4 ? '10' : '12' }}" height="{{ $isHalfA4 ? '10' : '12' }}" viewBox="0 0 24 24" fill="#286aa0"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 010-5 2.5 2.5 0 010 5z"/></svg>
                                 </td>
-                                <td class="contact-item" style="padding-left: 4px; padding-top: 4px;">
+                                <td class="contact-item" style="padding-left: 4px; padding-top: {{ $isHalfA4 ? '2px' : '4px' }};">
                                     @php
                                         $hospAddr = array_filter([$profile->HOSP_ADDBRGY ?? '', $profile->HOSP_ADDMUN ?? '', $profile->HOSP_ADDPROV ?? '']);
                                     @endphp
@@ -462,17 +476,17 @@
                         <table style="border-collapse: collapse;">
                             <tr>
                                 <td style="width: 16px; vertical-align: middle;">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#286aa0"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                                    <svg width="{{ $isHalfA4 ? '10' : '12' }}" height="{{ $isHalfA4 ? '10' : '12' }}" viewBox="0 0 24 24" fill="#286aa0"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
                                 </td>
                                 <td class="contact-item" style="padding-left: 4px;">
                                     {{ !empty($profile->EMAIL_ADD) ? $profile->EMAIL_ADD : (!empty($doctor->email) ? $doctor->email : 'info@kayakapmd.com') }}
                                 </td>
                             </tr>
                             <tr>
-                                <td style="width: 16px; vertical-align: middle; padding-top: 4px;">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#286aa0"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                                <td style="width: 16px; vertical-align: middle; padding-top: {{ $isHalfA4 ? '2px' : '4px' }};">
+                                    <svg width="{{ $isHalfA4 ? '10' : '12' }}" height="{{ $isHalfA4 ? '10' : '12' }}" viewBox="0 0 24 24" fill="#286aa0"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                                 </td>
-                                <td class="contact-item" style="padding-left: 4px; padding-top: 4px;">
+                                <td class="contact-item" style="padding-left: 4px; padding-top: {{ $isHalfA4 ? '2px' : '4px' }};">
                                     {{ config('app.url') ? str_replace(['http://', 'https://'], '', config('app.url')) : 'www.kayakapmd.com' }}
                                 </td>
                             </tr>
@@ -481,7 +495,7 @@
 
                     {{-- Decorative Stethoscope Watermark Loop matching bottom right of reference image --}}
                     <td style="width: 18%; text-align: right; vertical-align: bottom;">
-                        <svg width="80" height="55" viewBox="0 0 100 70" fill="none" style="opacity: 0.35;">
+                        <svg width="{{ $isHalfA4 ? '50' : '80' }}" height="{{ $isHalfA4 ? '35' : '55' }}" viewBox="0 0 100 70" fill="none" style="opacity: 0.35;">
                             <path d="M95 65 C95 40 65 30 65 50 C65 70 100 65 95 30 C90 -5 50 10 40 35" stroke="#7ea6cb" stroke-width="4.5" stroke-linecap="round" fill="none"/>
                         </svg>
                     </td>

@@ -106,6 +106,8 @@ $(function () {
     loadSchedules(1);
     loadSchedules(2);
     updateDoctorQueueBadges();
+    // Detailed Comment: Load consolidated daily queue financial summary card metrics at initial page load
+    loadQueueFinancialSummary();
 
     /**
      * Detailed Comment: Fetches real-time patient queue counts grouped by assigned doctor
@@ -142,6 +144,8 @@ $(function () {
         loadPatientMasterlistQueueTable();
         loadUnschedTable();
         updateDoctorQueueBadges();
+        // Detailed Comment: Synchronize consolidated queue financial summary whenever patient queue list is reloaded
+        loadQueueFinancialSummary();
 
         if ($("#doctor_id").val() == "") {
             $("#questions_container").empty().append(`<p class="m-0 ms-4">No questions loaded.</p>`);
@@ -521,6 +525,8 @@ $(function () {
         loadSchedules(1);
         loadSchedules(2);
         updateDoctorQueueBadges();
+        // Detailed Comment: Refresh consolidated financial summary on queue date change
+        loadQueueFinancialSummary();
     });
     $("#stime").on("change", function () {
         // Detailed Comment: Match the schedule time set with the selected consultation schedule
@@ -544,6 +550,8 @@ $(function () {
         loadSchedules(1);
         loadSchedules(2);
         updateDoctorQueueBadges();
+        // Detailed Comment: Refresh financial summary on previous date change
+        loadQueueFinancialSummary();
         setTimeout(() => resetBtnLoading($btn), 400);
     });
 
@@ -559,6 +567,8 @@ $(function () {
         loadSchedules(1);
         loadSchedules(2);
         updateDoctorQueueBadges();
+        // Detailed Comment: Refresh financial summary on next date change
+        loadQueueFinancialSummary();
         setTimeout(() => resetBtnLoading($btn), 400);
     });
 
@@ -573,6 +583,17 @@ $(function () {
         $("#patient_picture_preview").prop("src", "/images/blank_photo.png");
         $("#sec_medhistory_table tbody").html('<tr><td colspan="7" class="text-center text-muted py-3">No patient consultation history loaded yet. Import or select a patient to view consultation history.</td></tr>');
         $("#sec_medhistory_count").text('0 records');
+
+        // Detailed Comment: Clear permanent medical history inputs and hide allergy warning banner
+        $("#sec_allergies").val("");
+        $("#sec_injections").val("");
+        $("#sec_past_medical_history").val("");
+        $("#sec_surgical_history").val("");
+        $("#sec_family_history").val("");
+        $("#sec_maintenance_meds").val("");
+        $("#sec_clinical_notes").val("");
+        $("#sec_allergy_alert_bar").addClass("d-none").removeClass("d-flex");
+        $("#sec_allergy_alert_text").text("");
     });
 
     /**
@@ -929,6 +950,183 @@ $(function () {
         }
     });
 
+    /**
+     * Detailed Comment: Loads permanent patient medical history (allergies, immunizations, past medical illnesses,
+     * surgical history, family history, and maintenance medications) via /api/fetch_patient_medical_history.
+     * Updates allergy warning banner dynamically to protect patient safety.
+     */
+    function loadSecretaryPermanentMedicalHistory(pincode, pxrefno, consultationrefno) {
+        if (!pxrefno && !pincode && !consultationrefno) return;
+
+        $.ajax({
+            url: "/api/fetch_patient_medical_history",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: {
+                pxrefno: pxrefno,
+                pincode: pincode,
+                consultationrefno: consultationrefno
+            },
+            success: function (res) {
+                if (res.success && res.data) {
+                    const d = res.data;
+                    $("#sec_allergies").val(d.allergies || "");
+                    $("#sec_injections").val(d.injections_immunization || "");
+                    $("#sec_past_medical_history").val(d.past_medical_history || "");
+                    $("#sec_surgical_history").val(d.surgical_history || "");
+                    $("#sec_family_history").val(d.family_history || "");
+                    $("#sec_maintenance_meds").val(d.maintenance_medications || "");
+                    $("#sec_clinical_notes").val(d.notes || "");
+
+                    // Update Allergy Alert Banner
+                    if (d.allergies && d.allergies.trim() !== "") {
+                        $("#sec_allergy_alert_text").text(d.allergies.trim());
+                        $("#sec_allergy_alert_bar").removeClass("d-none").addClass("d-flex");
+                    } else {
+                        $("#sec_allergy_alert_bar").addClass("d-none").removeClass("d-flex");
+                        $("#sec_allergy_alert_text").text("");
+                    }
+                } else {
+                    $("#sec_allergies").val("");
+                    $("#sec_injections").val("");
+                    $("#sec_past_medical_history").val("");
+                    $("#sec_surgical_history").val("");
+                    $("#sec_family_history").val("");
+                    $("#sec_maintenance_meds").val("");
+                    $("#sec_clinical_notes").val("");
+                    $("#sec_allergy_alert_bar").addClass("d-none").removeClass("d-flex");
+                    $("#sec_allergy_alert_text").text("");
+                }
+            },
+            error: function (err) {
+                console.warn("Failed to load patient permanent medical history:", err);
+            }
+        });
+    }
+
+    $("#patient_permanent_medhistory_tab_btn").on("click", function () {
+        const pxrefno = String($("#pxidno").text() || $("#pxidno").val() || "").trim();
+        const pincode = String($("#pincode").val() || "").trim();
+        const cref = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
+        if (pxrefno || pincode || cref) {
+            loadSecretaryPermanentMedicalHistory(pincode, pxrefno, cref);
+        }
+    });
+
+    // Detailed Comment: Save permanent medical history handler
+    $("#save_sec_medhistory_btn").on("click", function () {
+        const pxrefno = String($("#pxidno").text() || $("#pxidno").val() || "").trim();
+        const pincode = String($("#pincode").val() || "").trim();
+        const cref = String($("#pxconsultationrefno").text() || $("#pxconsultationrefno").val() || "").trim();
+
+        if (!pxrefno && !pincode && !cref) {
+            Swal.fire({
+                title: "No Patient Selected",
+                text: "Please select or import a patient from the queue before saving medical history.",
+                icon: "warning"
+            });
+            return;
+        }
+
+        const $btn = $(this);
+        setBtnLoading($btn, "Saving...");
+
+        $.ajax({
+            url: "/api/save_patient_medical_history",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: {
+                pxrefno: pxrefno,
+                pincode: pincode,
+                consultationrefno: cref,
+                allergies: $("#sec_allergies").val(),
+                injections_immunization: $("#sec_injections").val(),
+                past_medical_history: $("#sec_past_medical_history").val(),
+                surgical_history: $("#sec_surgical_history").val(),
+                family_history: $("#sec_family_history").val(),
+                maintenance_medications: $("#sec_maintenance_meds").val(),
+                notes: $("#sec_clinical_notes").val(),
+            },
+            success: function (res) {
+                if (res.success) {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: 'Medical history saved successfully!',
+                        showConfirmButton: false,
+                        timer: 2000
+                    });
+
+                    // Update Allergy Alert Banner immediately
+                    const allergies = $("#sec_allergies").val().trim();
+                    if (allergies) {
+                        $("#sec_allergy_alert_text").text(allergies);
+                        $("#sec_allergy_alert_bar").removeClass("d-none").addClass("d-flex");
+                    } else {
+                        $("#sec_allergy_alert_bar").addClass("d-none").removeClass("d-flex");
+                        $("#sec_allergy_alert_text").text("");
+                    }
+                } else {
+                    Swal.fire({
+                        title: "Error",
+                        text: res.message || "Failed to save medical history.",
+                        icon: "error"
+                    });
+                }
+            },
+            error: function (xhr) {
+                const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "Failed to save medical history.";
+                Swal.fire({ title: "Error", text: msg, icon: "error" });
+            },
+            complete: function () {
+                resetBtnLoading($btn);
+            }
+        });
+    });
+
+    /**
+     * Detailed Comment: Fetches consolidated queue financial summary (income, deductions, payment channels)
+     * and populates the Daily Income & Financial Summary card at the bottom of the Patient Queue card.
+     */
+    function loadQueueFinancialSummary() {
+        const queueDate = $("#queuedate").val() || new Date().toISOString().split('T')[0];
+        const docRefNo = $("#doctor_id").val() || '';
+
+        const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
+        $("#print_financial_report_btn").attr("href", `${basePath}/print_financial_report?queuedate=${queueDate}&docrefno=${docRefNo}`);
+
+        $.ajax({
+            url: "/api/fetch_queue_financial_summary",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: { queuedate: queueDate, docrefno: docRefNo },
+            success: function (res) {
+                if (res.success && res.summary) {
+                    const s = res.summary;
+                    const fmt = (num) => '₱' + Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    $("#fin_sum_gross").text(fmt(s.total_gross));
+                    $("#fin_sum_net").text(fmt(s.total_net));
+                    $("#fin_sum_paid").text(fmt(s.total_paid));
+                    $("#fin_sum_phic").text('-' + fmt(s.total_phic));
+                    $("#fin_sum_hmo").text('-' + fmt(s.total_hmo));
+                    $("#fin_sum_senior").text('-' + fmt(s.total_senior));
+                    $("#fin_sum_cash").text(fmt(s.total_cash));
+                    $("#fin_sum_card").text(fmt(s.total_card));
+                    $("#fin_sum_copay").text(fmt(s.total_copay));
+                    $("#fin_sum_balance").text(fmt(s.total_balance));
+                }
+            },
+            error: function (err) {
+                console.warn("Error fetching financial summary:", err);
+            }
+        });
+    }
+
+    $("#refresh_financial_summary_btn").on("click", function () {
+        loadQueueFinancialSummary();
+    });
+
     // Detailed Comment: Add Patient submit handler with button loading spinner and field validation
     $("#add_patient_btn").on("click", function () {
         const form = document.getElementById("add_patient_form");
@@ -1022,6 +1220,11 @@ $(function () {
                         loadSecretaryMedhistory(p.pincode, p.pxrefno, p.consultationrefno);
                     } catch (err) {
                         console.warn("Error loading secretary medhistory:", err);
+                    }
+                    try {
+                        loadSecretaryPermanentMedicalHistory(p.pincode, p.pxrefno, p.consultationrefno);
+                    } catch (err) {
+                        console.warn("Error loading secretary permanent medhistory:", err);
                     }
 
                     if (response.answers && Array.isArray(response.answers)) {
@@ -2034,13 +2237,16 @@ $(function () {
     }
 
     /**
-     * Detailed Comment: Computes remaining balance to be dispersed into Cash and CTA payments.
-     * Remaining = max(0, Net Billing - (Cash + CTA)).
+     * Detailed Comment: Computes remaining balance to be dispersed into Cash, Yakap Co-Pay, and CTA payments.
+     * Remaining = max(0, Net Billing - (Cash + CoPay + CTA)).
      */
     function calculateSettlementRemaining() {
         const netBilling = calculateSettlementNetBilling();
         let payments = 0;
         payments += parseFloat($("#cash").val()) || 0;
+        if ($("#is_philhealth_yakap").is(":checked")) {
+            payments += parseFloat($("#copay").val()) || 0;
+        }
         payments += parseFloat($("#cta").val()) || 0;
         payments = Math.round(payments * 100) / 100;
 
@@ -2061,7 +2267,7 @@ $(function () {
 
     /**
      * Detailed Comment: Populates the View Settlements tab with itemized totals, deductions,
-     * reference numbers, Net Billing, and payment receipt breakdown.
+     * reference numbers, HMO LOA, PhilHealth Yakap Co-Pay, Net Billing, and payment receipt breakdown.
      */
     function populateViewSettlements(r) {
         if (!r) {
@@ -2072,10 +2278,14 @@ $(function () {
             $("#info_phic_icd").val('None');
             $("#info_hmo").val('PHP 0.00');
             $("#info_hmo_type").val('None');
+            $("#info_hmo_loa").val('None');
             $("#info_discount").val('PHP 0.00');
             $("#info_discount_desc").val('None');
             $("#info_net_payable").val('PHP ' + totalSettlementAmount.toFixed(2));
             $("#info_cash").val('PHP 0.00');
+            $("#info_copay").val('PHP 0.00');
+            $("#info_yakap_status").val('None');
+            $("#info_yakap_row").hide();
             $("#info_cta").val('PHP 0.00');
             $("#info_cta_type").val('None');
             return;
@@ -2090,10 +2300,13 @@ $(function () {
         const phicVal = parseFloat(r.less_phic || r.phic || 0);
         const phicIcd = r.phic_icd_rvs || 'None';
         const hmoVal = parseFloat(r.less_hmo || r.hmo || 0);
+        const hmoLoa = r.hmo_loa_no || 'None';
         const discountVal = parseFloat(r.less_discount || 0);
         const discountDesc = r.discount_description || 'None';
         const netPayableVal = parseFloat(r.net_payable !== undefined && r.net_payable !== null ? r.net_payable : (grossVal - srpwdVal - phicVal - hmoVal - discountVal));
         const cashVal = parseFloat(r.payment_cash || r.cash || 0);
+        const isYakap = (r.is_philhealth_yakap == 1 || r.is_philhealth_yakap === true || r.is_philhealth_yakap === '1');
+        const copayVal = parseFloat(r.copay || 0);
         const ctaVal = parseFloat(r.payment_card || r.cta || 0);
 
         let hmoLabel = r.hmoname || r.hmo_type || r.hmocode || 'None';
@@ -2109,10 +2322,18 @@ $(function () {
         $("#info_phic_icd").val(phicIcd);
         $("#info_hmo").val('PHP ' + hmoVal.toFixed(2));
         $("#info_hmo_type").val(hmoLabel);
+        $("#info_hmo_loa").val(hmoLoa);
         $("#info_discount").val('PHP ' + discountVal.toFixed(2));
         $("#info_discount_desc").val(discountDesc);
         $("#info_net_payable").val('PHP ' + Math.max(0, netPayableVal).toFixed(2));
         $("#info_cash").val('PHP ' + cashVal.toFixed(2));
+        $("#info_copay").val('PHP ' + copayVal.toFixed(2));
+        $("#info_yakap_status").val(isYakap ? 'Charged to Yakap' : 'None');
+        if (isYakap || copayVal > 0) {
+            $("#info_yakap_row").show();
+        } else {
+            $("#info_yakap_row").hide();
+        }
         $("#info_cta").val('PHP ' + ctaVal.toFixed(2));
         $("#info_cta_type").val(cardLabel);
     }
@@ -2126,6 +2347,22 @@ $(function () {
             $("#srpwd_fields_wrap").addClass("d-none");
             $("#srpwd_refno").val("");
             $("#less_srpwd").val("");
+        }
+        updateSettlementRemaining();
+    });
+
+    // Detailed Comment: Toggle PhilHealth Yakap coverage and automatically allocate remainder from Cash or CTA to Co-Pay
+    $("#is_philhealth_yakap").on("change", function () {
+        if ($(this).is(":checked")) {
+            $("#yakap_copay_wrap").removeClass("d-none");
+            const netBilling = calculateSettlementNetBilling();
+            const cash = parseFloat($("#cash").val()) || 0;
+            const cta = parseFloat($("#cta").val()) || 0;
+            const remForCopay = Math.max(0, netBilling - (cash + cta));
+            $("#copay").val(remForCopay > 0 ? remForCopay.toFixed(2) : "");
+        } else {
+            $("#yakap_copay_wrap").addClass("d-none");
+            $("#copay").val("");
         }
         updateSettlementRemaining();
     });
@@ -2257,14 +2494,24 @@ $(function () {
                             } else {
                                 $("#hmo_type").val("").trigger("change");
                             }
+                            $("#hmo_loa_no").val(r.hmo_loa_no || "");
                             if (parseFloat(r.hmo || r.less_hmo || 0) > 0) $("#hmo").val(parseFloat(r.hmo || r.less_hmo).toFixed(2));
 
                             // Other discount with description
                             if (r.discount_description) $("#discount_description").val(r.discount_description);
                             if (parseFloat(r.less_discount || 0) > 0) $("#less_discount").val(parseFloat(r.less_discount).toFixed(2));
 
-                            // Payment channels (Cash & CTA)
+                            // Payment channels (Cash, Yakap Co-pay, CTA)
                             if (parseFloat(r.cash || r.payment_cash || 0) > 0) $("#cash").val(parseFloat(r.cash || r.payment_cash).toFixed(2));
+                            const isYakap = (r.is_philhealth_yakap == 1 || r.is_philhealth_yakap === true || r.is_philhealth_yakap === '1');
+                            $("#is_philhealth_yakap").prop("checked", isYakap);
+                            if (isYakap) {
+                                $("#yakap_copay_wrap").removeClass("d-none");
+                                $("#copay").val(parseFloat(r.copay || 0) > 0 ? parseFloat(r.copay).toFixed(2) : "");
+                            } else {
+                                $("#yakap_copay_wrap").addClass("d-none");
+                                $("#copay").val("");
+                            }
                             if (parseFloat(r.cta || r.payment_card || 0) > 0) $("#cta").val(parseFloat(r.cta || r.payment_card).toFixed(2));
                             if (r.cta_type) $("#card_type").val(r.cta_type);
 
@@ -2278,10 +2525,14 @@ $(function () {
                             $("#phic_icd_rvs").val("");
                             $("#phic").val("");
                             $("#hmo_type").val("").trigger("change");
+                            $("#hmo_loa_no").val("");
                             $("#hmo").val("");
                             $("#discount_description").val("");
                             $("#less_discount").val("");
                             $("#cash").val("");
+                            $("#is_philhealth_yakap").prop("checked", false);
+                            $("#yakap_copay_wrap").addClass("d-none");
+                            $("#copay").val("");
                             $("#cta").val("");
                             $("#card_type").val("");
 
@@ -2349,6 +2600,32 @@ $(function () {
         if (value < 0) value = 0;
 
         const netBilling = calculateSettlementNetBilling();
+
+        // Detailed Comment: If Charge to PhilHealth Yakap is active, automatically route remaining balance from Cash or CTA into Co-Pay
+        if ($("#is_philhealth_yakap").is(":checked")) {
+            if (currentInput.attr("id") === "cash" || currentInput.attr("id") === "cta") {
+                let otherChannel = 0;
+                if (currentInput.attr("id") === "cash") {
+                    otherChannel = parseFloat($("#cta").val()) || 0;
+                } else {
+                    otherChannel = parseFloat($("#cash").val()) || 0;
+                }
+                const maxForThis = Math.max(0, netBilling - otherChannel);
+                if (value > maxForThis) {
+                    value = maxForThis;
+                }
+                value = Math.round(value * 100) / 100;
+                currentInput.val(value > 0 ? value.toFixed(2) : "");
+
+                const currentCash = parseFloat($("#cash").val()) || 0;
+                const currentCta = parseFloat($("#cta").val()) || 0;
+                const remCopay = Math.max(0, netBilling - (currentCash + currentCta));
+                $("#copay").val(remCopay > 0 ? remCopay.toFixed(2) : "");
+                updateSettlementRemaining();
+                return;
+            }
+        }
+
         let otherPayment = 0;
         $(".settlement-payment-input").not(currentInput).each(function () {
             otherPayment += parseFloat($(this).val()) || 0;
@@ -2410,6 +2687,8 @@ $(function () {
                                 timer: 2000
                             });
                             $("#view_sett_btn").trigger("click");
+                            // Detailed Comment: Refresh consolidated daily queue financial summary card metrics after saving settlements
+                            loadQueueFinancialSummary();
                         } else {
                             Swal.fire({
                                 title: "Error",
@@ -3073,6 +3352,12 @@ $(function () {
                         loadPatientPaymentHistory(p.pincode, p.pxrefno, p.consultationrefno);
                     } catch (err) {
                         console.warn("Error loading patient payment history:", err);
+                    }
+                    // Detailed Comment: Safely load permanent medical history into Secretary console tab & toggle allergy alert banner
+                    try {
+                        loadSecretaryPermanentMedicalHistory(p.pincode, p.pxrefno, p.consultationrefno);
+                    } catch (err) {
+                        console.warn("Error loading secretary permanent medhistory:", err);
                     }
 
                     // Detailed Comment: Update secretary 1-click printable document links with imported consultation reference

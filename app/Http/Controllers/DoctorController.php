@@ -21,6 +21,7 @@ use App\Models\DoctorsProfileModel;
 use App\Models\MedicineModel;
 use App\Models\ScheduleModel;
 use App\Models\SettlementsModel;
+use App\Models\PxMedicalHistoryModel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -277,16 +278,51 @@ class DoctorController extends Controller
         $pxrefno = $request->input('pxrefno');
         $consultationrefno = $request->input('consultationrefno');
         $pincode = $request->input('pincode');
+        $patientname = $request->input('patientname');
+        $birthday = $request->input('birthday');
 
-        if (empty($pxrefno) && !empty($consultationrefno)) {
-            $pxrefno = ConsultationModel::where('consultationrefno', $consultationrefno)->value('pxrefno');
+        // Detailed Comment: Collect all known patient identifiers to guarantee past consultations
+        // are discovered whether recorded under pincode, pxrefno, or name+birthday.
+        $pxrefnoList = [];
+        $pincodeList = [];
+
+        if (!empty($pxrefno) && $pxrefno !== 'undefined') {
+            $pxrefnoList[] = $pxrefno;
+        }
+        if (!empty($pincode) && $pincode !== 'undefined') {
+            $pincodeList[] = $pincode;
         }
 
-        if (empty($pxrefno) && !empty($pincode)) {
-            $pxrefno = ConsultationModel::where('pincode', $pincode)->value('pxrefno');
+        if (!empty($consultationrefno) && $consultationrefno !== 'undefined') {
+            $activeConsult = ConsultationModel::where('consultationrefno', $consultationrefno)->first();
+            if ($activeConsult) {
+                if (!empty($activeConsult->pxrefno)) $pxrefnoList[] = $activeConsult->pxrefno;
+                if (!empty($activeConsult->pincode)) $pincodeList[] = $activeConsult->pincode;
+                if (empty($patientname)) $patientname = $activeConsult->patientname;
+                if (empty($birthday)) $birthday = $activeConsult->birthday;
+            }
         }
 
-        if (empty($pxrefno) && empty($consultationrefno)) {
+        $masterMatch = null;
+        if (!empty($pxrefnoList)) {
+            $masterMatch = PatientMasterlist::whereIn('pxrefno', $pxrefnoList)->first();
+        }
+        if (!$masterMatch && !empty($pincodeList)) {
+            $masterMatch = PatientMasterlist::whereIn('pincode', $pincodeList)->first();
+        }
+        if ($masterMatch) {
+            if (!empty($masterMatch->pxrefno)) $pxrefnoList[] = $masterMatch->pxrefno;
+            if (!empty($masterMatch->pincode)) $pincodeList[] = $masterMatch->pincode;
+            if (empty($birthday) && !empty($masterMatch->birthday)) $birthday = $masterMatch->birthday;
+            if (empty($patientname) && !empty($masterMatch->patientname)) $patientname = $masterMatch->patientname;
+        }
+
+        $pxrefnoList = array_values(array_unique(array_filter($pxrefnoList)));
+        $pincodeList = array_values(array_unique(array_filter($pincodeList)));
+
+        $hasIdentifier = !empty($pxrefnoList) || !empty($pincodeList) || (!empty($patientname) && !empty($birthday)) || (!empty($consultationrefno) && $consultationrefno !== 'undefined');
+
+        if (!$hasIdentifier) {
             return response()->json([
                 'draw' => intval($request->draw),
                 'recordsFiltered' => 0,
@@ -298,11 +334,34 @@ class DoctorController extends Controller
         }
 
         $query = ConsultationModel::query();
-        if (!empty($pxrefno)) {
-            $query->where('pxrefno', $pxrefno);
-        } else {
-            $query->where('consultationrefno', $consultationrefno);
-        }
+        $query->where(function ($sub) use ($pxrefnoList, $pincodeList, $patientname, $birthday, $consultationrefno) {
+            $hasAny = false;
+            if (!empty($pxrefnoList)) {
+                $sub->whereIn('pxrefno', $pxrefnoList);
+                $hasAny = true;
+            }
+            if (!empty($pincodeList)) {
+                if ($hasAny) {
+                    $sub->orWhereIn('pincode', $pincodeList);
+                } else {
+                    $sub->whereIn('pincode', $pincodeList);
+                    $hasAny = true;
+                }
+            }
+            if (!empty($patientname) && !empty($birthday)) {
+                if ($hasAny) {
+                    $sub->orWhere(function ($q) use ($patientname, $birthday) {
+                        $q->where('patientname', $patientname)->where('birthday', $birthday);
+                    });
+                } else {
+                    $sub->where('patientname', $patientname)->where('birthday', $birthday);
+                    $hasAny = true;
+                }
+            }
+            if (!$hasAny && !empty($consultationrefno)) {
+                $sub->where('consultationrefno', $consultationrefno);
+            }
+        });
 
         $total = $query->count();
         $history = $query->orderBy('consultation_date', 'desc')->orderBy('id', 'desc')
@@ -1008,8 +1067,14 @@ class DoctorController extends Controller
         };
 
         try {
+            // Detailed Comment: Set half-A4 landscape (A5 landscape 210mm x 148mm) for Rx prescriptions
+            // and diagnostic requests, preserving full A4 portrait for admission orders and statement of account (SOA).
+            $isHalfA4 = in_array($type, ['rx', 'diagnostics']);
+            $paperSize = $isHalfA4 ? 'A5' : 'A4';
+            $orientation = $isHalfA4 ? 'landscape' : 'portrait';
+
             return Pdf::loadView('printables.rx_print', compact('doctor', 'type', 'patient', 'profile', 'medicines', 'charges', 'settlement', 'requests'))
-                ->setPaper('A4', 'portrait')
+                ->setPaper($paperSize, $orientation)
                 ->stream($filenamePrefix . ($refno ?: 'document') . '.pdf');
         } catch (\Throwable $e) {
             // Detailed Comment: Structured error logging if PDF rendering fails
@@ -1268,8 +1333,9 @@ class DoctorController extends Controller
         $type = "diagnostics";
 
         try {
+            // Detailed Comment: Set half-A4 landscape (A5 landscape 210mm x 148mm) for diagnostic request printables
             return Pdf::loadView('printables.rx_print', compact('doctor', 'type', 'patient', 'profile', 'requests'))
-                ->setPaper('A4', 'portrait')
+                ->setPaper('A5', 'landscape')
                 ->stream('diagnostics_' . ($refno ?: 'request') . '.pdf');
         } catch (\Throwable $e) {
             // Detailed Comment: Structured error logging if diagnostic PDF rendering fails

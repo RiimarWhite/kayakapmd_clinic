@@ -68,6 +68,9 @@ class ConsultationModel extends Model
         'consulteddate',
         'paymentrefno',
         'reasonforconsultation',
+        // Detailed Comment: Narrative clinical intake fields for History of Present Illness and Past Medical History
+        'brief_history_present_illness',
+        'pertinent_past_medhistory',
         'impression',
         'finadiagnosis',
         'pe_evaluation',
@@ -90,7 +93,19 @@ class ConsultationModel extends Model
         'hmoname',
         'instructions',
         'foradmit',
-        'foradmit_instructions'
+        'foradmit_instructions',
+        // Detailed Comment: Clinical classification fields and patient case history attributes
+        'modeofpayment',
+        'gravida',
+        'para',
+        'abortion',
+        'iufd',
+        'died',
+        'lmp_date',
+        'delivery_procedure',
+        'pathologic',
+        'infacilitydelivery',
+        'linkaccount'
     ];
 
     public $timestamps = false;

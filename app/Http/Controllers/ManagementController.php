@@ -3674,5 +3674,207 @@ class ManagementController extends Controller
 
         return response()->json(['success' => false, 'message' => 'Settlement record not found.'], 404);
     }
+
+    /**
+     * Detailed Comment: Generates PhilHealth Tranche 1 or Tranche 2 XML report for selected patient consultations.
+     * Delegates XML DOM assembly to AdminService::generateXML and persists transmittal report record.
+     */
+    public function generateXML(Request $request)
+     {
+         $request->validate([
+             'data' => 'required',
+             'type' => 'required|in:first,second'
+         ]);
+
+         $clientCode = KayakapProfileModel::first()?->clientcode ?? config('app.client_code', '122377');
+
+         $rawInput = $request->all();
+         // Support nested data payload if passed under 'data'
+         $params = [
+             'data' => isset($rawInput['data']['data']) ? $rawInput['data']['data'] : $rawInput['data'],
+             'type' => isset($rawInput['data']['type']) ? $rawInput['data']['type'] : $rawInput['type'],
+             'start' => isset($rawInput['data']['start']) ? $rawInput['data']['start'] : ($rawInput['start'] ?? null),
+             'end' => isset($rawInput['data']['end']) ? $rawInput['data']['end'] : ($rawInput['end'] ?? null),
+         ];
+
+         Log::info('Generating PhilHealth XML report', [
+             'type' => $params['type'],
+             'record_count' => is_array($params['data']) ? count($params['data']) : 0,
+             'clientcode' => $clientCode
+         ]);
+
+         try {
+             $result = $this->service->generateXML($params, (string)$clientCode);
+             return response()->json($result);
+         } catch (\Throwable $e) {
+             Log::error('PhilHealth XML generation failed', [
+                 'error' => $e->getMessage(),
+                 'trace' => $e->getTraceAsString()
+             ]);
+             return response()->json([
+                 'success' => false,
+                 'message' => 'Failed to generate XML: ' . $e->getMessage()
+             ], 500);
+         }
+     }
+
+    /**
+     * Detailed Comment: Fetches an XML document by report code or reference.
+     * Looks up XmlTransModel first; if missing or empty, looks up SOAPModel.
+     */
+    public function fetchXML(Request $request)
+    {
+        $reference = $request->input('reference') ?? $request->input('report_code');
+        if (!$reference) {
+            return response()->json(['success' => false, 'message' => 'Reference is required.'], 422);
+        }
+
+        $trans = XmlTransModel::where('report_code', $reference)->first();
+        if ($trans && !empty($trans->XML_CONTENT)) {
+            return response()->json([
+                'success' => true,
+                'document' => $trans->XML_CONTENT,
+                'status' => $trans->status,
+                'report_code' => $trans->report_code
+            ]);
+        }
+
+        // Check if report_code exists in SOAP model
+        $soap = SOAPModel::where('report_code', $reference)
+            ->orWhere('report_code2', $reference)
+            ->first();
+
+        if ($soap) {
+            $transByCase = XmlTransModel::where('dw_clientcode', $soap->dw_clientcode)
+                ->where('report_code', $reference)
+                ->first();
+            if ($transByCase && !empty($transByCase->XML_CONTENT)) {
+                return response()->json([
+                    'success' => true,
+                    'document' => $transByCase->XML_CONTENT,
+                    'status' => $transByCase->status,
+                    'report_code' => $transByCase->report_code
+                ]);
+            }
+        }
+
+        return response()->json(['success' => false, 'message' => 'XML report document not found.'], 404);
+    }
+
+    /**
+     * Detailed Comment: Confirms and persists saved state or updates XML content for an existing transmittal report.
+     */
+    public function saveXML(Request $request)
+    {
+        $reportCode = $request->input('report_code');
+        $xmlContent = $request->input('data');
+
+        if ($reportCode) {
+            $record = XmlTransModel::where('report_code', $reportCode)->first();
+            if ($record) {
+                if ($xmlContent && is_string($xmlContent) && str_starts_with(trim($xmlContent), '<')) {
+                    $record->update(['XML_CONTENT' => $xmlContent, 'status' => 'SAVED']);
+                } else {
+                    $record->update(['status' => 'SAVED']);
+                }
+                return response()->json(['success' => true, 'message' => 'XML report marked as saved.']);
+            }
+        }
+
+        return response()->json(['success' => true, 'message' => 'XML report processed.']);
+    }
+
+    /**
+     * Detailed Comment: Encrypts the raw XML content of a generated report using AES-256-CBC
+     * with PhilHealth's required payload format (docMimeType, hash, iv, doc).
+     */
+    public function encryptXML(Request $request)
+    {
+        $reference = $request->input('reference') ?? $request->input('report_code');
+        if (!$reference) {
+            return response()->json(['success' => false, 'message' => 'Report reference code is required.'], 422);
+        }
+
+        $trans = XmlTransModel::where('report_code', $reference)->first();
+        if (!$trans || empty($trans->XML_CONTENT)) {
+            return response()->json(['success' => false, 'message' => 'XML report content not found for encryption.'], 404);
+        }
+
+        $passphrase = $request->input('passphrase') ?? config('services.philhealth.passphrase', 'kayakapmd');
+
+        try {
+            $result = $this->service->encryptXML([
+                'document' => $trans->XML_CONTENT,
+                'report_code' => $reference,
+                'passphrase' => $passphrase
+            ]);
+
+            return response()->json($result);
+        } catch (\Throwable $e) {
+            Log::error('PhilHealth XML encryption failed', [
+                'error' => $e->getMessage(),
+                'reference' => $reference
+            ]);
+            return response()->json(['success' => false, 'message' => 'Encryption failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Detailed Comment: Decrypts previously encrypted XML report payload for auditing or preview.
+     */
+    public function decryptXML(Request $request)
+    {
+        $reference = $request->input('reference') ?? $request->input('report_code');
+        if (!$reference) {
+            return response()->json(['success' => false, 'message' => 'Report reference code is required.'], 422);
+        }
+
+        $trans = XmlTransModel::where('report_code', $reference)->first();
+        if (!$trans || empty($trans->ENCRYPTED_CONTENT)) {
+            return response()->json(['success' => false, 'message' => 'Encrypted payload not found.'], 404);
+        }
+
+        $passphrase = $request->input('passphrase') ?? config('services.philhealth.passphrase', 'kayakapmd');
+
+        try {
+            $payload = json_decode($trans->ENCRYPTED_CONTENT, true);
+            if (!$payload || !isset($payload['doc']) || !isset($payload['iv'])) {
+                return response()->json(['success' => false, 'message' => 'Invalid encrypted payload structure.'], 422);
+            }
+
+            $hashedPass = hash('sha256', $passphrase, true);
+            $key = str_pad(substr($hashedPass, 0, 32), 32, "\0");
+            $iv = substr(base64_decode($payload['iv']), 0, 16);
+            $encryptedDoc = base64_decode($payload['doc']);
+
+            $decrypted = openssl_decrypt($encryptedDoc, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+
+            if ($decrypted === false) {
+                return response()->json(['success' => false, 'message' => 'Decryption failed. Check passphrase.'], 400);
+            }
+
+            return response()->json(['success' => true, 'document' => $decrypted]);
+        } catch (\Throwable $e) {
+            Log::error('PhilHealth XML decryption failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'Decryption exception: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Detailed Comment: Retrieves facility accreditation number (accreno) from PCB profile
+     * to formulate downloadable XML transmittal filenames according to PhilHealth naming specification.
+     */
+    public function getXmlData(Request $request)
+    {
+        $pcb = PCBModel::first();
+        $accreno = $pcb?->hciaccreno ?? 'HCI00000000';
+
+        return response()->json([
+            'success' => true,
+            'data' => $accreno,
+            'accreno' => $accreno,
+            'pmccno' => $pcb?->pmccno ?? ''
+        ]);
+    }
 }
 

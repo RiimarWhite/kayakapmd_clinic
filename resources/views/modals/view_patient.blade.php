@@ -208,6 +208,7 @@
                             <table class="table table-sm table-bordered align-middle w-100" id="view_medhistory_table">
                                 <thead class="table-info">
                                     <tr>
+                                        <th scope="col" class="text-center" style="width: 80px;">Action</th>
                                         <th scope="col" class="text-center" style="width: 50px;">Photo</th>
                                         <th scope="col" style="width: 130px;">Consultation Date</th>
                                         <th scope="col">Reason for Consultation</th>
@@ -218,7 +219,7 @@
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td colspan="6" class="text-center text-muted py-3">No consultation history records found.</td>
+                                        <td colspan="7" class="text-center text-muted py-3">No consultation history records found.</td>
                                     </tr>
                                 </tbody>
                             </table>

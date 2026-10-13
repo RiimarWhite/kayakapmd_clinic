@@ -35,6 +35,7 @@ class ProfileModel extends Model
         'dw_clientcode',
         'dTransNo',
         'en_CaseNo',
+        'px_pin',
         'px_consultcode_cn',
         'dProfDate',
         'dPatientPin',

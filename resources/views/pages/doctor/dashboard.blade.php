@@ -24,11 +24,13 @@
                                 <th scope="col">Queue</th>
                                 <th scope="col">Patient Name</th>
                                 <th scope="col">Status</th>
+                                <th scope="col" class="text-center" style="width: 100px;">Action</th>
                             </tr>
                         </thead>
 
                         <tbody>
                             <tr>
+                                <td></td>
                                 <td></td>
                                 <td></td>
                                 <td></td>
@@ -137,4 +139,63 @@
 @push('modals')
     @include('modals.doctor_info')
     @include('modals.doctor_schedule')
+    {{-- Detailed Comment: Dedicated Consultation Details Viewer modal for viewing patient consultation details from dashboard --}}
+    @include('modals.view_consultation_details')
+
+    {{-- Detailed Comment: Dedicated Patient Consultations History Modal for Doctor Dashboard (Task R4) --}}
+    <div class="modal fade m-0 p-0" data-bs-backdrop="static" id="patient_consultations_history_modal" tabindex="-1" aria-labelledby="patientConsultationsHistoryModalLabel" aria-hidden="true" style="z-index: 1060;">
+        <div class="modal-dialog modal-fullscreen modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h2 class="modal-title fs-5"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Patient Consultation History <span id="pch_patient_name" class="fs-6 text-muted fw-normal ms-2"></span></h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body p-3">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered table-hover align-middle w-100" id="patient_consultations_history_table">
+                            <thead class="table-info">
+                                <tr>
+                                    <th scope="col" class="text-center" style="width: 80px;">Action</th>
+                                    <th scope="col" class="text-center" style="width: 50px;">Photo</th>
+                                    <th scope="col" style="width: 120px;">Consultation Date</th>
+                                    <th scope="col">Reason for Consultation</th>
+                                    <th scope="col">Diagnosis</th>
+                                    <th scope="col" style="width: 110px;" class="text-center">Status</th>
+                                    <th scope="col" style="width: 150px;">Doctor / Recorded By</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-secondary fw-semibold" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Detailed Comment: Dedicated Preview Modal supporting image and PDF document preview for Radiology and Laboratory attachments (Task R4) --}}
+    <div class="modal fade overflow-hidden" data-bs-backdrop="static" id="preview_modal" tabindex="-1" style="z-index: 1080;">
+        <div class="modal-dialog modal-dialog-scrollable modal-xl">
+            <div class="modal-content">
+                <div class="modal-header" id="preview_title">
+                    <h3 class="modal-title">Preview</h3>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body text-center p-3">
+                    <iframe id="docPreview" width="100%" height="600px" style="display: none; border: none;"></iframe>
+                    <img id="imgPreview" class="img-fluid mx-auto d-none rounded shadow-sm" style="max-height: 600px; object-fit: contain;" src="" alt="Document Preview">
+                </div>
+
+                <div class="modal-footer">
+                    <a id="preview_download_btn" href="#" target="_blank" download class="btn btn-outline-primary d-none"><i class="fa-solid fa-download me-1"></i> Download File</a>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="preview_close_btn">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 @endpush

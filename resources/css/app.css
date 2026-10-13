@@ -100,3 +100,311 @@ body {
     z-index: 1070 !important;
     position: absolute !important;
 }
+
+/* ==========================================================================
+   Bootstrap 5.3 Dark Mode Overrides
+   Ensures seamless, accessible dark mode appearance for cards, modals, tables,
+   form controls, navbar chrome, sidebars, footer, and interactive widgets.
+   ========================================================================== */
+
+/* Detailed Comment: Dark mode body styling override */
+[data-bs-theme="dark"] body {
+    background-color: #121212 !important;
+    color: #e0e0e0 !important;
+}
+
+/* Detailed Comment: Dark mode card container and sections */
+[data-bs-theme="dark"] .card {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0 !important;
+    border-color: #2d3748 !important;
+}
+
+[data-bs-theme="dark"] .card-header {
+    background-color: #25282c !important;
+    color: #f8f9fa !important;
+    border-color: #2d3748 !important;
+}
+
+[data-bs-theme="dark"] .card-footer {
+    background-color: #25282c !important;
+    color: #adb5bd !important;
+    border-color: #2d3748 !important;
+}
+
+/* Detailed Comment: Dark mode modal dialogs, headers, and close button inversion */
+[data-bs-theme="dark"] .modal-content {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0 !important;
+    border-color: #2d3748 !important;
+}
+
+[data-bs-theme="dark"] .modal-header,
+[data-bs-theme="dark"] .modal-footer {
+    background-color: #25282c !important;
+    color: #f8f9fa !important;
+    border-color: #2d3748 !important;
+}
+
+[data-bs-theme="dark"] .modal-title {
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* Detailed Comment: Dark mode table styling, header contrast, striping, and hover effects */
+[data-bs-theme="dark"] .table {
+    --bs-table-bg: #1e1e1e !important;
+    --bs-table-color: #e0e0e0 !important;
+    --bs-table-striped-bg: #262626 !important;
+    --bs-table-striped-color: #e0e0e0 !important;
+    --bs-table-active-bg: #2c3036 !important;
+    --bs-table-active-color: #ffffff !important;
+    --bs-table-hover-bg: #2a2e33 !important;
+    --bs-table-hover-color: #ffffff !important;
+    --bs-table-border-color: #373b3e !important;
+    color: #e0e0e0 !important;
+    border-color: #2d3748 !important;
+}
+
+[data-bs-theme="dark"] .table thead th,
+[data-bs-theme="dark"] .table-light,
+[data-bs-theme="dark"] .table-success {
+    background-color: #2a2e33 !important;
+    color: #ffffff !important;
+    border-color: #373b3e !important;
+}
+
+[data-bs-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: #262626 !important;
+    color: #e0e0e0 !important;
+}
+
+[data-bs-theme="dark"] .table-hover > tbody > tr:hover > * {
+    background-color: #32383e !important;
+    color: #ffffff !important;
+}
+
+/* Detailed Comment: Dark mode form controls, textareas, selects, and disabled states */
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select {
+    background-color: #2b3035 !important;
+    color: #e0e0e0 !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .form-control:focus,
+[data-bs-theme="dark"] .form-select:focus {
+    background-color: #2b3035 !important;
+    color: #ffffff !important;
+    border-color: #0d6efd !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+[data-bs-theme="dark"] .form-control::placeholder {
+    color: #8b949e !important;
+}
+
+[data-bs-theme="dark"] .form-control:disabled,
+[data-bs-theme="dark"] .form-select:disabled,
+[data-bs-theme="dark"] .form-control[readonly] {
+    background-color: #1e2124 !important;
+    color: #8b949e !important;
+    border-color: #373b3e !important;
+}
+
+[data-bs-theme="dark"] .form-label,
+[data-bs-theme="dark"] .form-check-label {
+    color: #e0e0e0 !important;
+}
+
+[data-bs-theme="dark"] .input-group-text {
+    background-color: #343a40 !important;
+    color: #e0e0e0 !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .form-check-input {
+    background-color: #2b3035;
+    border-color: #495057;
+}
+
+[data-bs-theme="dark"] .form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+/* Detailed Comment: Dark mode navbar chrome, sidebars, footer, and dropdown menus */
+[data-bs-theme="dark"] .navbar {
+    background-color: #1b1e22 !important;
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .navbar .navbar-brand,
+[data-bs-theme="dark"] .navbar .nav-link,
+[data-bs-theme="dark"] .navbar .btn-light {
+    background-color: #2b3035 !important;
+    color: #dee2e6 !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .navbar .btn-light:hover,
+[data-bs-theme="dark"] .navbar .btn-light:focus {
+    background-color: #343a40 !important;
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] #admin_sidebar,
+[data-bs-theme="dark"] #management_sidebar {
+    background-color: #181a1d !important;
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] #admin_sidebar.nav .active {
+    background-color: #2b3035 !important;
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] #management_sidebar.nav .active {
+    background-color: #2b3035 !important;
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .app-footer {
+    background-color: #181a1d !important;
+    color: #adb5bd !important;
+    border-color: #373b3e !important;
+}
+
+[data-bs-theme="dark"] .dropdown-menu {
+    background-color: #212529 !important;
+    color: #dee2e6 !important;
+    border-color: #373b3e !important;
+}
+
+[data-bs-theme="dark"] .dropdown-item {
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .dropdown-item:hover,
+[data-bs-theme="dark"] .dropdown-item:focus {
+    background-color: #2b3035 !important;
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .dropdown-item.active,
+[data-bs-theme="dark"] .dropdown-item:active {
+    background-color: #0d6efd !important;
+    color: #ffffff !important;
+}
+
+/* Detailed Comment: Dark mode Select2 and jQuery UI autocomplete widget styling */
+[data-bs-theme="dark"] .select2-container--default .select2-selection--single {
+    background-color: #2b3035 !important;
+    border-color: #495057 !important;
+    color: #e0e0e0 !important;
+}
+
+[data-bs-theme="dark"] .select2-container--default .select2-selection--single .select2-selection__rendered {
+    color: #e0e0e0 !important;
+}
+
+[data-bs-theme="dark"] .select2-dropdown {
+    background-color: #212529 !important;
+    border-color: #373b3e !important;
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .select2-container--default .select2-search--dropdown .select2-search__field {
+    background-color: #2b3035 !important;
+    color: #dee2e6 !important;
+    border-color: #495057 !important;
+}
+
+[data-bs-theme="dark"] .select2-container--default .select2-results__option {
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background-color: #0d6efd !important;
+    color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .ui-autocomplete {
+    background-color: #212529 !important;
+    border-color: #373b3e !important;
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .ui-autocomplete li {
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .ui-autocomplete li:hover {
+    background-color: #2b3035 !important;
+    color: #ffffff !important;
+}
+
+/* Detailed Comment: Dark mode nav tabs, list group, and subtle badges */
+[data-bs-theme="dark"] .nav-tabs {
+    border-color: #373b3e !important;
+}
+
+[data-bs-theme="dark"] .nav-tabs .nav-link {
+    color: #adb5bd !important;
+}
+
+[data-bs-theme="dark"] .nav-tabs .nav-link.active {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+    border-color: #373b3e #373b3e #1e1e1e !important;
+}
+
+[data-bs-theme="dark"] .nav-pills .nav-link:not(.active) {
+    color: #dee2e6 !important;
+}
+
+[data-bs-theme="dark"] .list-group-item {
+    background-color: #1e1e1e !important;
+    color: #e0e0e0 !important;
+    border-color: #2d3748 !important;
+}
+
+[data-bs-theme="dark"] .badge.bg-light {
+    background-color: #343a40 !important;
+    color: #e0e0e0 !important;
+}
+
+/* Detailed Comment: Ensure consultation modal card header tabs sit flush with the header border without overlapping the card body */
+#consultation_main_tabs {
+    margin-bottom: -1px !important;
+    border-bottom: none !important;
+}
+
+#consultation_main_tabs .nav-link {
+    margin-bottom: 0 !important;
+    border-bottom: 2px solid transparent !important;
+    border-top-left-radius: 0.375rem;
+    border-top-right-radius: 0.375rem;
+}
+
+#consultation_main_tabs .nav-link.active {
+    border-bottom-color: transparent !important;
+    position: relative;
+    z-index: 2;
+}
+
+/* Detailed Comment: Ensure vital sign unit dropdowns (Weight, Height, Temperature) maintain adequate width and padding
+ * so unit values (kgs, lbs, cm, m, ft, °C, °F) are never truncated or obscured by the select chevron on any display size */
+.vital-unit-select {
+    width: 4.8rem !important;
+    min-width: 4.8rem !important;
+    max-width: 5.2rem !important;
+    flex: 0 0 auto !important;
+    padding-right: 1.5rem !important;
+    padding-left: 0.5rem !important;
+    font-size: 0.8125rem !important;
+    text-align: center;
+}

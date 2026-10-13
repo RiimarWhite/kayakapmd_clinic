@@ -54,23 +54,41 @@ $(function () {
             },
             select: { style: 'single' },
             columns: [
-                { data: null, render: function (data, type, row) { return `<span data-consultation="${row.consultationrefno}">${data.patientname}</span>`; } },
-                { data: 'status', render: function (data) {
-                    let b = 'bg-secondary fs-6';
-                    if (data === 'WAITING') b = 'bg-warning text-white text-dark fs-6';
-                    if (data === 'IN_CONSULTATION') b = 'bg-info text-white fs-6';
-                    if (data === 'FOR_BILLING') b = 'bg-primary text-white fs-6';
-                    if (data === 'COMPLETED') b = 'bg-success fs-6';
-                    if (data === 'UNSCHEDULED') b = 'bg-primary fs-6';
-                    if (data === 'CANCELLED' || data === 'NO_SHOW') b = 'bg-danger fs-6';
-                    return `<span class="badge ${b}">${data}</span>`;
-                }}
+                {
+                    data: null,
+                    render: function (data, type, row) {
+                        const queueBadge = row.queueno ? `<span class="badge bg-secondary me-2">#${row.queueno}</span>` : '';
+                        return `<span data-consultation="${row.consultationrefno}">${queueBadge}<strong>${data.patientname}</strong></span>`;
+                    }
+                },
+                {
+                    data: 'status', render: function (data) {
+                        let b = 'bg-secondary fs-6';
+                        if (data === 'WAITING') b = 'bg-warning text-white text-dark fs-6';
+                        if (data === 'IN_CONSULTATION') b = 'bg-info text-white fs-6';
+                        if (data === 'FOR_BILLING') b = 'bg-primary text-white fs-6';
+                        if (data === 'COMPLETED') b = 'bg-success fs-6';
+                        if (data === 'UNSCHEDULED') b = 'bg-primary fs-6';
+                        if (data === 'CANCELLED' || data === 'NO_SHOW') b = 'bg-danger fs-6';
+                        return `<span class="badge ${b}">${data}</span>`;
+                    }
+                }
             ],
             columnDefs: [{ target: 1, width: '1%', orderable: false, searchable: false, className: 'text-nowrap text-center align-middle' }],
             language: { emptyTable: "No patients yet." },
             lengthChange: false, paging: true, searching: false, ordering: false, responsive: true, info: false
         });
     }
+
+    /**
+     * Detailed Comment: Focus unblurring on modal show and hide transitions.
+     * Prevents 'Blocked aria-hidden on an element because its descendant retained focus' console warnings.
+     */
+    $(document).on("show.bs.modal hide.bs.modal", ".modal", function () {
+        if (document.activeElement && typeof document.activeElement.blur === "function") {
+            document.activeElement.blur();
+        }
+    });
 
     $("#consul_date").on("change", function () { getPatientsFromDate($(this).val()); });
     $("#previous").on("click", function () {
@@ -87,29 +105,35 @@ $(function () {
     let rowConsultationRefno = null;
     $("#consultation_table").on("select.dt", function (e, dt, type, indexes) {
         let rowData = dt.row(indexes[0]).data();
-        rowConsultationRefno = rowData.consultationrefno;
+        rowConsultationRefno = rowData ? rowData.consultationrefno : null;
+        if (!rowConsultationRefno) return;
         $.ajax({
             url: "/api/fetch_patient_data",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr('content') },
             data: { consultationrefno: rowConsultationRefno },
             success: function (response) {
+                if (!response || !response.patient) return;
                 const p = response.patient;
 
+                // Detailed Comment: Safe preview values defensively checking each field
+                const bdayFormatted = p.birthday ? new Date(String(p.birthday).replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : 'N/A';
+                const bpFormatted = (p.bpnumerator != null && p.bpdenominator != null) ? `${p.bpnumerator}/${p.bpdenominator}` : '';
+
                 $("#px_photo_preview").prop("src", (p.photo_path != null ? p.photo_path : "/images/blank_photo.png"));
-                $("#pxname").text(p.patientname);
-                $("#pxsex").text(p.gender);
-                $("#pxbday").text(new Date(p.birthday.replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
+                $("#pxname").text(p.patientname || '');
+                $("#pxsex").text(p.gender || '');
+                $("#pxbday").text(bdayFormatted);
                 $("#pxage").text(calculateAge(p.birthday));
-                $("#pxcellno").text(p.mobilenumber);
-                $("#pxemail").text(p.emailaddress);
-                $("#pxaddress").text(p.address);
-                $("#pxweight").text(p.weight != null ? p.weight + p.wunit : '');
-                $("#pxheight").text(p.height != null ? p.height + p.hunit : '');
-                $("#pxtemp").text(p.temp != null ? p.temp + "°" + p.tempunit : '');
-                $("#pxresprate").text(p.respiratoryrate);
-                $("#pxpulserate").text(p.pulserate);
-                $("#pxbp").text(p.bpnumerator + '/' + p.bpdenominator);
+                $("#pxcellno").text(p.mobilenumber || '');
+                $("#pxemail").text(p.emailaddress || '');
+                $("#pxaddress").text(p.address || '');
+                $("#pxweight").text(p.weight != null ? p.weight + (p.wunit || '') : '');
+                $("#pxheight").text(p.height != null ? p.height + (p.hunit || '') : '');
+                $("#pxtemp").text(p.temp != null ? p.temp + "°" + (p.tempunit || '') : '');
+                $("#pxresprate").text(p.respiratoryrate || '');
+                $("#pxpulserate").text(p.pulserate || '');
+                $("#pxbp").text(bpFormatted);
                 $("#rfc").val(p.reasonforconsultation ?? '');
             }
         });
@@ -123,18 +147,23 @@ $(function () {
         $("#rfc").val("");
     });
 
+    // Detailed Comment: Safe age calculation function handling null/undefined/invalid birthday strings gracefully
     function calculateAge(birthday) {
-        const birthDate = new Date(birthday);
+        if (!birthday) return "N/A";
+        const cleanedDateStr = String(birthday).replace(" ", "T");
+        const birthDate = new Date(cleanedDateStr);
+        if (isNaN(birthDate.getTime())) return "N/A";
         const today = new Date();
         let age = today.getFullYear() - birthDate.getFullYear();
         const m = today.getMonth() - birthDate.getMonth();
         if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-        return age;
+        return age >= 0 ? age : 0;
     }
 
     // Detailed Comment: Proceed consultation button click handler with loading spinner
     $("#consult").on("click", function () {
-        if (!$("#consultation_table").DataTable().rows({ selected: true }).any()) {
+        const table = $("#consultation_table").DataTable();
+        if (!table.rows({ selected: true }).any()) {
             return Swal.fire({
                 title: "Missing Patient",
                 text: "Please select a patient.",
@@ -147,97 +176,197 @@ $(function () {
         loadConsultModal($btn);
     });
 
+    // Detailed Comment: Load patient data into doctor consultation modal with robust error handling and loading spinner reset
     function loadConsultModal($btn = null) {
-        if (!$("#consultation_table").DataTable().rows({ selected: true }).any()) {
+        const table = $("#consultation_table").DataTable();
+        if (!table.rows({ selected: true }).any()) {
             if ($btn) resetBtnLoading($btn);
             return;
         }
 
-        const consultationModal = new bootstrap.Modal("#consultation_modal");
+        // Detailed Comment: Fallback to selected row data if rowConsultationRefno closure variable was unassigned
+        if (!rowConsultationRefno) {
+            const selectedRowData = table.rows({ selected: true }).data()[0];
+            if (selectedRowData && selectedRowData.consultationrefno) {
+                rowConsultationRefno = selectedRowData.consultationrefno;
+            }
+        }
+
+        if (!rowConsultationRefno) {
+            if ($btn) resetBtnLoading($btn);
+            return Swal.fire({
+                title: "Missing Reference",
+                text: "Unable to retrieve consultation reference number for the selected patient.",
+                icon: "warning"
+            });
+        }
+
+        // Detailed Comment: Use getOrCreateInstance instead of new Modal to prevent multiple backdrop layers and backdrop locking
+        const modalEl = document.getElementById("consultation_modal");
+        const consultationModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
         $.ajax({
             url: "/api/fetch_patient_data",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             data: { consultationrefno: rowConsultationRefno },
             success: function (response) {
-                if (response.patient != null) {
-                    const p = response.patient;
-                    $("#consultationrefno").val(p.consultationrefno);
-                    $("#consultation_modal").data("pxrefno", p.pxrefno || "");
-                    $("#consultation_modal").data("pincode", p.pincode || "");
+                let p = null;
+                try {
+                    if (response && response.patient != null) {
+                        p = response.patient;
+                        $("#consultationrefno").val(p.consultationrefno || "");
+                        $("#consultation_modal").data("pxrefno", p.pxrefno || "");
+                        $("#consultation_modal").data("pincode", p.pincode || "");
 
-                    // Detailed Comment: Populate modal header badges with active consultation date and reference
-                    const activeConsulDate = p.consultation_date ? p.consultation_date.split(' ')[0] : ($("#consul_date").val() || new Date().toISOString().split('T')[0]);
-                    $("#doctor_modal_consultdate_badge").text(`Date: ${activeConsulDate}`);
-                    $("#doctor_modal_consultref_badge").text(`Ref: ${p.consultationrefno || 'N/A'}`);
+                        // Detailed Comment: Populate modal header badges with active consultation date and reference
+                        const activeConsulDate = p.consultation_date ? p.consultation_date.split(' ')[0] : ($("#consul_date").val() || new Date().toISOString().split('T')[0]);
+                        $("#doctor_modal_consultdate_badge").text(`Date: ${activeConsulDate}`);
+                        $("#doctor_modal_consultref_badge").text(`Ref: ${p.consultationrefno || 'N/A'}`);
 
-                    // Detailed Comment: Populate Patient Type badge in the Patient Information card
-                    const pxType = (p.classification || (p.hmocode ? 'HMO' : (p.phic_pin ? 'PHIC' : 'REGULAR'))).toUpperCase();
-                    $("#doctor_modal_patient_type_badge").text(pxType).removeClass("bg-secondary bg-success bg-info bg-warning")
-                        .addClass(pxType === 'PHIC' ? 'bg-success text-white' : (pxType === 'HMO' ? 'bg-info text-white' : 'bg-secondary text-white'));
+                        // Detailed Comment: Populate Patient Type badge in the Patient Information card (display PHIC YAKAP for all PhilHealth patients)
+                        const rawPxType = (p.modeofpayment || (p.hmocode ? 'HMO' : (p.phic_pin ? 'PHIC YAKAP' : (p.classification === 'PHIC' ? 'PHIC YAKAP' : 'REGULAR')))).toUpperCase();
+                        const isPhic = rawPxType.includes('PHIC') || Boolean(p.phic_pin);
+                        const isHmo = rawPxType === 'HMO' || Boolean(p.hmocode);
+                        const displayPxType = isPhic ? 'PHIC YAKAP' : (isHmo ? 'HMO' : (rawPxType === 'OTHERS' ? 'OTHERS' : 'REGULAR'));
+                        $("#doctor_modal_patient_type_badge").text(displayPxType).removeClass("bg-secondary bg-success bg-info bg-warning bg-primary")
+                            .addClass(isPhic ? 'bg-success text-white' : (isHmo ? 'bg-info text-white' : 'bg-secondary text-white'));
 
-                    $("#consulname").text([p.patientname, p.pxmidname, p.pxlastname, p.pxsuffix].filter(v => v).join(' '));
-                    $("#consulsex").text(p.gender);
-                    $("#consulbday").text(new Date(p.birthday.replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }));
-                    $("#consulage").text(calculateAge(p.birthday));
-                    $("#consulcellno").text(p.mobilenumber);
-                    $("#consulemail").text(p.emailaddress);
-                    $("#consuladdress").text(p.address);
-                    $("#consulweight").text(p.weight != null ? p.weight + p.wunit : '');
-                    $("#consulheight").text(p.height != null ? p.height + p.hunit : '');
-                    $("#consultemp").text(p.temp != null ? p.temp + p.tempunit : '');
-                    $("#consulresprate").text(p.respiratoryrate);
-                    $("#consulpulserate").text(p.pulserate);
-                    $("#consulbp").text(p.bpnumerator != null && p.bpdenominator != null ? `${p.bpnumerator}/${p.bpdenominator}` : '');
-                    $("#patient_instructions").val(p.instructions);
-                    $("#genphoto").prop("src", p.photo_path || '/images/blank_photo.png');
-                    const bdayFormatted = p.birthday ? new Date(p.birthday.replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : 'N/A';
-                    const ageCalculated = calculateAge(p.birthday);
-                    const weightFormatted = p.weight != null ? p.weight + (p.wunit || '') : '';
-                    const heightFormatted = p.height != null ? p.height + (p.hunit || '') : '';
-                    const tempFormatted = p.temp != null ? p.temp + (p.tempunit || '') : '';
-                    const bpFormatted = (p.bpnumerator != null && p.bpdenominator != null) ? `${p.bpnumerator}/${p.bpdenominator}` : 'N/A';
+                        // Detailed Comment: Populate Patient Classification badge & dynamic fields (Task R5)
+                        const rawClass = p.classification || 'MEDICAL';
+                        $("#doctor_modal_classification_badge").text(`Class: ${rawClass}`).removeClass('d-none');
 
-                    // Detailed Comment: Populate patient demographics in both sidebar and Generate Rx modal accordion
-                    $("#genname, #rx_genname").text(p.patientname || '');
-                    $("#genpincode").text(p.pincode || 'N/A');
-                    $("#genpxrefno").text(p.pxrefno || 'N/A');
-                    $("#gensex, #rx_gensex").text(p.gender || '');
-                    $("#genbday, #rx_genbday").text(bdayFormatted);
-                    $("#genage, #rx_genage").text(ageCalculated);
-                    $("#gencellno, #rx_gencellno").text(p.mobilenumber || 'N/A');
-                    $("#genlandline").text(p.landlinenumber || 'N/A');
-                    $("#genemail, #rx_genemail").text(p.emailaddress || 'N/A');
-                    $("#genaddress, #rx_genaddress").text(p.address || 'N/A');
-                    $("#genweight, #rx_genweight").text(weightFormatted);
-                    $("#genheight, #rx_genheight").text(heightFormatted);
-                    $("#gentemp, #rx_gentemp").text(tempFormatted);
-                    $("#genresprate, #rx_genresprate").text(p.respiratoryrate || 'N/A');
-                    $("#genpulserate, #rx_genpulserate").text(p.pulserate || 'N/A');
-                    $("#genbp, #rx_genbp").text(bpFormatted);
-                    // Detailed Comment: Fix print button URLs to respect application subfolder base path (/kayakapmd_clinic)
-                    const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
-                    $("#print_rx_btn").attr("href", `${basePath}/print_pdf?type=rx&consultationrefno=${rowConsultationRefno}`);
-                    $("#print_inst_btn").attr("href", `${basePath}/print_pdf?type=instructions&consultationrefno=${rowConsultationRefno}`);
-                    $("#print_admit_btn").attr("href", `${basePath}/print_pdf?type=admission&consultationrefno=${rowConsultationRefno}`);
-                    $("#reasonforconsultation").val(p.reasonforconsultation);
-                    $("#impressions").val(p.impression);
-                    $("#diagnosis").val(p.finadiagnosis);
-                    $("#foradmit").prop("checked", p.foradmit == 1);
-                    $("#foradmit_instructions").val(p.foradmit_instructions || "");
+                        const classKey = rawClass.toUpperCase();
+                        let classDetails = [];
+                        if (classKey === 'MEDICAL' && p.subclassification) {
+                            classDetails.push(`<strong>Sub-classification:</strong> ${p.subclassification}`);
+                        } else if (classKey === 'OBSTETRICS' || classKey === 'GYNECOLOGY') {
+                            let obScores = [];
+                            if (p.gravida !== null && p.gravida !== undefined && p.gravida !== '') obScores.push(`G: ${p.gravida}`);
+                            if (p.para !== null && p.para !== undefined && p.para !== '') obScores.push(`P: ${p.para}`);
+                            if (p.abortion !== null && p.abortion !== undefined && p.abortion !== '') obScores.push(`A: ${p.abortion}`);
+                            if (p.iufd !== null && p.iufd !== undefined && p.iufd !== '') obScores.push(`IUFD: ${p.iufd}`);
+                            if (p.died !== null && p.died !== undefined && p.died !== '') obScores.push(`Died: ${p.died}`);
+                            if (obScores.length > 0) classDetails.push(`<strong>OB Scores:</strong> ${obScores.join(', ')}`);
+                            if (p.lmp_date) classDetails.push(`<strong>LMP Date:</strong> ${p.lmp_date}`);
+                            if (p.delivery_procedure) classDetails.push(`<strong>Delivery:</strong> ${p.delivery_procedure}`);
+                            if (p.pathologic) classDetails.push(`<span class="badge bg-danger">Pathologic Case</span>`);
+                        } else if (classKey === 'NEW BORN') {
+                            if (p.infacilitydelivery) classDetails.push(`<strong>Source:</strong> ${p.infacilitydelivery}`);
+                            if (p.delivery_procedure) classDetails.push(`<strong>Delivery:</strong> ${p.delivery_procedure}`);
+                            if (p.pathologic) classDetails.push(`<span class="badge bg-danger">Pathologic Case</span>`);
+                        }
+                        if (classDetails.length > 0) {
+                            $("#doctor_modal_classification_fields").html(classDetails.join(' | ')).removeClass('d-none');
+                        } else {
+                            $("#doctor_modal_classification_fields").addClass('d-none').empty();
+                        }
 
-                    // Detailed Comment: Activate the primary Consultation tab on the card header and Impressions & Diagnosis vertical pill
-                    const mainConsulTabEl = document.querySelector("#main_consultation_tab_btn");
-                    if (mainConsulTabEl && window.bootstrap && window.bootstrap.Tab) {
-                        window.bootstrap.Tab.getOrCreateInstance(mainConsulTabEl).show();
+                        // Detailed Comment: Render answered doctor questions for active consultation modal
+                        const renderActiveAnswers = (answers) => {
+                            if (answers && answers.length > 0) {
+                                let aHtml = '';
+                                answers.forEach(a => {
+                                    aHtml += `<div class="p-2 border rounded bg-white">
+                                        <strong class="d-block text-dark">${a.question || 'Doctor Question'}</strong>
+                                        <span class="text-secondary">${a.answer || 'No answer recorded'}</span>
+                                    </div>`;
+                                });
+                                $("#doctor_answered_questions_list").html(aHtml);
+                                $("#doctor_answered_questions_container").removeClass('d-none');
+                            } else {
+                                $("#doctor_answered_questions_list").empty();
+                                $("#doctor_answered_questions_container").addClass('d-none');
+                            }
+                        };
+
+                        if (response.answers && response.answers.length > 0) {
+                            renderActiveAnswers(response.answers);
+                        } else if (p.consultationrefno) {
+                            $.ajax({
+                                url: "/api/fetch_consultation",
+                                type: "POST",
+                                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                                data: { consultationrefno: p.consultationrefno },
+                                success: function (res) {
+                                    renderActiveAnswers(res && res.answers ? res.answers : []);
+                                }
+                            });
+                        }
+
+                        const bdayFormatted = p.birthday ? new Date(String(p.birthday).replace(" ", "T")).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : 'N/A';
+                        const ageCalculated = calculateAge(p.birthday);
+                        const weightFormatted = p.weight != null ? p.weight + (p.wunit || '') : '';
+                        const heightFormatted = p.height != null ? p.height + (p.hunit || '') : '';
+                        const tempFormatted = p.temp != null ? p.temp + (p.tempunit || '') : '';
+                        const bpFormatted = (p.bpnumerator != null && p.bpdenominator != null) ? `${p.bpnumerator}/${p.bpdenominator}` : 'N/A';
+
+                        $("#consulname").text([p.patientname, p.pxmidname, p.pxlastname, p.pxsuffix].filter(v => v).join(' '));
+                        $("#consulsex").text(p.gender || '');
+                        $("#consulbday").text(bdayFormatted);
+                        $("#consulage").text(ageCalculated);
+                        $("#consulcellno").text(p.mobilenumber || '');
+                        $("#consulemail").text(p.emailaddress || '');
+                        $("#consuladdress").text(p.address || '');
+                        $("#consulweight").text(weightFormatted);
+                        $("#consulheight").text(heightFormatted);
+                        $("#consultemp").text(tempFormatted);
+                        $("#consulresprate").text(p.respiratoryrate || '');
+                        $("#consulpulserate").text(p.pulserate || '');
+                        $("#consulbp").text(bpFormatted !== 'N/A' ? bpFormatted : '');
+                        $("#patient_instructions").val(p.instructions || '');
+                        $("#genphoto").prop("src", p.photo_path || '/images/blank_photo.png');
+
+                        // Detailed Comment: Populate patient demographics in both sidebar and Generate Rx modal accordion
+                        $("#genname, #rx_genname").text(p.patientname || '');
+                        $("#genpincode").text(p.pincode || 'N/A');
+                        $("#genpxrefno").text(p.pxrefno || 'N/A');
+                        $("#gensex, #rx_gensex").text(p.gender || '');
+                        $("#genbday, #rx_genbday").text(bdayFormatted);
+                        $("#genage, #rx_genage").text(ageCalculated);
+                        $("#gencellno, #rx_gencellno").text(p.mobilenumber || 'N/A');
+                        $("#genlandline").text(p.landlinenumber || 'N/A');
+                        $("#genemail, #rx_genemail").text(p.emailaddress || 'N/A');
+                        $("#genaddress, #rx_genaddress").text(p.address || 'N/A');
+                        $("#genweight, #rx_genweight").text(weightFormatted);
+                        $("#genheight, #rx_genheight").text(heightFormatted);
+                        $("#gentemp, #rx_gentemp").text(tempFormatted);
+                        $("#genresprate, #rx_genresprate").text(p.respiratoryrate || 'N/A');
+                        $("#genpulserate, #rx_genpulserate").text(p.pulserate || 'N/A');
+                        $("#genbp, #rx_genbp").text(bpFormatted);
+
+                        // Detailed Comment: Fix print button URLs to respect application subfolder base path (/kayakapmd_clinic)
+                        const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
+                        $("#print_rx_btn").attr("href", `${basePath}/print_pdf?type=rx&consultationrefno=${rowConsultationRefno}`);
+                        $("#print_inst_btn").attr("href", `${basePath}/print_pdf?type=instructions&consultationrefno=${rowConsultationRefno}`);
+                        $("#print_admit_btn").attr("href", `${basePath}/print_pdf?type=admission&consultationrefno=${rowConsultationRefno}`);
+                        $("#reasonforconsultation").val(p.reasonforconsultation || "");
+                        $("#impressions").val(p.impression || "");
+                        $("#diagnosis").val(p.finadiagnosis || "");
+                        $("#foradmit").prop("checked", p.foradmit == 1);
+                        $("#foradmit_instructions").val(p.foradmit_instructions || "");
+
+                        // Detailed Comment: Activate the primary Consultation tab on the card header and Impressions & Diagnosis vertical pill
+                        const mainConsulTabEl = document.querySelector("#main_consultation_tab_btn");
+                        if (mainConsulTabEl && window.bootstrap && window.bootstrap.Tab) {
+                            window.bootstrap.Tab.getOrCreateInstance(mainConsulTabEl).show();
+                        }
+                        const impDiagBtnEl = document.querySelector("#impDiagBtn");
+                        if (impDiagBtnEl && window.bootstrap && window.bootstrap.Tab) {
+                            window.bootstrap.Tab.getOrCreateInstance(impDiagBtnEl).show();
+                        }
                     }
-                    const impDiagBtnEl = document.querySelector("#impDiagBtn");
-                    if (impDiagBtnEl && window.bootstrap && window.bootstrap.Tab) {
-                        window.bootstrap.Tab.getOrCreateInstance(impDiagBtnEl).show();
+                } catch (err) {
+                    console.error("Error populating consultation modal details:", err);
+                } finally {
+                    consultationModal.show();
+                    loadDashboardRx();
+
+                    // Detailed Comment: Automatically load patient permanent medical history and allergy alert banner into the modal
+                    if (p && typeof window.loadDoctorPermanentMedicalHistory === 'function') {
+                        window.loadDoctorPermanentMedicalHistory(p.pxrefno || '', p.pincode || '', p.consultationrefno || '');
                     }
                 }
-                consultationModal.show();
-                loadDashboardRx();
             },
             error: function () {
                 Swal.fire({ title: "Error", text: "Failed to load patient consultation data.", icon: "error" });

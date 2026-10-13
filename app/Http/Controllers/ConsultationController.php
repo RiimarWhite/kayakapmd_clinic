@@ -13,6 +13,7 @@ use App\Models\DoctorsProfileModel;
 use App\Models\ConsultationModel;
 use App\Models\DocRequestsModel;
 use App\Models\DocChargesModel;
+use App\Models\PxMedicalHistoryModel;
 use App\Models\Stocks\StocksLedgerModel;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -118,7 +119,10 @@ class ConsultationController extends Controller
             'pxrefno',
             'patientname',
             'queueno',
-            'status'
+            'status',
+            // Detailed Comment: Assigned doctor per row; consumed by the Reschedule action in queue.js so the
+            // reschedule modal fetches that doctor's clinic schedule instead of the (often "None") header filter.
+            'docrefno'
         ]);
 
         $totalRecords = (clone $query)->count();
@@ -641,14 +645,30 @@ class ConsultationController extends Controller
                 $consultation->photo_path = url('/images/blank_photo.png');
             }
 
+            // Detailed Comment: Fetch answered doctor questions joining docquestion on questionrefno = docquestionrefno
+            // to retrieve the actual question string rather than just raw reference numbers.
             $answers = !empty($consultation->consultationrefno)
-                ? ConsultationAnswerModel::where(['pxconsultationrefno' => $consultation->consultationrefno])->get()
+                ? ConsultationAnswerModel::leftJoin('docquestion', 'walkinconsultation_answer.questionrefno', '=', 'docquestion.docquestionrefno')
+                    ->where(['walkinconsultation_answer.pxconsultationrefno' => $consultation->consultationrefno])
+                    ->select('walkinconsultation_answer.*', 'docquestion.question')
+                    ->get()
                 : collect();
+
+            // Detailed Comment: Pre-hydrate permanent medical history from pxmedicalhistory by cross-referencing pxrefno and pincode
+            $medHistory = null;
+            if (!empty($consultation->pxrefno) || !empty($consultation->pincode)) {
+                $medHistory = PxMedicalHistoryModel::where(function ($q) use ($consultation) {
+                    if (!empty($consultation->pxrefno)) $q->where('pxrefno', $consultation->pxrefno);
+                    if (!empty($consultation->pincode)) $q->orWhere('pincode', $consultation->pincode);
+                })->first();
+            }
 
             return response()->json([
                 'success' => true,
                 'patient' => $consultation,
-                'answers' => $answers
+                'answers' => $answers,
+                'medical_history' => $medHistory,
+                'permanent_medhistory' => $medHistory
             ]);
         } catch (\Throwable $e) {
             Log::error('Error in fetchConsultation: ' . $e->getMessage(), [
@@ -750,6 +770,9 @@ class ConsultationController extends Controller
             'address' => $request->pxaddress,
 
             'reasonforconsultation' => $request->reason_for_consultation ?? '',
+            // Detailed Comment: Capture Brief History of Present Illness and Pertinent Past Medical History from intake
+            'brief_history_present_illness' => $request->brief_history_present_illness ?? '',
+            'pertinent_past_medhistory' => $request->pertinent_past_medhistory ?? '',
             'finadiagnosis' => '',
             'weight' => $request->weight,
             'wunit' => $request->w_unit,
@@ -801,12 +824,37 @@ class ConsultationController extends Controller
         }
 
         $consultationData['photo_path'] = $photoPath;
-        $consultationData['radiologypath'] = $request->hasFile('radiology_file') ? $request->file('radiology_file')->store('radiology_results', 'private') : null;
-        $consultationData['laboratorypath'] = $request->hasFile('laboratory_file') ? $request->file('laboratory_file')->store('laboratory_results', 'private') : null;
+
+        // Detailed Comment: Support both radiologypath and radiology_file input keys, storing uploaded file to private storage
+        $radiologyFile = $request->file('radiologypath') ?: $request->file('radiology_file');
+        $consultationData['radiologypath'] = $radiologyFile ? $radiologyFile->store('radiology_results', 'private') : null;
+
+        // Detailed Comment: Support both laboratorypath and laboratory_file input keys, storing uploaded file to private storage
+        $laboratoryFile = $request->file('laboratorypath') ?: $request->file('laboratory_file');
+        $consultationData['laboratorypath'] = $laboratoryFile ? $laboratoryFile->store('laboratory_results', 'private') : null;
+
         $consultationData['status'] = 'PENDING';
         $consultationData['queueno'] = $queueno;
-        // Detailed Comment: Persist patient classification/type (REGULAR, PHIC, HMO, OTHERS) for accurate billing and queue tracking
-        $consultationData['classification'] = strtoupper($request->patient_type ?? $request->classification ?? 'REGULAR');
+
+        // Detailed Comment: Persist clinical classification (MEDICAL, PEDIA, OBSTETRICS, GYNECOLOGY, NEW BORN, ORTHO, DENTISTRY, DERMA, HEMODIALYSIS, OTHERS)
+        // Defensively fall back to classification or patient_type for backwards compatibility with tests and billing
+        $consultationData['classification'] = strtoupper(
+            $request->patient_classification 
+            ?? $request->classification 
+            ?? $request->patient_type 
+            ?? 'MEDICAL'
+        );
+        $consultationData['subclassification'] = $request->medical_subclassification ?? $request->subclassification ?? null;
+        $consultationData['gravida'] = $request->filled('gravida') ? floatval($request->gravida) : null;
+        $consultationData['para'] = $request->filled('para') ? floatval($request->para) : null;
+        $consultationData['abortion'] = $request->filled('abortion') ? floatval($request->abortion) : null;
+        $consultationData['iufd'] = $request->filled('iufd') ? floatval($request->iufd) : null;
+        $consultationData['died'] = $request->filled('died') ? floatval($request->died) : null;
+        $consultationData['lmp_date'] = $request->filled('lmp_date') ? $request->lmp_date : null;
+        $consultationData['delivery_procedure'] = $request->delivery_procedure ?? null;
+        $consultationData['pathologic'] = $request->has('pathologic') ? 1 : 0;
+        $consultationData['infacilitydelivery'] = $request->filled('infacilitydelivery') ? intval($request->infacilitydelivery) : null;
+        $consultationData['modeofpayment'] = strtoupper($request->patient_type ?? 'REGULAR');
 
         try {
             $consultation = ConsultationModel::create($consultationData);
@@ -834,26 +882,41 @@ class ConsultationController extends Controller
                 }
             }
 
-            // Detailed Comment: Auto-populate doctor consultation fee in stocks_ledger if doctor has a configured pfrate
-            if ($doctor && !empty($doctor->pfrate) && floatval($doctor->pfrate) > 0) {
-                StocksLedgerModel::firstOrCreate([
-                    'px_consultcode_cn' => $consultation->consultationrefno,
-                    'item_grouping' => 'PROFESSIONAL FEE'
-                ], [
-                    'dw_clientcode' => $doctor->dw_clientcode ?? 'HO1',
-                    'transactiontype' => 'CHARGES',
-                    'px_pin' => $consultation->pxrefno,
-                    'patient_name' => $consultation->patientname,
-                    'prodcode' => 'PF',
-                    'item_dscr' => 'Professional Fee - Dr. ' . ($doctor->docname ?: ($doctor->doclname . ', ' . $doctor->docfname)),
-                    'cost_ave' => floatval($doctor->pfrate),
-                    'retails' => floatval($doctor->pfrate),
-                    'qty' => 1,
-                    'totalamt' => floatval($doctor->pfrate),
-                    'remarks' => 'Default Doctor Consultation Fee',
-                    'updatedby' => $recordedby,
-                    'updated' => now()
-                ]);
+            // Detailed Comment: Auto-populate doctor consultation fee in stocks_ledger accurately computing PHIC tier rate and autoAddVAT
+            if ($doctor) {
+                $isPhic = str_contains($consultationData['modeofpayment'] ?? '', 'PHIC') || !empty($consultation->phic_pin);
+                if ($isPhic && $doctor->phicenable && floatval($doctor->phicrate) > 0) {
+                    $baseFee = floatval($doctor->phicrate);
+                } else {
+                    $baseFee = floatval($doctor->pfrate ?: ($doctor->consultationfee ?? 0));
+                }
+
+                $fee = $baseFee;
+                if (!empty($doctor->autoAddVAT) && floatval($doctor->vatrate) > 0) {
+                    $vatAmount = round($baseFee * (floatval($doctor->vatrate) / 100), 2);
+                    $fee = $baseFee + $vatAmount;
+                }
+
+                if ($fee > 0) {
+                    StocksLedgerModel::firstOrCreate([
+                        'px_consultcode_cn' => $consultation->consultationrefno,
+                        'item_grouping' => 'PROFESSIONAL FEE'
+                    ], [
+                        'dw_clientcode' => $doctor->dw_clientcode ?? 'HO1',
+                        'transactiontype' => 'CHARGES',
+                        'px_pin' => $consultation->pxrefno,
+                        'patient_name' => $consultation->patientname,
+                        'prodcode' => 'PF',
+                        'item_dscr' => 'Professional Fee - Dr. ' . ($doctor->docname ?: ($doctor->doclname . ', ' . $doctor->docfname)),
+                        'cost_ave' => $fee,
+                        'retails' => $fee,
+                        'qty' => 1,
+                        'totalamt' => $fee,
+                        'remarks' => 'Doctor Consultation Fee calculated from Doctor Dashboard (VAT Applied: ' . (!empty($doctor->autoAddVAT) ? 'Yes' : 'No') . ')',
+                        'updatedby' => $recordedby,
+                        'updated' => now()
+                    ]);
+                }
             }
 
             $answers = $request->input('answer', []);
@@ -950,6 +1013,9 @@ class ConsultationController extends Controller
             'address' => $request->pxaddress,
 
             'reasonforconsultation' => $request->reason_for_consultation ?? ($record->reasonforconsultation ?? ''),
+            // Detailed Comment: Update Brief History of Present Illness and Pertinent Past Medical History with null fallback to existing values
+            'brief_history_present_illness' => $request->brief_history_present_illness ?? ($record->brief_history_present_illness ?? ''),
+            'pertinent_past_medhistory' => $request->pertinent_past_medhistory ?? ($record->pertinent_past_medhistory ?? ''),
             'weight' => $request->weight,
             'wunit' => $request->w_unit,
             'height' => $request->height,
@@ -990,12 +1056,37 @@ class ConsultationController extends Controller
         }
 
         $consultationData['photo_path'] = $photoPath;
-        $consultationData['radiologypath'] = $request->hasFile('radiologypath') ? $request->file('radiologypath')->store('radiology_results', 'private') : $record->radiologypath;
-        $consultationData['laboratorypath'] = $request->hasFile('laboratorypath') ? $request->file('laboratorypath')->store('laboratory_results', 'private') : $record->laboratorypath;
+
+        // Detailed Comment: Support both radiologypath and radiology_file input keys on update, retaining existing path if no new file is uploaded
+        $radiologyFile = $request->file('radiologypath') ?: $request->file('radiology_file');
+        $consultationData['radiologypath'] = $radiologyFile ? $radiologyFile->store('radiology_results', 'private') : $record->radiologypath;
+
+        // Detailed Comment: Support both laboratorypath and laboratory_file input keys on update, retaining existing path if no new file is uploaded
+        $laboratoryFile = $request->file('laboratorypath') ?: $request->file('laboratory_file');
+        $consultationData['laboratorypath'] = $laboratoryFile ? $laboratoryFile->store('laboratory_results', 'private') : $record->laboratorypath;
+
         $consultationData['status'] = $record->status ?: 'PENDING';
         $consultationData['queueno'] = $queueno;
-        // Detailed Comment: Persist updated patient classification/type (REGULAR, PHIC, HMO, OTHERS)
-        $consultationData['classification'] = strtoupper($request->patient_type ?? $request->classification ?? $record->classification ?? 'REGULAR');
+
+        // Detailed Comment: Persist updated clinical classification and case history attributes
+        $consultationData['classification'] = strtoupper(
+            $request->patient_classification 
+            ?? $request->classification 
+            ?? $request->patient_type 
+            ?? $record->classification 
+            ?? 'MEDICAL'
+        );
+        $consultationData['subclassification'] = $request->medical_subclassification ?? $request->subclassification ?? $record->subclassification;
+        $consultationData['gravida'] = $request->filled('gravida') ? floatval($request->gravida) : $record->gravida;
+        $consultationData['para'] = $request->filled('para') ? floatval($request->para) : $record->para;
+        $consultationData['abortion'] = $request->filled('abortion') ? floatval($request->abortion) : $record->abortion;
+        $consultationData['iufd'] = $request->filled('iufd') ? floatval($request->iufd) : $record->iufd;
+        $consultationData['died'] = $request->filled('died') ? floatval($request->died) : $record->died;
+        $consultationData['lmp_date'] = $request->filled('lmp_date') ? $request->lmp_date : $record->lmp_date;
+        $consultationData['delivery_procedure'] = $request->delivery_procedure ?? $record->delivery_procedure;
+        $consultationData['pathologic'] = $request->has('pathologic') ? 1 : ($record->pathologic ?? 0);
+        $consultationData['infacilitydelivery'] = $request->filled('infacilitydelivery') ? intval($request->infacilitydelivery) : $record->infacilitydelivery;
+        $consultationData['modeofpayment'] = strtoupper($request->patient_type ?? $record->modeofpayment ?? 'REGULAR');
 
         try {
             $update = $record->update($consultationData);
@@ -1348,7 +1439,8 @@ class ConsultationController extends Controller
         }
 
         // Clean up linked records
-        ConsultationAnswerModel::where('consultationrefno', $request->consultationrefno)->delete();
+        // Detailed Comment: Fix column name from consultationrefno to pxconsultationrefno matching walkinconsultation_answer schema
+        ConsultationAnswerModel::where('pxconsultationrefno', $request->consultationrefno)->delete();
         DocRequestsModel::where('consultationrefno', $request->consultationrefno)->delete();
         DocChargesModel::where('consultationrefno', $request->consultationrefno)->delete();
         StocksLedgerModel::where('px_consultcode_cn', $request->consultationrefno)->delete();

@@ -208,15 +208,16 @@
                     </div>
                 </td>
                 <td style="width: 15%; padding: 2px;">
+                    {{-- Detailed Comment: Realignment to Total CO-PAY reflecting patient collections and settlement totals --}}
                     <div class="kpi-box" style="background-color: #f0fff4; border-color: #c6f6d5;">
-                        <div class="kpi-title" style="color: #22543d;">Total Collected</div>
+                        <div class="kpi-title" style="color: #22543d;">Total CO-PAY</div>
                         <div class="kpi-value" style="color: #22543d;">PHP {{ number_format($summary->total_paid, 2) }}</div>
                     </div>
                 </td>
             </tr>
         </table>
 
-        {{-- Payment Channels Breakdown Sub-strip --}}
+        {{-- Detailed Comment: Payment Channels Breakdown Sub-strip realigned to display Total CO-PAY collections without standalone redundant copay summary --}}
         <table style="width: 100%; border-collapse: collapse; font-size: 8.5px; background-color: #faf5ff; border: 1px solid #e9d8fd; border-radius: 4px; padding: 4px 8px; margin-bottom: 8px;">
             <tr>
                 <td style="padding: 2px 6px;">
@@ -229,7 +230,7 @@
                     Card / CTA: <strong>PHP {{ number_format($summary->total_card, 2) }}</strong>
                 </td>
                 <td style="padding: 2px 6px;">
-                    PhilHealth Yakap Co-Pay: <strong>PHP {{ number_format($summary->total_copay, 2) }}</strong>
+                    Total CO-PAY: <strong>PHP {{ number_format($summary->total_paid, 2) }}</strong>
                 </td>
                 <td style="padding: 2px 6px; text-align: right; color: #c53030;">
                     Unsettled Balance: <strong>PHP {{ number_format($summary->total_balance, 2) }}</strong>
@@ -254,8 +255,8 @@
                     <th style="width: 65px;" class="text-right">Net Payable</th>
                     <th style="width: 55px;" class="text-right">Cash</th>
                     <th style="width: 55px;" class="text-right">Card/CTA</th>
-                    <th style="width: 55px;" class="text-right">Co-Pay</th>
-                    <th style="width: 60px;" class="text-right">Total Paid</th>
+                    {{-- Detailed Comment: Standalone Co-Pay header removed; Total Paid header renamed to CO-PAY --}}
+                    <th style="width: 65px;" class="text-right">CO-PAY</th>
                     <th style="width: 55px;" class="text-right">Balance</th>
                     <th style="width: 45px;" class="text-center">Status</th>
                 </tr>
@@ -282,7 +283,7 @@
                             <td class="text-right"><strong>{{ number_format($item->net, 2) }}</strong></td>
                             <td class="text-right">{{ $item->cash > 0 ? number_format($item->cash, 2) : '-' }}</td>
                             <td class="text-right">{{ $item->card > 0 ? number_format($item->card, 2) : '-' }}</td>
-                            <td class="text-right">{{ $item->copay > 0 ? number_format($item->copay, 2) : '-' }}</td>
+                            {{-- Detailed Comment: Standalone copay column removed; patient collections ($item->paid) aligned under CO-PAY header --}}
                             <td class="text-right" style="color: #2e7d32;"><strong>{{ number_format($item->paid, 2) }}</strong></td>
                             <td class="text-right" style="color: {{ $item->balance > 0 ? '#c62828' : '#718096' }};">
                                 {{ $item->balance > 0 ? number_format($item->balance, 2) : '0.00' }}
@@ -307,14 +308,15 @@
                         <td class="text-right">{{ number_format($summary->total_net, 2) }}</td>
                         <td class="text-right">{{ number_format($summary->total_cash, 2) }}</td>
                         <td class="text-right">{{ number_format($summary->total_card, 2) }}</td>
-                        <td class="text-right">{{ number_format($summary->total_copay, 2) }}</td>
+                        {{-- Detailed Comment: Standalone total_copay removed; total_paid displayed under CO-PAY totals column --}}
                         <td class="text-right" style="color: #2e7d32;">{{ number_format($summary->total_paid, 2) }}</td>
                         <td class="text-right" style="color: #c62828;">{{ number_format($summary->total_balance, 2) }}</td>
                         <td></td>
                     </tr>
                 @else
                     <tr>
-                        <td colspan="14" class="text-center" style="padding: 12px; color: #a0aec0; font-style: italic;">
+                        {{-- Detailed Comment: Colspan updated from 14 to 13 matching 13-column geometry --}}
+                        <td colspan="13" class="text-center" style="padding: 12px; color: #a0aec0; font-style: italic;">
                             No patient consultations recorded for this date.
                         </td>
                     </tr>

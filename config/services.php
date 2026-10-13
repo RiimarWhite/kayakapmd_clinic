@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    /**
+     * Detailed Comment: PhilHealth e-Claims API and encryption configuration settings.
+     * url: Base URL of the PhilHealth e-Claims web service endpoint.
+     * passphrase: Secret passphrase utilized for AES-256-CBC encryption of XML payloads.
+     */
+    'philhealth' => [
+        'url' => env('PHILHEALTH_URL', 'https://epress.philhealth.gov.ph'),
+        'passphrase' => env('PHILHEALTH_PASSPHRASE', 'kayakapmd'),
+    ],
+
 ];

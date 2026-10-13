@@ -217,10 +217,159 @@ $(function () {
             });
     });
 
+    // Detailed Comment: Open #manage_doctor_modal, set doctor reference, reset forms, and trigger questions tab
     $(document).on("click", ".manage_doctor", function () {
-        new bootstrap.Modal('#manage_doctor_modal').show();
-        $("#choose_doctor").val($(this).val());
+        const docrefno = $(this).val();
+        $("#choose_doctor").val(docrefno);
+        const modal = bootstrap.Modal.getOrCreateInstance('#manage_doctor_modal');
+        modal.show();
+
+        // Reset input forms within modal
+        if ($("#create_question_form").length) $("#create_question_form")[0].reset();
+        if ($("#create_schedule_form").length) $("#create_schedule_form")[0].reset();
+
         $("#questions_tab").trigger("click");
+    });
+
+    // Detailed Comment: Click handler for editing a doctor question with SweetAlert modal dialog and clean DataTable reload
+    $(document).off("click.edit_question", ".edit-question").on("click.edit_question", ".edit-question", function () {
+        const docquestionrefno = $(this).val();
+        let currentQuestion = "";
+
+        if ($.fn.DataTable.isDataTable("#doctor_questions_tab")) {
+            const table = $("#doctor_questions_tab").DataTable();
+            const rowData = table.row($(this).closest("tr")).data();
+            if (rowData && rowData.question) {
+                currentQuestion = rowData.question;
+            }
+        }
+        if (!currentQuestion) {
+            currentQuestion = $(this).closest("tr").find("td").eq(1).text().trim();
+        }
+
+        Swal.fire({
+            title: "Edit Question",
+            html: `
+                <div class="text-start mb-2">
+                    <label for="swal_edit_question" class="form-label fw-bold">Doctor Question</label>
+                    <textarea class="form-control" id="swal_edit_question" rows="3" placeholder="Enter question here">${currentQuestion}</textarea>
+                </div>
+            `,
+            confirmButtonText: "Save Changes",
+            showCancelButton: true,
+            focusConfirm: false,
+            preConfirm: () => {
+                const newQuestion = document.getElementById("swal_edit_question").value.trim();
+                if (!newQuestion) {
+                    Swal.showValidationMessage("Question cannot be empty.");
+                    return false;
+                }
+                return newQuestion;
+            }
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                $.ajax({
+                    url: "/api/edit_question",
+                    type: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content"),
+                    },
+                    data: {
+                        docquestionrefno: docquestionrefno,
+                        question: result.value,
+                    },
+                    success: function (response) {
+                        if (response.success) {
+                            Swal.fire({
+                                title: "Success",
+                                text: "Question updated successfully.",
+                                icon: "success",
+                                confirmButtonText: "Okay",
+                            });
+                            if ($.fn.DataTable.isDataTable("#doctor_questions_tab")) {
+                                $("#doctor_questions_tab").DataTable().ajax.reload(null, false);
+                            } else {
+                                $("#questions_tab").trigger("click");
+                            }
+                        } else {
+                            Swal.fire({
+                                title: "Error",
+                                text: response.message || "Failed to update question.",
+                                icon: "error",
+                            });
+                        }
+                    },
+                    error: function (xhr) {
+                        const msg = (xhr.responseJSON && xhr.responseJSON.message)
+                            ? xhr.responseJSON.message
+                            : "Failed to update question.";
+                        Swal.fire({
+                            title: "Error",
+                            text: msg,
+                            icon: "error",
+                        });
+                    }
+                });
+            }
+        });
+    });
+
+    // Detailed Comment: Click handler for deleting a doctor question with confirmation and clean DataTable reload
+    $(document).off("click.delete_question", ".delete-question").on("click.delete_question", ".delete-question", function () {
+        const docquestionrefno = $(this).val();
+
+        Swal.fire({
+            title: "Confirmation",
+            text: "Are you sure you want to delete this doctor question?",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Yes, delete",
+            confirmButtonColor: "#d33",
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: "/api/delete_question",
+                    type: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content"),
+                    },
+                    data: {
+                        docquestionrefno: docquestionrefno,
+                    },
+                    success: function (response) {
+                        if (response.success) {
+                            Swal.fire({
+                                title: "Success",
+                                text: "Question deleted successfully.",
+                                icon: "success",
+                                confirmButtonText: "Okay",
+                            });
+                            if ($.fn.DataTable.isDataTable("#doctor_questions_tab")) {
+                                $("#doctor_questions_tab").DataTable().ajax.reload(null, false);
+                            } else {
+                                $("#questions_tab").trigger("click");
+                            }
+                        } else {
+                            Swal.fire({
+                                title: "Error",
+                                text: response.message || "Failed to delete question.",
+                                icon: "error",
+                            });
+                        }
+                    },
+                    error: function (xhr) {
+                        const msg = (xhr.responseJSON && xhr.responseJSON.message)
+                            ? xhr.responseJSON.message
+                            : "Failed to delete question.";
+                        Swal.fire({
+                            title: "Error",
+                            text: msg,
+                            icon: "error",
+                        });
+                    }
+                });
+            }
+        });
     });
 
     $(document).on("click", ".delete_doctor", function () {

@@ -1,64 +1,109 @@
 $(function () {
     function showError(error) {
         return Swal.fire({
-            title: "An error occurred.",
-            text: {error},
+            title: "PhilHealth API Notice",
+            text: typeof error === "string" ? error : JSON.stringify(error),
             icon: "warning"
         });
     }
 
     $("#download-masterlist-btn").on("click", function () {
+        Swal.showLoading();
         $.ajax({
             url: "/api/fetch_registrations",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             success: function (response) {
+                Swal.close();
                 if (response.success) {
                     Swal.fire({
-                        title: "Download Masterlist",
-                        text: "X new records were found.",
-                        icon: "warning",
-                        showCancelButton: true,
-                        confirmButtonText: "Save"
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            console.log("Downloaded XML.");
-                        }
+                        title: "Registration List",
+                        text: "Registration list fetched successfully.",
+                        icon: "success"
                     });
                 } else {
-                    showError(response.message);
+                    showError(response.message || "Failed to fetch registrations.");
                 }
+            },
+            error: function (xhr) {
+                Swal.close();
+                const err = xhr.responseJSON?.message || "Failed to connect to PhilHealth service.";
+                showError(err);
             }
         });
     });
 
-    $("#btn-check-md").on("click", function () {
+    $("#btn-check-md").on("click", function (e) {
+        e.preventDefault();
+        const pin = $("#check-pin").val();
+        const type = $("#check-type").val();
+
+        if (!pin) {
+            return Swal.fire({ title: "PIN Required", text: "Please enter the patient PIN.", icon: "info" });
+        }
+
+        Swal.showLoading();
         $.ajax({
-            url: "/api/checkRegistration",
+            url: "/api/check_registration",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-            data: {
-                "pin": $("#check-pin").val(),
-                "type": $("#check-type").val()
-            },
+            data: { pin: pin, type: type },
             success: function (response) {
-                //
+                Swal.close();
+                if (response.success) {
+                    Swal.fire({
+                        title: "Registration Status",
+                        text: JSON.stringify(response.data),
+                        icon: "info"
+                    });
+                } else {
+                    showError(response.message || "Check failed.");
+                }
+            },
+            error: function (xhr) {
+                Swal.close();
+                const err = xhr.responseJSON?.message || "Registration verification failed.";
+                showError(err);
             }
-        })
+        });
     });
 
-    $("#btn-validate-atc").on("click", function () {
+    $("#btn-validate-atc").on("click", function (e) {
+        e.preventDefault();
+        const pin = $("#atc-pin").val();
+        const atc = $("#atc").val();
+        const date = $("#atc-date").val();
+
+        if (!pin || !atc) {
+            return Swal.fire({ title: "Fields Required", text: "Please enter PIN and ATC code.", icon: "info" });
+        }
+
+        Swal.showLoading();
         $.ajax({
-            url: "/api/checkATC",
+            url: "/api/validate_atc",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             data: {
-                "pin": $("#atc-pin").val(),
-                "atc": $("#atc").val(),
-                "effectivity_date": $("#atc-date").val()
+                pin: pin,
+                atc: atc,
+                effectivity_date: date
             },
             success: function (response) {
-                //
+                Swal.close();
+                if (response.success) {
+                    Swal.fire({
+                        title: "ATC Validated",
+                        text: JSON.stringify(response.data),
+                        icon: "success"
+                    });
+                } else {
+                    showError(response.message || "ATC validation failed.");
+                }
+            },
+            error: function (xhr) {
+                Swal.close();
+                const err = xhr.responseJSON?.message || "ATC validation failed.";
+                showError(err);
             }
         });
     });

@@ -317,8 +317,8 @@ class AdminService
             'dw_clientcode' => $session,
             'accre_no' => $profile->hciaccreno,
             'report_code' => $reportCode,
-            'trans_type' => is_array($data['data']) ? 'BATCH' : 'SINGLE',
-            'tanche_type' => $data['type'] == 'first' ? 'FIRST' : 'SECOND',
+            'trans_type' => is_array($data['data']) ? 'BATCH' : 'INDIVIDUAL',
+            'tranche_type' => $data['type'] == 'first' ? 'FIRST' : 'SECOND',
             'date_range_start' => $data['start'] ?? now(),
             'date_range_end' => $data['end'] ?? now(),
             'date_generated' => now(),
@@ -329,7 +329,7 @@ class AdminService
         // Mark data as reported in the database
         XmlTransModel::create($data);
 
-        return ['success' => true, 'document' => $document];
+        return ['success' => true, 'document' => $document, 'report_code' => $reportCode];
     }
 
     public function encryptXML(array $data)
@@ -363,9 +363,17 @@ class AdminService
         }
     }
 
+    /**
+     * Detailed Comment: Retrieves PCB profile configuration for facility accreditation details.
+     * Falls back to PCBModel::first() if clientcode is empty or not directly matched.
+     */
     private function getProfile($clientcode)
     {
-        return PCBModel::where(['clientcode' => $clientcode])->first();
+        $profile = PCBModel::where(['clientcode' => $clientcode])->first();
+        if (!$profile) {
+            $profile = PCBModel::first();
+        }
+        return $profile;
     }
 
     private function buildPCBElement(DOMDocument $doc)

@@ -9,9 +9,33 @@
         </div>
 
         <div class="d-flex gap-2">
-            <button class="btn btn-light">
-                <i class="fa-solid fa-sun"></i>
-            </button>
+            {{-- Detailed Comment: Global Header Theme Switcher dropdown supporting Dark, Light, and System modes with accessible controls --}}
+            <div class="dropdown" id="theme_switcher_dropdown">
+                <button class="btn btn-light dropdown-toggle d-flex align-items-center gap-1" id="bd-theme" type="button" aria-expanded="false" data-bs-toggle="dropdown" aria-label="Toggle theme">
+                    <i class="fa-solid fa-circle-half-stroke me-1" id="theme-active-icon"></i>
+                    <span class="d-none d-md-inline" id="theme-active-text">System</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="bd-theme" id="theme_options_menu">
+                    <li>
+                        <button type="button" class="dropdown-item d-flex align-items-center justify-content-between" data-bs-theme-value="light" id="theme_option_light">
+                            <span><i class="fa-solid fa-sun me-2 text-warning"></i> Light</span>
+                            <i class="fa-solid fa-check text-primary theme-check-icon d-none"></i>
+                        </button>
+                    </li>
+                    <li>
+                        <button type="button" class="dropdown-item d-flex align-items-center justify-content-between" data-bs-theme-value="dark" id="theme_option_dark">
+                            <span><i class="fa-solid fa-moon me-2 text-info"></i> Dark</span>
+                            <i class="fa-solid fa-check text-primary theme-check-icon d-none"></i>
+                        </button>
+                    </li>
+                    <li>
+                        <button type="button" class="dropdown-item d-flex align-items-center justify-content-between" data-bs-theme-value="system" id="theme_option_system">
+                            <span><i class="fa-solid fa-circle-half-stroke me-2 text-secondary"></i> System</span>
+                            <i class="fa-solid fa-check text-primary theme-check-icon d-none"></i>
+                        </button>
+                    </li>
+                </ul>
+            </div>
 
             @if (auth()->guard('doctor')->check())
                 <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#doctor_profile_modal">

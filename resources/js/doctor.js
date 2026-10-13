@@ -409,13 +409,15 @@ $(function () {
                     $("#genpincode").text(response.patient.pincode || 'N/A');
                     $("#genpxrefno").text(response.patient.pxrefno || 'N/A');
 
-                    // Detailed Comment: Display patient classification badge (REGULAR, HMO, PHIC) in Patient Information card header
-                    const ptype = (response.patient.classification || (response.patient.hmocode ? 'HMO' : (response.patient.phic_pin ? 'PHIC' : 'REGULAR'))).toUpperCase();
+                    // Detailed Comment: Display patient classification badge (REGULAR, HMO, PHIC YAKAP) in Patient Information card header
+                    const rawType = (response.patient.modeofpayment || response.patient.classification || (response.patient.hmocode ? 'HMO' : (response.patient.phic_pin ? 'PHIC YAKAP' : 'REGULAR'))).toUpperCase();
+                    const isPhic = rawType.includes('PHIC') || Boolean(response.patient.phic_pin);
+                    const ptype = isPhic ? 'PHIC YAKAP' : (rawType === 'HMO' ? 'HMO' : (rawType === 'OTHERS' ? 'OTHERS' : 'REGULAR'));
                     $("#doctor_modal_patient_type_badge").text(ptype);
                     if (ptype === 'HMO') {
                         $("#doctor_modal_patient_type_badge").attr('class', 'badge bg-info text-white');
-                    } else if (ptype === 'PHIC') {
-                        $("#doctor_modal_patient_type_badge").attr('class', 'badge bg-primary text-white');
+                    } else if (isPhic) {
+                        $("#doctor_modal_patient_type_badge").attr('class', 'badge bg-success text-white');
                     } else {
                         $("#doctor_modal_patient_type_badge").attr('class', 'badge bg-secondary text-white');
                     }

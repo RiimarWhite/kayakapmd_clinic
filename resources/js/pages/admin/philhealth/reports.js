@@ -22,31 +22,32 @@ $(function () {
                     render: function (data, type, row) {
                         if (row.enlistment) {
                             const p = row.enlistment;
-                            return `${p.dPatientLname}, ${p.dPatientFname} ${p.dPatientMname}`;
+                            return `${p.dPatientLname}, ${p.dPatientFname} ${p.dPatientMname || ''}`;
                         }
 
                         return "No Patient Data";
                     }
                 },
                 { data: 'dSoapDate', render: function (data) {
+                    if (!data) return "N/A";
                     return new Date(data.replace(" ", "T"))
                         .toLocaleDateString("en-US", {
                             month: "long",
                             day: "numeric",
                             year: "numeric"
-                        })
+                        });
                 }},
                 { data: 'report_code', render: function (data) {
-                    return data != "" ? `
+                    return data ? `
                     <button class="btn btn-sm btn-secondary report1" value="${data}" title="XML report preview."><i class="fa-solid fa-eye"></i></button>
-                    <button class="btn btn-sm btn-success encrypt" value="${data}" title="Encrypt this XML report."><i class="fa-solid fa-file-arrow-up"></i></button>
+                    <button class="btn btn-sm btn-success encrypt" value="${data}" title="Encrypt this XML report."><i class="fa-solid fa-lock"></i></button>
                     <button class="btn btn-sm btn-primary clipboard" value="${data}" title="${data}"><i class="fa-solid fa-clipboard"></i></button>
                     ` : "N/A";
                 }},
                 { data: 'report_code2', render: function (data) {
-                    return data != "" ? `
+                    return data ? `
                     <button class="btn btn-sm btn-secondary report2" value="${data}" title="XML report preview."><i class="fa-solid fa-eye"></i></button>
-                    <button class="btn btn-sm btn-success encrypt" value="${data}" title="Encrypt this XML report."><i class="fa-solid fa-file-arrow-up"></i></button>
+                    <button class="btn btn-sm btn-success encrypt" value="${data}" title="Encrypt this XML report."><i class="fa-solid fa-lock"></i></button>
                     <button class="btn btn-sm btn-primary clipboard" value="${data}" title="${data}"><i class="fa-solid fa-clipboard"></i></button>
                     ` : "N/A";
                 }}
@@ -62,18 +63,28 @@ $(function () {
         });
     }
 
-    $("#xml-start, #xml-end").on("change", function () {
-
-    });
-
     $(document).on("change", "#xml-select-all", function () {
-        const table = $("#patients_report_table").DataTable();
+        const table = $("#patients-report-table").DataTable();
 
         if ($(this).is(":checked")) {
             table.rows().select();
         } else {
             table.rows().deselect();
         }
+    });
+
+    $(document).on("click", ".clipboard", function () {
+        const code = $(this).val();
+        navigator.clipboard.writeText(code).then(() => {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Report code copied!',
+                showConfirmButton: false,
+                timer: 1500
+            });
+        });
     });
 
     $("#btn-generate-xml-report").on("click", function () {
@@ -93,6 +104,7 @@ $(function () {
             cancelButtonText: "No"
         }).then((result) => {
             if (result.isConfirmed) {
+                Swal.showLoading();
                 $.ajax({
                     url: "/api/generate_xml_first_tranche",
                     type: "POST",
@@ -104,11 +116,15 @@ $(function () {
                         end: $("#xml-end").val()
                     },
                     success: function (response) {
+                        Swal.close();
                         if (response.success) {
                             const modal = new bootstrap.Modal("#generate_xml");
-                            const escapedXml = response.document.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                            const escapedXml = (response.document || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
                             $("#btn_download_xml").data("xml-content", response.document);
+                            $("#btn_encrypt_modal_xml").data("report-code", response.report_code || "");
+                            $("#btn_transmit_xml").data("report-code", response.report_code || "").data("tranche", $("#xml-tranche").val() == 'second' ? '2' : '1');
+
                             $("#xml_preview_frame").attr("srcdoc", `
                                 <html>
                                     <body style="margin:0; padding:10px; background:#f4f4f4; font-family:monospace;">
@@ -119,10 +135,15 @@ $(function () {
 
                             modal.show();
                         } else {
-                            return Swal.fire({ title: "Unable to proceeed", text: response.message ?? "An error ocurred.", icon: "error" });
+                            return Swal.fire({ title: "Unable to proceed", text: response.message ?? "An error occurred.", icon: "error" });
                         }
 
                         table.ajax.reload();
+                    },
+                    error: function (xhr) {
+                        Swal.close();
+                        const err = xhr.responseJSON?.message || "An unexpected error occurred.";
+                        Swal.fire({ title: "Generation Failed", text: err, icon: "error" });
                     }
                 });
             }
@@ -130,36 +151,39 @@ $(function () {
     });
 
     $(document).on("click", ".encrypt", function () {
-        const table = $("#patients_report_table").DataTable();
-        const selected = table.rows({selected: true}).data();
+        const reportCode = $(this).val();
 
         Swal.fire({
-            title: "Confirmation",
-            text: "Proceed with the encryption?",
-            icon: "warning",
+            title: "Encrypt XML Report",
+            text: `Proceed with encrypting report ${reportCode} using AES-256-CBC?`,
+            icon: "question",
             showCancelButton: true,
-            confirmButtonText: "Yes",
-            cancelButtonText: "No"
+            confirmButtonText: "Yes, Encrypt",
+            cancelButtonText: "Cancel"
         }).then((result) => {
             if (result.isConfirmed) {
                 $.ajax({
                     url: "/api/encrypt_xml",
                     type: "POST",
                     headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-                    data: {reference: $(this).val()},
+                    data: { reference: reportCode },
                     success: function (response) {
                         if (response.success) {
                             return Swal.fire({
                                 toast: true,
                                 position: 'top-end',
                                 icon: 'success',
-                                title: 'XML encrypted',
+                                title: 'XML encrypted successfully',
                                 showConfirmButton: false,
-                                timer: 1500
+                                timer: 2000
                             });
                         } else {
-                            return Swal.fire({title: "An error ocurred", text: response.message ?? "An error ocurred.", icon: "error"});
+                            return Swal.fire({ title: "Encryption Failed", text: response.message ?? "An error occurred.", icon: "error" });
                         }
+                    },
+                    error: function (xhr) {
+                        const err = xhr.responseJSON?.message || "Encryption failed.";
+                        Swal.fire({ title: "Error", text: err, icon: "error" });
                     }
                 });
             }
@@ -178,9 +202,12 @@ $(function () {
             success: function (response) {
                 if (response.success) {
                     const modal = new bootstrap.Modal("#generate_xml");
-                    const escapedXml = response.document.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    const escapedXml = (response.document || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
                     $("#btn_download_xml").data("xml-content", response.document);
+                    $("#btn_encrypt_modal_xml").data("report-code", reference);
+                    $("#btn_transmit_xml").data("report-code", reference).data("tranche", type === "report2" ? "2" : "1");
+
                     $("#xml_preview_frame").attr("srcdoc", `
                         <html>
                             <body style="margin:0; padding:10px; background:#f4f4f4; font-family:monospace;">
@@ -191,30 +218,108 @@ $(function () {
 
                     modal.show();
                 } else {
-                    return Swal.fire({ title: "Error", text: "An error ocurred.", icon: "error" });
+                    return Swal.fire({ title: "Error", text: response.message ?? "Could not load report.", icon: "error" });
                 }
+            },
+            error: function (xhr) {
+                const err = xhr.responseJSON?.message || "Failed to fetch report.";
+                Swal.fire({ title: "Error", text: err, icon: "error" });
             }
         });
     });
 
     // In-modal functions
     $("#btn_save_xml").on("click", function () {
-        const table = $("#patients_report_table").DataTable();
-        const selected = table.rows({ selected: true }).data();
+        const reportCode = $("#btn_encrypt_modal_xml").data("report-code");
 
         $.ajax({
             url: "/api/save_xml_report",
             type: "POST",
             headers: { 'X-CSRF-TOKEN': $("meta[name='csrf-token']").attr("content") },
-            data: { data: $("#xml_preview_frame"), type: $("#xml_format").val() },
+            data: { report_code: reportCode },
             success: function (response) {
                 if (response.success) {
                     return Swal.fire({
                         title: "XML Saved!",
-                        text: "XML was saved successfully",
+                        text: response.message ?? "XML was saved successfully.",
                         icon: "success"
                     });
                 }
+            }
+        });
+    });
+
+    $("#btn_encrypt_modal_xml").on("click", function () {
+        const reportCode = $(this).data("report-code");
+        if (!reportCode) {
+            return Swal.fire({ title: "Notice", text: "No report code available for this preview.", icon: "info" });
+        }
+
+        $.ajax({
+            url: "/api/encrypt_xml",
+            type: "POST",
+            headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+            data: { reference: reportCode },
+            success: function (response) {
+                if (response.success) {
+                    Swal.fire({ title: "Encrypted", text: "XML report was encrypted successfully.", icon: "success" });
+                } else {
+                    Swal.fire({ title: "Encryption Failed", text: response.message ?? "An error occurred.", icon: "error" });
+                }
+            }
+        });
+    });
+
+    $("#btn_transmit_xml").on("click", function () {
+        const xmlContent = $("#btn_download_xml").data("xml-content");
+        const reportCode = $(this).data("report-code");
+        const tranche = $(this).data("tranche") || "1";
+
+        if (!xmlContent) {
+            return Swal.fire({ title: "Error", text: "No XML content loaded to transmit.", icon: "error" });
+        }
+
+        Swal.fire({
+            title: "PhilHealth e-Claims Transmittal",
+            text: `Transmit this report (${reportCode || 'Current'}) to PhilHealth web service?`,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Yes, Transmit",
+            cancelButtonText: "Cancel"
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.showLoading();
+                $.ajax({
+                    url: "/api/submit_xml",
+                    type: "POST",
+                    headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                    data: {
+                        report: xmlContent,
+                        transmittal_id: reportCode,
+                        tranche: tranche
+                    },
+                    success: function (response) {
+                        Swal.close();
+                        if (response.success) {
+                            Swal.fire({
+                                title: "Transmission Submitted",
+                                text: response.message || "XML report submitted successfully.",
+                                icon: "success"
+                            });
+                        } else {
+                            Swal.fire({
+                                title: "Transmission Response",
+                                text: response.message || JSON.stringify(response.data || "Unknown response"),
+                                icon: "info"
+                            });
+                        }
+                    },
+                    error: function (xhr) {
+                        Swal.close();
+                        const err = xhr.responseJSON?.message || "Transmission failed. Check network or PhilHealth service endpoint.";
+                        Swal.fire({ title: "Transmission Failed", text: err, icon: "error" });
+                    }
+                });
             }
         });
     });
@@ -226,7 +331,7 @@ $(function () {
         const blob = new Blob([xmlContent], { type: 'text/xml' });
         const url = URL.createObjectURL(blob);
 
-        const format = $("#xml_format").val();
+        const format = $("#xml-tranche").val() || "first";
         var tranche = format == "first" ? "1" : "2";
         var accreno = "";
 
@@ -236,10 +341,10 @@ $(function () {
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
             success: function (response) {
                 if (response.success) {
-                    accreno = response.data;
+                    accreno = response.data || response.accreno || "HCI";
 
                     const date = new Date();
-                    const name = `${tranche}${accreno}_${date.toISOString().split('T')[0].replace(/-/g, '')}_transmittalNumber.xml.enc`;
+                    const name = `${tranche}${accreno}_${date.toISOString().split('T')[0].replace(/-/g, '')}_transmittal.xml`;
                     const a = document.createElement('a');
 
                     a.href = url;

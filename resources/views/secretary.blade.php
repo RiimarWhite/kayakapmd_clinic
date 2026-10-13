@@ -324,8 +324,8 @@
                                                     <label class="form-label fw-bold m-0" for="weight">Weight</label>
                                                     <div class="input-group">
                                                         <input type="number" class="form-control form-control-sm" style="max-width: 7.5rem;" min="0.00" value="0.00" name="weight" id="pxweight">
-                                                        <select class="form-select form-select-sm" style="max-width: 5rem;" name="w_unit" id="pxweight_unit">
-                                                            <option value="kg">kg</option>
+                                                        <select class="form-select form-select-sm vital-unit-select" name="w_unit" id="pxweight_unit">
+                                                            <option value="kgs" selected>kgs</option>
                                                             <option value="lbs">lbs</option>
                                                         </select>
                                                     </div>
@@ -335,8 +335,8 @@
                                                     <label class="form-label fw-bold m-0" for="height">Height</label>
                                                     <div class="input-group">
                                                         <input type="number" class="form-control form-control-sm" style="max-width: 7.5rem;" min="0.00" value="0.00" name="height" id="pxheight">
-                                                        <select class="form-select form-select-sm" style="max-width: 5rem;" name="h_unit" id="pxheight_unit">
-                                                            <option value="cm">cm</option>
+                                                        <select class="form-select form-select-sm vital-unit-select" name="h_unit" id="pxheight_unit">
+                                                            <option value="cm" selected>cm</option>
                                                             <option value="m">m</option>
                                                             <option value="ft">ft</option>
                                                         </select>
@@ -350,8 +350,8 @@
                                                 <label class="form-label fw-bold m-0" for="temperature">Temperature</label>
                                                 <div class="input-group">
                                                     <input type="number" class="form-control form-control-sm" style="max-width: 7.5rem;" min="0.00" value="0.00" name="temperature" id="pxtemp">
-                                                    <select class="form-select form-select-sm" style="max-width: 5rem;" name="t_unit" id="pxtemp_unit">
-                                                        <option value="C">°C</option>
+                                                    <select class="form-select form-select-sm vital-unit-select" name="t_unit" id="pxtemp_unit">
+                                                        <option value="C" selected>°C</option>
                                                         <option value="F">°F</option>
                                                     </select>
                                                 </div>

@@ -185,6 +185,14 @@ if [ ! -f .env ]; then
     read -r -p "  Enter APP_URL [default: http://localhost:8000]: " INPUT_APP_URL || true
     A_URL="${INPUT_APP_URL:-http://localhost:8000}"
 
+    # Detailed Comment: Prompt for PHILHEALTH_URL (default: https://epress.philhealth.gov.ph)
+    read -r -p "  Enter PHILHEALTH_URL [default: https://epress.philhealth.gov.ph]: " INPUT_PH_URL || true
+    PH_URL="${INPUT_PH_URL:-https://epress.philhealth.gov.ph}"
+
+    # Detailed Comment: Prompt for PHILHEALTH_PASSPHRASE (default: kayakapmd)
+    read -r -p "  Enter PHILHEALTH_PASSPHRASE [default: kayakapmd]: " INPUT_PH_PASS || true
+    PH_PASS="${INPUT_PH_PASS:-kayakapmd}"
+
     # Detailed Comment: Helper function to safely update key=value in .env file
     update_env_key() {
         local key="$1"
@@ -205,10 +213,22 @@ if [ ! -f .env ]; then
     update_env_key "DB_USERNAME" "$DB_U"
     update_env_key "DB_PASSWORD" "$DB_PASS"
     update_env_key "APP_URL" "$A_URL"
+    update_env_key "PHILHEALTH_URL" "$PH_URL"
+    update_env_key "PHILHEALTH_PASSPHRASE" "$PH_PASS"
 
     echo -e "  [✓] ${COLOR_GREEN}.env configured successfully.${COLOR_RESET}"
 else
-    echo -e "  [✓] ${COLOR_GREEN}Existing .env file detected. Keeping current configuration.${COLOR_RESET}"
+    # Detailed Comment: Ensure existing .env files also contain required PhilHealth keys
+    update_env_key_if_missing() {
+        local key="$1"
+        local default_val="$2"
+        if ! grep -q "^${key}=" .env; then
+            echo "${key}=${default_val}" >> .env
+        fi
+    }
+    update_env_key_if_missing "PHILHEALTH_URL" "https://epress.philhealth.gov.ph"
+    update_env_key_if_missing "PHILHEALTH_PASSPHRASE" "kayakapmd"
+    echo -e "  [✓] ${COLOR_GREEN}Existing .env file detected. Verified PhilHealth configuration.${COLOR_RESET}"
 fi
 
 # ==============================================================================

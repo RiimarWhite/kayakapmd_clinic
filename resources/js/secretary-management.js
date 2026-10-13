@@ -129,21 +129,27 @@ $(function () {
         })
     });
 
-    $("#questions_tab").on("click", function () {
-        $("#doctor_questions_tab").DataTable().clear().destroy();
+    // Detailed Comment: Reusable initialization and refresh helpers for #doctor_questions_tab DataTable
+    function initDoctorQuestionsTable() {
+        if ($.fn.DataTable.isDataTable("#doctor_questions_tab")) {
+            $("#doctor_questions_tab").DataTable().clear().destroy();
+        }
         $("#doctor_questions_tab").DataTable({
             ajax: {
                 url: "/api/fetch_doctor_questions",
                 type: "POST",
                 headers: {
-                    "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
-                        "content",
-                    ),
+                    "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content"),
                 },
-                data: {
-                    docrefno: $("#choose_doctor").val(),
+                data: function () {
+                    return { docrefno: $("#choose_doctor").val() };
                 },
-                dataSrc: "docquestions",
+                dataSrc: function (json) {
+                    return json.docquestions || json.questions || [];
+                },
+                error: function (xhr) {
+                    console.error("Failed to load doctor questions", xhr);
+                }
             },
             columns: [
                 {
@@ -173,6 +179,18 @@ $(function () {
             ordering: false,
             responsive: true,
         });
+    }
+
+    function reloadDoctorQuestionsTable() {
+        if ($.fn.DataTable.isDataTable("#doctor_questions_tab")) {
+            $("#doctor_questions_tab").DataTable().ajax.reload(null, false);
+        } else {
+            initDoctorQuestionsTable();
+        }
+    }
+
+    $("#questions_tab").on("click", function () {
+        initDoctorQuestionsTable();
     });
 
     $("#create_question_btn").on("click", function () {
@@ -196,19 +214,163 @@ $(function () {
             },
             success: function (response) {
                 if (response.success) {
+                    $("#create_question_form")[0].reset();
+                    reloadDoctorQuestionsTable();
                     Swal.fire({
                         title: "Success",
                         text: "Question added successfully.",
                         icon: "success",
                         confirmButtonText: "Okay",
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            $("#questions_tab").trigger("click");
-                            $("#create_question_form")[0].reset();
-                        }
+                    });
+                } else {
+                    Swal.fire({
+                        title: "Error",
+                        text: response.message || "Failed to add question.",
+                        icon: "error"
                     });
                 }
             },
+            error: function (xhr) {
+                const msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : "Failed to add question.";
+                Swal.fire({
+                    title: "Error",
+                    text: msg,
+                    icon: "error"
+                });
+            }
+        });
+    });
+
+    // Detailed Comment: Click handler for editing a doctor question with SweetAlert modal dialog and clean DataTable reload
+    $(document).off("click.edit_question", ".edit-question").on("click.edit_question", ".edit-question", function () {
+        const docquestionrefno = $(this).val();
+        let currentQuestion = "";
+
+        if ($.fn.DataTable.isDataTable("#doctor_questions_tab")) {
+            const table = $("#doctor_questions_tab").DataTable();
+            const rowData = table.row($(this).closest("tr")).data();
+            if (rowData && rowData.question) {
+                currentQuestion = rowData.question;
+            }
+        }
+        if (!currentQuestion) {
+            currentQuestion = $(this).closest("tr").find("td").eq(1).text().trim();
+        }
+
+        Swal.fire({
+            title: "Edit Question",
+            html: `
+                <div class="text-start mb-2">
+                    <label for="swal_edit_question" class="form-label fw-bold">Doctor Question</label>
+                    <textarea class="form-control" id="swal_edit_question" rows="3" placeholder="Enter question here">${currentQuestion}</textarea>
+                </div>
+            `,
+            confirmButtonText: "Save Changes",
+            showCancelButton: true,
+            focusConfirm: false,
+            preConfirm: () => {
+                const newQuestion = document.getElementById("swal_edit_question").value.trim();
+                if (!newQuestion) {
+                    Swal.showValidationMessage("Question cannot be empty.");
+                    return false;
+                }
+                return newQuestion;
+            }
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                $.ajax({
+                    url: "/api/edit_question",
+                    type: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content"),
+                    },
+                    data: {
+                        docquestionrefno: docquestionrefno,
+                        question: result.value,
+                    },
+                    success: function (response) {
+                        if (response.success) {
+                            Swal.fire({
+                                title: "Success",
+                                text: "Question updated successfully.",
+                                icon: "success",
+                                confirmButtonText: "Okay",
+                            });
+                            reloadDoctorQuestionsTable();
+                        } else {
+                            Swal.fire({
+                                title: "Error",
+                                text: response.message || "Failed to update question.",
+                                icon: "error",
+                            });
+                        }
+                    },
+                    error: function (xhr) {
+                        const msg = (xhr.responseJSON && xhr.responseJSON.message)
+                            ? xhr.responseJSON.message
+                            : "Failed to update question.";
+                        Swal.fire({
+                            title: "Error",
+                            text: msg,
+                            icon: "error",
+                        });
+                    }
+                });
+            }
+        });
+    });
+
+    // Detailed Comment: Click handler for deleting a doctor question with confirmation and clean DataTable reload
+    $(document).off("click.delete_question", ".delete-question").on("click.delete_question", ".delete-question", function () {
+        const docquestionrefno = $(this).val();
+
+        Swal.fire({
+            title: "Confirmation",
+            text: "Are you sure you want to delete this doctor question?",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Yes, delete",
+            confirmButtonColor: "#d33",
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: "/api/delete_question",
+                    type: "POST",
+                    headers: {
+                        "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content"),
+                    },
+                    data: {
+                        docquestionrefno: docquestionrefno,
+                    },
+                    success: function (response) {
+                        if (response.success) {
+                            Swal.fire({
+                                title: "Success",
+                                text: "Question deleted successfully.",
+                                icon: "success",
+                                confirmButtonText: "Okay",
+                            });
+                            reloadDoctorQuestionsTable();
+                        } else {
+                            Swal.fire({
+                                title: "Error",
+                                text: response.message || "Failed to delete question.",
+                                icon: "error",
+                            });
+                        }
+                    },
+                    error: function (xhr) {
+                        const msg = (xhr.responseJSON && xhr.responseJSON.message)
+                            ? xhr.responseJSON.message
+                            : "Failed to delete question.";
+                        Swal.fire({
+                            title: "Error",
+                            text: msg,
+                            icon: "error",
+                        });
+                    }
+                });
+            }
         });
     });
 
@@ -388,18 +550,59 @@ $(function () {
                                 success: function (response) {
                                     bsModal.show();
                                     $("#schedules_tab").trigger("click");
+                                    if (response.success) {
+                                        Swal.fire({
+                                            title: "Success",
+                                            text: "Schedule updated successfully.",
+                                            icon: "success"
+                                        });
+                                    } else {
+                                        Swal.fire({
+                                            title: "Error",
+                                            text: response.message || "Failed to update schedule.",
+                                            icon: "error"
+                                        });
+                                    }
+                                },
+                                error: function (xhr) {
+                                    bsModal.show();
+                                    const msg = (xhr.responseJSON && xhr.responseJSON.message)
+                                        ? xhr.responseJSON.message
+                                        : "Failed to update schedule.";
+                                    Swal.fire({
+                                        title: "Error",
+                                        text: msg,
+                                        icon: "error"
+                                    });
                                 }
-                            })
+                            });
                         } else {
                             bsModal.show();
                         }
                     });
+                } else {
+                    Swal.fire({
+                        title: "Error",
+                        text: response.message || "Failed to fetch schedule details.",
+                        icon: "error"
+                    });
                 }
+            },
+            error: function (xhr) {
+                const msg = (xhr.responseJSON && xhr.responseJSON.message)
+                    ? xhr.responseJSON.message
+                    : "Failed to fetch schedule details.";
+                Swal.fire({
+                    title: "Error",
+                    text: msg,
+                    icon: "error"
+                });
             }
         });
     });
 
     $(document).on("click", ".delete-schedule", function () {
+        const schedrefno = $(this).val();
         Swal.fire({
             title: "Confirmation",
             text: "Are you sure you want to delete this schedule?",
@@ -414,7 +617,7 @@ $(function () {
                     type: "POST",
                     headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
                     data: {
-                        schedrefno: $(this).val()
+                        schedrefno: schedrefno
                     },
                     success: function (response) {
                         if (response.success) {
@@ -423,9 +626,25 @@ $(function () {
                                 text: "Successfully deleted schedule.",
                                 icon: "success"
                             });
+                        } else {
+                            Swal.fire({
+                                title: "Error",
+                                text: response.message || "Failed to delete schedule.",
+                                icon: "error"
+                            });
                         }
 
                         $("#schedules_tab").trigger("click");
+                    },
+                    error: function (xhr) {
+                        const msg = (xhr.responseJSON && xhr.responseJSON.message)
+                            ? xhr.responseJSON.message
+                            : "Failed to delete schedule.";
+                        Swal.fire({
+                            title: "Error",
+                            text: msg,
+                            icon: "error"
+                        });
                     }
                 });
             }
@@ -433,6 +652,12 @@ $(function () {
     });
 
     $("#add_schedule_btn").on("click", function () {
+        var form = document.getElementById("create_schedule_form");
+        if (form && !form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
         let formData = $("#create_schedule_form").serialize();
         formData +=
             "&docrefno=" + encodeURIComponent($("#choose_doctor").val());
@@ -447,19 +672,32 @@ $(function () {
             data: formData,
             success: function (response) {
                 if (response.success) {
+                    $("#create_schedule_form")[0].reset();
+                    $("#schedules_tab").trigger("click");
                     Swal.fire({
                         title: "Success",
                         text: "Schedule created.",
                         icon: "success",
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            $("#create_schedule_form")[0].reset();
-                        }
-
-                        $("#schedules_tab").trigger("click");
+                        confirmButtonText: "Okay"
+                    });
+                } else {
+                    Swal.fire({
+                        title: "Error",
+                        text: response.message || "Failed to create schedule.",
+                        icon: "error"
                     });
                 }
             },
+            error: function (xhr) {
+                const msg = (xhr.responseJSON && xhr.responseJSON.message)
+                    ? xhr.responseJSON.message
+                    : "Failed to create schedule.";
+                Swal.fire({
+                    title: "Error",
+                    text: msg,
+                    icon: "error"
+                });
+            }
         });
     });
 

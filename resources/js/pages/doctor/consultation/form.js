@@ -112,8 +112,8 @@ $(function () {
                     orderable: false,
                     className: "text-center align-middle text-nowrap",
                     render: function (data, type, row, meta) {
-                        return `<button type="button" class="btn btn-sm btn-outline-primary view-past-consultation-btn" data-index="${meta.row}" data-consultationrefno="${row.consultationrefno || ''}" title="View Past Consultation Details">
-                            <i class="fa-solid fa-eye me-1"></i> View
+                        return `<button type="button" class="btn btn-sm btn-outline-primary view-past-consultation-btn view-consultation-details-btn btn-view-details" data-index="${meta.row}" data-consultationrefno="${row.consultationrefno || ''}" title="View Past Consultation Details">
+                            <i class="fa-solid fa-eye me-1"></i> Details
                         </button>`;
                     }
                 },
@@ -347,26 +347,55 @@ $(function () {
     });
 
     /**
+     * Detailed Comment: Normalizes laboratory and radiology attachment paths into valid URLs.
+     * Supports absolute HTTP/HTTPS links, storage routes, and maps relative paths to /preview-file/{path}.
+     */
+    function resolveAttachmentUrl(urlOrPath) {
+        if (!urlOrPath) return null;
+        if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
+            return urlOrPath;
+        }
+        const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
+        if (urlOrPath.startsWith('/preview-file/')) {
+            return `${basePath}${urlOrPath}`;
+        }
+        if (urlOrPath.startsWith('preview-file/')) {
+            return `${basePath}/${urlOrPath}`;
+        }
+        const cleanPath = urlOrPath.replace(/^\/+/, '');
+        return `${basePath}/preview-file/${cleanPath}`;
+    }
+
+    /**
      * Detailed Comment: Populates and displays the dedicated Consultation Details Viewer modal
      * with complete historical clinical data (demographics, vitals, impressions, Rx, diagnostics, charges).
      */
     function populateAndShowConsultationDetails(record) {
         if (!record) return;
 
-        const dateStr = record.consultation_date ? record.consultation_date.split(' ')[0] : 'N/A';
-        const cref = record.consultationrefno || 'N/A';
+        const dateStr = record.consultation_date ? record.consultation_date.substring(0, 16) : 'N/A';
+        const cref = record.consultationrefno || record.caseno || 'N/A';
         const status = (record.status || 'PENDING').toUpperCase();
-        const ptype = (record.classification || (record.hmocode ? 'HMO' : (record.phic_pin ? 'PHIC' : 'REGULAR'))).toUpperCase();
+        // Detailed Comment: Identify patient payment classification (PHIC YAKAP, HMO, OTHERS, REGULAR)
+        const rawType = (record.modeofpayment || record.patient_type || (record.hmocode ? 'HMO' : (record.phic_pin ? 'PHIC YAKAP' : (record.classification === 'PHIC' ? 'PHIC YAKAP' : (record.classification || 'REGULAR'))))).toUpperCase();
+        const isPhic = rawType.includes('PHIC') || Boolean(record.phic_pin);
+        const ptype = isPhic ? 'PHIC YAKAP' : (rawType === 'HMO' ? 'HMO' : (rawType === 'OTHERS' ? 'OTHERS' : 'REGULAR'));
 
         const statusBadges = {
+            WAITING: "bg-warning text-white",
+            IN_CONSULTATION: "bg-info text-white",
+            FOR_BILLING: "bg-primary text-white",
             COMPLETED: "bg-success text-white",
             DONE: "bg-success text-white",
             PENDING: "bg-warning text-dark",
-            CANCELLED: "bg-danger text-white"
+            UNSCHEDULED: "bg-secondary text-white",
+            CANCELLED: "bg-danger text-white",
+            NO_SHOW: "bg-danger text-white"
         };
         const typeBadges = {
             REGULAR: "bg-warning text-dark",
-            PHIC: "bg-primary text-white",
+            'PHIC YAKAP': "bg-success text-white",
+            PHIC: "bg-success text-white",
             HMO: "bg-info text-white",
             OTHERS: "bg-secondary text-white"
         };
@@ -381,16 +410,52 @@ $(function () {
             .text(`Type: ${ptype}`)
             .attr('class', `badge ${typeBadges[ptype] || 'bg-secondary text-white'} fs-6`);
 
+        // Detailed Comment: Populate Patient Classification badge & dynamic fields row (Task R5)
+        const rawClass = record.classification || 'MEDICAL';
+        $("#vcd_classification_badge").text(`Class: ${rawClass}`).removeClass('d-none');
+
+        const classKey = rawClass.toUpperCase();
+        let classDetails = [];
+        if (classKey === 'MEDICAL' && record.subclassification) {
+            classDetails.push(`<strong>Sub-classification:</strong> ${record.subclassification}`);
+        } else if (classKey === 'OBSTETRICS' || classKey === 'GYNECOLOGY') {
+            let obScores = [];
+            if (record.gravida !== null && record.gravida !== undefined && record.gravida !== '') obScores.push(`G: ${record.gravida}`);
+            if (record.para !== null && record.para !== undefined && record.para !== '') obScores.push(`P: ${record.para}`);
+            if (record.abortion !== null && record.abortion !== undefined && record.abortion !== '') obScores.push(`A: ${record.abortion}`);
+            if (record.iufd !== null && record.iufd !== undefined && record.iufd !== '') obScores.push(`IUFD: ${record.iufd}`);
+            if (record.died !== null && record.died !== undefined && record.died !== '') obScores.push(`Died: ${record.died}`);
+            if (obScores.length > 0) classDetails.push(`<strong>OB Scores:</strong> ${obScores.join(', ')}`);
+            if (record.lmp_date) classDetails.push(`<strong>LMP Date:</strong> ${record.lmp_date}`);
+            if (record.delivery_procedure) classDetails.push(`<strong>Delivery:</strong> ${record.delivery_procedure}`);
+            if (record.pathologic) classDetails.push(`<span class="badge bg-danger">Pathologic Case</span>`);
+        } else if (classKey === 'NEW BORN') {
+            if (record.infacilitydelivery) classDetails.push(`<strong>Source:</strong> ${record.infacilitydelivery}`);
+            if (record.delivery_procedure) classDetails.push(`<strong>Delivery:</strong> ${record.delivery_procedure}`);
+            if (record.pathologic) classDetails.push(`<span class="badge bg-danger">Pathologic Case</span>`);
+        }
+
+        let $classRow = $("#vcd_classification_fields_row");
+        if ($classRow.length === 0) {
+            $("#vcd_bp").closest(".row").after('<div id="vcd_classification_fields_row" class="mt-2 p-2 bg-light rounded border small d-none"></div>');
+            $classRow = $("#vcd_classification_fields_row");
+        }
+        if (classDetails.length > 0) {
+            $classRow.html(classDetails.join(' | ')).removeClass('d-none');
+        } else {
+            $classRow.addClass('d-none').empty();
+        }
+
         // 2. Patient Demographics & Vitals
-        $("#vcd_docname").text(record.docname ? `Dr. ${record.docname}` : (record.docrefno || 'None Assigned'));
+        $("#vcd_docname").text(record.docname ? `Dr. ${record.docname}` : (record.docfname ? `Dr. ${record.docfname} ${record.doclname || ''}` : (record.docrefno || 'None Assigned')));
         $("#vcd_photo").attr('src', record.photo_path || '/images/blank_photo.png');
-        $("#vcd_name").text(record.patientname || 'N/A');
-        $("#vcd_pincode").text(record.pincode || 'N/A');
+        $("#vcd_name").text(record.patientname || [record.pxlastname, record.pxfirstname, record.pxmidname].filter(Boolean).join(', ') || 'N/A');
+        $("#vcd_pincode").text(record.pincode || record.pin || 'N/A');
         $("#vcd_pxrefno").text(record.pxrefno || 'N/A');
-        $("#vcd_sex").text(record.gender || 'N/A');
-        $("#vcd_bday").text(record.birthday || 'N/A');
+        $("#vcd_sex").text(record.gender || record.sex || 'N/A');
+        $("#vcd_bday").text(record.birthday || record.birthdate || 'N/A');
         $("#vcd_age").text(record.age ? `${record.age} yrs` : 'N/A');
-        $("#vcd_cellno").text(record.mobilenumber || 'N/A');
+        $("#vcd_cellno").text(record.mobilenumber || record.contactno || 'N/A');
         $("#vcd_address").text(record.address || 'N/A');
 
         $("#vcd_weight").text(record.weight ? `${record.weight} ${record.wunit || 'kg'}` : '--');
@@ -406,12 +471,64 @@ $(function () {
         $("#vcd_impressions").val(record.impression || 'No impressions recorded.');
         $("#vcd_diagnosis").val(record.finadiagnosis || record.diagnosis || 'No final diagnosis recorded.');
 
+        // Detailed Comment: Standardized admission status check supporting both foradmit and isforadmission schema keys
         if (parseInt(record.foradmit || record.isforadmission) === 1) {
             $("#vcd_admit_badge").text('For Admission').removeClass('bg-secondary').addClass('bg-danger');
         } else {
             $("#vcd_admit_badge").text('Not for Admission').removeClass('bg-danger').addClass('bg-secondary');
         }
-        $("#vcd_admit_instructions").val(record.foradmit_instructions || record.instructions || '');
+        $("#vcd_admit_instructions").val(record.foradmit_instructions || record.admisionnotes || record.instructions || '');
+
+        // Detailed Comment: Answered Doctor's Questions rendering in Impressions & Diagnosis tab (Task R5)
+        const renderAnsweredQuestions = (answers) => {
+            let $qBox = $("#vcd_doctor_questions_box");
+            if ($qBox.length === 0) {
+                $("#vcd_admit_box").after(`
+                    <div class="border rounded p-3 bg-light mt-2 d-none" id="vcd_doctor_questions_box">
+                        <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-clipboard-question text-primary me-2"></i> Answered Doctor's Questions</h6>
+                        <div id="vcd_answered_questions_list" class="d-flex flex-column gap-2"></div>
+                    </div>
+                `);
+                $qBox = $("#vcd_doctor_questions_box");
+            }
+            if (answers && answers.length > 0) {
+                let aHtml = '';
+                answers.forEach(a => {
+                    aHtml += `<div class="p-2 border rounded bg-white">
+                        <strong class="d-block text-dark">${a.question || 'Doctor Question'}</strong>
+                        <span class="text-secondary">${a.answer || 'No answer recorded'}</span>
+                    </div>`;
+                });
+                $("#vcd_answered_questions_list").html(aHtml);
+                $qBox.removeClass('d-none');
+            } else {
+                $("#vcd_answered_questions_list").empty();
+                $qBox.addClass('d-none');
+            }
+        };
+
+        if (record.answers && record.answers.length > 0) {
+            renderAnsweredQuestions(record.answers);
+        } else if (record.consultationrefno) {
+            $.ajax({
+                url: "/api/fetch_consultation",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                data: { consultationrefno: record.consultationrefno },
+                success: function (res) {
+                    if (res && res.answers) {
+                        renderAnsweredQuestions(res.answers);
+                    } else {
+                        renderAnsweredQuestions([]);
+                    }
+                },
+                error: function () {
+                    renderAnsweredQuestions([]);
+                }
+            });
+        } else {
+            renderAnsweredQuestions([]);
+        }
 
         // 4. Tab 2: Rx & Instructions
         const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
@@ -424,17 +541,18 @@ $(function () {
 
         const $rxTbody = $("#vcd_rx_table tbody");
         $rxTbody.empty();
-        const rxItems = record.rx_items || [];
+        const rxItems = record.rx_items || record.prescriptions || [];
         if (rxItems.length === 0) {
             $rxTbody.append('<tr><td colspan="4" class="text-center text-muted">No prescriptions recorded.</td></tr>');
         } else {
             rxItems.forEach(item => {
+                const isDispensed = (item.dispensed == 1 || item.dispensed_flag == 1 || item.is_dispensed == 1);
                 $rxTbody.append(`
                     <tr>
-                        <td class="fw-semibold">${item.item_dscr || item.medname || 'N/A'}</td>
-                        <td>${item.remarks || item.sig || 'N/A'}</td>
-                        <td class="text-center">${item.qty || 1}</td>
-                        <td class="text-center">${item.dispensed_flag == 1 ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>'}</td>
+                        <td class="fw-semibold">${item.item_dscr || item.medname || item.med_name || 'N/A'}</td>
+                        <td>${item.remarks || item.sig || item.dosage || 'N/A'}</td>
+                        <td class="text-center">${item.qty || item.quantity || 1}</td>
+                        <td class="text-center">${isDispensed ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>'}</td>
                     </tr>
                 `);
             });
@@ -444,23 +562,31 @@ $(function () {
         // 5. Tab 3: Diagnostic Requests
         const $diagTbody = $("#vcd_diagnostics_table tbody");
         $diagTbody.empty();
-        const diagItems = record.diagnostic_items || [];
+        const diagItems = record.diagnostic_items || record.diagnostics || [];
         if (diagItems.length === 0) {
-            $diagTbody.append('<tr><td colspan="2" class="text-center text-muted">No diagnostic requests recorded.</td></tr>');
+            $diagTbody.append('<tr><td colspan="3" class="text-center text-muted">No diagnostic requests recorded.</td></tr>');
         } else {
             diagItems.forEach(item => {
+                const reqDate = item.requested_at || item.created_at || item.date_requested || item.diagnosticdate || '';
+                const formattedDate = reqDate ? (reqDate.length > 16 ? reqDate.substring(0, 16) : reqDate) : 'N/A';
+                const notes = item.notes || item.remarks || '';
                 $diagTbody.append(`
                     <tr>
-                        <td class="fw-semibold">${item.item_dscr || item.requestname || 'N/A'}</td>
+                        <td class="fw-semibold">
+                            ${item.item_dscr || item.requestname || item.exam_name || 'N/A'}
+                            ${notes ? `<br><small class="text-muted"><i class="fa-solid fa-info-circle me-1"></i>${notes}</small>` : ''}
+                        </td>
                         <td><span class="badge bg-info text-white">${item.item_grouping || item.category || 'DIAGNOSTIC'}</span></td>
+                        <td><small class="text-muted">${formattedDate}</small></td>
                     </tr>
                 `);
             });
         }
 
         // 6. Tab 4: Radiology & Laboratory
-        if (record.radiologypath || record.radiology_url) {
-            const radUrl = record.radiology_url || record.radiologypath;
+        const rawRad = record.radiology_url || record.radiologypath;
+        const radUrl = resolveAttachmentUrl(rawRad);
+        if (radUrl) {
             $("#vcd_rad_status").html('<span class="text-success"><i class="fa-solid fa-check-circle me-1"></i> Document attached</span>');
             $("#vcd_rad_preview_btn").attr('href', radUrl).removeClass('d-none');
         } else {
@@ -468,8 +594,9 @@ $(function () {
             $("#vcd_rad_preview_btn").attr('href', '#').addClass('d-none');
         }
 
-        if (record.laboratorypath || record.laboratory_url) {
-            const labUrl = record.laboratory_url || record.laboratorypath;
+        const rawLab = record.laboratory_url || record.laboratorypath;
+        const labUrl = resolveAttachmentUrl(rawLab);
+        if (labUrl) {
             $("#vcd_lab_status").html('<span class="text-success"><i class="fa-solid fa-check-circle me-1"></i> Document attached</span>');
             $("#vcd_lab_preview_btn").attr('href', labUrl).removeClass('d-none');
         } else {
@@ -487,15 +614,15 @@ $(function () {
             $chargesTbody.append('<tr><td colspan="5" class="text-center text-muted">No charges recorded.</td></tr>');
         } else {
             charges.forEach(c => {
-                const qty = parseFloat(c.qty) || 1;
-                const unitPrice = parseFloat(c.cost_ave || c.retails || 0);
-                const subTotal = parseFloat(c.totalamt || (qty * unitPrice));
+                const qty = parseFloat(c.qty || c.quantity) || 1;
+                const unitPrice = parseFloat(c.cost_ave || c.retails || c.unit_price || 0);
+                const subTotal = parseFloat(c.totalamt || c.total_amt || (qty * unitPrice));
                 totalAmt += subTotal;
 
                 $chargesTbody.append(`
                     <tr>
-                        <td class="fw-semibold">${c.item_dscr || 'N/A'}</td>
-                        <td><span class="badge bg-secondary">${c.item_grouping || 'CHARGE'}</span></td>
+                        <td class="fw-semibold">${c.item_dscr || c.item_name || 'N/A'}</td>
+                        <td><span class="badge bg-secondary">${c.item_grouping || c.category || 'CHARGE'}</span></td>
                         <td class="text-center">${qty}</td>
                         <td class="text-end">PHP ${unitPrice.toFixed(2)}</td>
                         <td class="text-end fw-bold">PHP ${subTotal.toFixed(2)}</td>
@@ -503,7 +630,52 @@ $(function () {
                 `);
             });
         }
+        if (totalAmt === 0 && record.charges_total) {
+            totalAmt = parseFloat(record.charges_total) || 0;
+        }
         $("#vcd_charges_total").text(totalAmt.toFixed(2));
+
+        // Detailed Comment: 8. Tab 6: Patient Permanent Medical History population (Task R5)
+        const populateMedhistoryFields = (med) => {
+            med = med || {};
+            $("#vcd_allergies").text(med.allergies || record.allergies || "None recorded");
+            $("#vcd_injections").text(med.injections_immunization || med.injections || record.injections_immunization || record.injections || "None recorded");
+            $("#vcd_maintenance_meds").text(med.maintenance_medications || med.maintenance_meds || record.maintenance_medications || record.maintenance_meds || "None recorded");
+            $("#vcd_past_medical_history").text(med.past_medical_history || record.past_medical_history || "None recorded");
+            $("#vcd_surgical_history").text(med.surgical_history || record.surgical_history || "None recorded");
+            $("#vcd_family_history").text(med.family_history || record.family_history || "None recorded");
+            $("#vcd_clinical_notes").text(med.notes || med.clinical_notes || record.notes || record.clinical_notes || "None recorded");
+        };
+
+        if (record.permanent_medhistory) {
+            populateMedhistoryFields(record.permanent_medhistory);
+        } else if (record.allergies || record.past_medical_history || record.surgical_history) {
+            populateMedhistoryFields(record);
+        } else if (record.pincode || record.pxrefno || record.consultationrefno) {
+            // Detailed Comment: Fallback fetch using POST with CSRF header to prevent 405 Method Not Allowed exceptions
+            $.ajax({
+                url: "/api/fetch_patient_medical_history",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                data: {
+                    pincode: record.pincode || record.pin || '',
+                    pxrefno: record.pxrefno || '',
+                    consultationrefno: record.consultationrefno || ''
+                },
+                success: function (res) {
+                    if (res && res.success && res.data) {
+                        populateMedhistoryFields(res.data);
+                    } else {
+                        populateMedhistoryFields({});
+                    }
+                },
+                error: function () {
+                    populateMedhistoryFields({});
+                }
+            });
+        } else {
+            populateMedhistoryFields({});
+        }
 
         // Activate first vertical tab (Impressions & Diagnosis)
         const firstTabEl = document.querySelector('button[data-bs-target="#vcd_pane_impdiag"]');
@@ -514,18 +686,21 @@ $(function () {
         // Show the details modal
         const modalEl = document.getElementById("view_consultation_details_modal");
         if (modalEl && window.bootstrap && window.bootstrap.Modal) {
-            window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            const modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
         }
     }
     window.populateAndShowConsultationDetails = populateAndShowConsultationDetails;
+    window.openConsultationDetailsModal = populateAndShowConsultationDetails;
 
     /**
      * Detailed Comment: Delegate click handler to open the consultation details viewer modal
-     * when clicking "View" on any past consultation row in the Consultation History DataTable.
+     * when clicking "Details" or "View" on any past consultation row in the Consultation History DataTable.
+     * Supports .view-past-consultation-btn, .view-consultation-details-btn, and .btn-view-details trigger selectors.
      */
-    $(document).on("click", ".view-past-consultation-btn", function () {
+    $(document).on("click", ".view-past-consultation-btn, .view-consultation-details-btn, .btn-view-details", function () {
         const idx = $(this).data("index");
-        const refno = $(this).data("consultationrefno");
+        const refno = $(this).data("consultationrefno") || $(this).attr("data-consultationrefno") || $(this).val();
         let record = null;
         if (window._doctorMedhistoryRecords && window._doctorMedhistoryRecords[idx]) {
             record = window._doctorMedhistoryRecords[idx];
@@ -542,11 +717,128 @@ $(function () {
                 success: function (res) {
                     const list = res.medhistory || res.history || res.data || [];
                     if (list.length > 0) {
-                        populateAndShowConsultationDetails(list[0]);
+                        // Detailed Comment: Exact consultation matching by consultationrefno to prevent naive list[0] bias
+                        const matched = list.find(item => item.consultationrefno === refno) || list[0];
+                        populateAndShowConsultationDetails(matched);
                     }
                 }
             });
         }
+    });
+
+    /**
+     * Detailed Comment: Elevation of nested modal backdrop z-index.
+     * When #view_consultation_details_modal is stacked over another open modal
+     * (such as #consultation_modal, #patientMedhistoryModal, or #viewPatientModal),
+     * elevate the top backdrop to z-index 1065 so it sits between parent and child modal.
+     */
+    $(document).on("show.bs.modal shown.bs.modal", "#view_consultation_details_modal", function () {
+        const $otherModals = $(".modal.show").not("#view_consultation_details_modal");
+        if ($otherModals.length > 0) {
+            $(".modal-backdrop").last().css("z-index", 1065);
+        }
+    });
+
+    /**
+     * Detailed Comment: Robust 3-step nested modal dismissal & backdrop cleanup handler.
+     * Step a: Restore body modal-open class and overflow lock if any parent modal is still visible.
+     * Step b: Ensure visible parent modal (#consultation_modal) maintains overflow-y: auto and focus.
+     * Step c: Prune any orphaned .modal-backdrop elements if backdrop count exceeds visible modal count.
+     */
+    $(document).on("hidden.bs.modal", "#view_consultation_details_modal", function () {
+        const $remainingModals = $(".modal.show");
+        if ($remainingModals.length > 0) {
+            // Step a: Restore body modal-open
+            $("body").addClass("modal-open").css("overflow", "hidden");
+
+            // Step b: Restore parent modal scrollability
+            const $topModal = $remainingModals.last();
+            $topModal.css("overflow-y", "auto").focus();
+
+            // Step c: Prune excess orphan backdrops
+            const $backdrops = $(".modal-backdrop");
+            if ($backdrops.length > $remainingModals.length) {
+                $backdrops.slice($remainingModals.length).remove();
+            }
+            $(".modal-backdrop").last().css("z-index", 1050);
+        } else {
+            $(".modal-backdrop").remove();
+            $("body").removeClass("modal-open").css({ "overflow": "", "padding-right": "" });
+        }
+    });
+
+    /**
+     * Detailed Comment: Global safety catch-all for any modal dismissal.
+     * Cleans up all orphaned backdrops and restores body styling when zero modals remain open.
+     */
+    $(document).on("hidden.bs.modal", ".modal", function () {
+        if ($(".modal.show").length === 0) {
+            $(".modal-backdrop").remove();
+            $("body").removeClass("modal-open").css({ "overflow": "", "padding-right": "" });
+        }
+    });
+
+    /**
+     * Detailed Comment: Focus unblurring on modal show and hide transitions (Task R5).
+     * Prevents 'Blocked aria-hidden on an element because its descendant retained focus' console warnings.
+     */
+    $(document).on("show.bs.modal hide.bs.modal", ".modal", function () {
+        if (document.activeElement && typeof document.activeElement.blur === "function") {
+            document.activeElement.blur();
+        }
+    });
+
+    /**
+     * Detailed Comment: Helper to open dedicated #preview_modal for Radiology and Laboratory files from view modal (Task R5)
+     */
+    function openDedicatedPreviewModal(url, title) {
+        if (!url || url === "#") return;
+        const isImage = /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url);
+        const modalTitle = title || (isImage ? "Image Preview" : "Document Preview");
+
+        $("#preview_title .modal-title, #preview_modal .modal-title").text(modalTitle);
+
+        const docPreview = document.getElementById("docPreview");
+        const imgPreview = document.getElementById("imgPreview");
+        const downloadBtn = document.getElementById("preview_download_btn");
+
+        if (downloadBtn) {
+            downloadBtn.href = url;
+            downloadBtn.classList.remove("d-none");
+        }
+
+        if (isImage) {
+            if (docPreview) {
+                docPreview.src = "";
+                docPreview.style.display = "none";
+            }
+            if (imgPreview) {
+                imgPreview.src = url;
+                imgPreview.classList.remove("d-none");
+            }
+        } else {
+            if (imgPreview) {
+                imgPreview.src = "";
+                imgPreview.classList.add("d-none");
+            }
+            if (docPreview) {
+                docPreview.src = url;
+                docPreview.style.display = "block";
+            }
+        }
+
+        const modalEl = document.getElementById("preview_modal");
+        if (modalEl && window.bootstrap && window.bootstrap.Modal) {
+            window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+    }
+
+    $(document).on("click", "#vcd_rad_preview_btn, #vcd_lab_preview_btn", function (e) {
+        e.preventDefault();
+        const url = $(this).attr("href");
+        if (!url || url === "#") return;
+        const isRad = $(this).attr("id") === "vcd_rad_preview_btn";
+        openDedicatedPreviewModal(url, isRad ? "Radiology Document Preview" : "Laboratory Document Preview");
     });
 
     /**
@@ -570,9 +862,46 @@ $(function () {
                     $("#diagnosis").val(p.finadiagnosis || p.diagnosis || "");
                     $("#foradmit").prop("checked", p.foradmit == 1);
                     $("#foradmit_instructions").val(p.foradmit_instructions || "");
+
+                    // Detailed Comment: Render answered doctor questions from fetch_patient_data or fallback fetch_consultation
+                    const renderActiveQuestions = (answers) => {
+                        if (answers && answers.length > 0) {
+                            let aHtml = '';
+                            answers.forEach(a => {
+                                aHtml += `<div class="p-2 border rounded bg-white">
+                                    <strong class="d-block text-dark">${a.question || 'Doctor Question'}</strong>
+                                    <span class="text-secondary">${a.answer || 'No answer recorded'}</span>
+                                </div>`;
+                            });
+                            $("#doctor_answered_questions_list").html(aHtml);
+                            $("#doctor_answered_questions_container").removeClass('d-none');
+                        } else {
+                            $("#doctor_answered_questions_list").empty();
+                            $("#doctor_answered_questions_container").addClass('d-none');
+                        }
+                    };
+
+                    if (res.answers && res.answers.length > 0) {
+                        renderActiveQuestions(res.answers);
+                    } else {
+                        $.ajax({
+                            url: "/api/fetch_consultation",
+                            type: "POST",
+                            headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                            data: { consultationrefno: refno },
+                            success: function (cRes) {
+                                renderActiveQuestions(cRes && cRes.answers ? cRes.answers : []);
+                            }
+                        });
+                    }
                 }
             }
         });
+    });
+
+    // Detailed Comment: Trigger Impressions & Diagnosis data refresh upon Bootstrap tab activation
+    $(document).on("shown.bs.tab", "#impDiagBtn, button[data-bs-target='#impDiagTab']", function () {
+        $("#impDiagBtn").trigger("click");
     });
 
     // Detailed Comment: Save chief complaints, impressions, and diagnosis with button loading spinner
@@ -1330,18 +1659,28 @@ $(function () {
             url: "/api/fetch_all_charges",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-            data: function (params) { return { term: params.term, category: $("#search_filter").val() }; },
+            data: function (params) { 
+                return { 
+                    term: params.term, 
+                    category: $("#search_filter").val(),
+                    consultationrefno: $("#consultationrefno").val() 
+                }; 
+            },
             processResults: function (response) {
-                // Detailed Comment: Differentiate displayed price in charge search by patient type (PHIC, HMO, Others, Regular)
+                // Detailed Comment: Differentiate displayed price in charge search by patient type (PHIC YAKAP/PHIC, HMO, Others, Regular)
                 const pxType = ($("#doctor_modal_patient_type_badge").text() || "REGULAR").trim().toUpperCase();
+                const isPhic = pxType.includes("PHIC");
+                const isHmo = pxType === "HMO";
+                const isOthers = pxType === "OTHERS";
+
                 return {
                     results: $.map(response.charges, function (i) {
                         let tierPrice = i.price_regular;
-                        if (pxType === "PHIC" && parseFloat(i.price_phic) > 0) {
+                        if (isPhic && parseFloat(i.price_phic) > 0) {
                             tierPrice = i.price_phic;
-                        } else if (pxType === "HMO" && parseFloat(i.price_hmo) > 0) {
+                        } else if (isHmo && parseFloat(i.price_hmo) > 0) {
                             tierPrice = i.price_hmo;
-                        } else if (pxType === "OTHERS" && parseFloat(i.price_others) > 0) {
+                        } else if (isOthers && parseFloat(i.price_others) > 0) {
                             tierPrice = i.price_others;
                         }
 
@@ -1360,12 +1699,19 @@ $(function () {
     $("#search_charge").on("select2:select", function () {
         const prodcode = this.value;
         const charge_amt = $("#charge_amount");
+        const pxType = ($("#doctor_modal_patient_type_badge").text() || "REGULAR").trim().toUpperCase();
+        const pTypeParam = pxType.includes("PHIC") ? "PHIC" : (pxType === "HMO" ? "HMO" : (pxType === "OTHERS" ? "OTHERS" : "REGULAR"));
 
+        // Detailed Comment: Fetch tier price passing explicit patient_type so backend reliably computes PHIC/HMO/Others price
         $.ajax({
             url: "/api/get_hmo_price",
             type: "POST",
             headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
-            data: { prodcode: prodcode, consultationrefno: $("#consultationrefno").val() },
+            data: { 
+                prodcode: prodcode, 
+                consultationrefno: $("#consultationrefno").val(),
+                patient_type: pTypeParam
+            },
             success: function (response) {
                 if (response.success) {
                     charge_amt.val(response.price);
@@ -1921,6 +2267,8 @@ $(function () {
             if (result.isConfirmed && result.value) {
                 if (consulModal) {
                     consulModal.show();
+                    $("#patientChargeTab-tab").trigger("click");
+                    $("body").addClass("modal-open");
                 }
 
                 $.ajax({
@@ -1948,7 +2296,9 @@ $(function () {
                                 timer: 2000
                             });
 
-                            $("#charges_table").DataTable().ajax.reload();
+                            $("#charges_table").DataTable().ajax.reload(null, false);
+                            $("#patientChargeTab-tab").trigger("click");
+                            loadRx();
                         } else {
                             Swal.fire({
                                 title: "Update Failed",
@@ -1968,6 +2318,8 @@ $(function () {
             } else {
                 if (consulModal) {
                     consulModal.show();
+                    $("#patientChargeTab-tab").trigger("click");
+                    $("body").addClass("modal-open");
                 }
             }
         });

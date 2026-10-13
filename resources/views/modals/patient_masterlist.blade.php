@@ -54,6 +54,7 @@
 					<table class="table table-sm table-bordered table-hover align-middle w-100" id="medhistorytable">
 						<thead class="table-info">
 							<tr>
+								<th scope="col" class="text-center" style="width: 80px;">Action</th>
 								<th scope="col" class="text-center" style="width: 50px;">Photo</th>
 								<th scope="col" style="width: 120px;">Consultation Date</th>
 								<th scope="col">Reason for Consultation</th>

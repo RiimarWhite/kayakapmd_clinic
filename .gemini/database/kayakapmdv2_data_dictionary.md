@@ -631,7 +631,9 @@ The front-desk / EMR core: the patient master list, the walk-in consultation que
 | `consulted` | tinyint | NULL | NULL |  |
 | `consulteddate` | datetime | NULL | NULL |  |
 | `paymentrefno` | varchar(50) | NULL | NULL |  |
-| `reasonforconsultation` | longtext | NULL |  |  |
+| `reasonforconsultation` | longtext | NULL |  | Patient Chief Complaints / primary reason for visit |
+| `brief_history_present_illness` | longtext | YES | NULL | Brief History of Present Illness (HPI) narrative recorded during consultation intake |
+| `pertinent_past_medhistory` | longtext | YES | NULL | Pertinent Past Medical History (PMH) recorded during consultation intake |
 | `impression` | longtext | NULL |  |  |
 | `finadiagnosis` | longtext | NOT NULL |  |  |
 | `pe_evaluation` | longtext | NULL |  |  |
@@ -666,6 +668,8 @@ The front-desk / EMR core: the patient master list, the walk-in consultation que
 | `abortion` | double(11, 0) | NULL | NULL |  |
 | `iufd` | double(11, 0) | NULL | NULL |  |
 | `died` | double(11, 0) | NULL | NULL |  |
+| `lmp_date` | date | NULL | NULL | Last Menstrual Period date for Obstetrics and Gynecology consultations |
+| `delivery_procedure` | varchar(255) | NULL | NULL | Delivery procedure type (Normal, Cesarean, Others) |
 | `pathologic` | tinyint | NULL | NULL |  |
 | `linkaccount` | varchar(20) | NULL | NULL |  |
 | `infacilitydelivery` | tinyint | NULL | NULL |  |

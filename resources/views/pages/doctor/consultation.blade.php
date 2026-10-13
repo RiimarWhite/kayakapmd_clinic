@@ -29,7 +29,7 @@
                     <table class="table table-hover align-middle table-bordered m-0" id="consultation_table">
                         <thead class="table-primary">
                             <tr>
-                                <th scope="col">Patient Name</th>
+                                <th scope="col">Queue / Patient Name</th>
                                 <th scope="col">Status</th>
                             </tr>
                         </thead>

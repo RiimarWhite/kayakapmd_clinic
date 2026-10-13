@@ -73,9 +73,12 @@ $(function () {
                     render: function (data) {
                         let btns = `
                             <div class="d-flex gap-1 justify-content-center">
+                                <!-- Detailed Comment: Removed direct Details button per R6 specification; masterlist rows are pxmasterlist records without default single consultation context. Consultation details are accessed via Consultation History modal -->
+                                <!-- Detailed Comment: View Patient details action trigger modal -->
                                 <button type="button" class="btn btn-sm btn-info text-white masterlist-view" value="${data.pxrefno || ''}" data-pincode="${data.pincode || ''}" title="View Patient Details">
                                     <i class="fa-solid fa-eye"></i>
                                 </button>
+                                <!-- Detailed Comment: Consultation History trigger modal -->
                                 <button type="button" class="btn btn-sm btn-secondary masterlist-history" value="${data.pincode || ''}" data-pxrefno="${data.pxrefno || ''}" data-consultationrefno="${data.consultationrefno || ''}" title="Consultation History">
                                     <i class="fa-solid fa-clock-rotate-left"></i>
                                 </button>`;
@@ -224,9 +227,9 @@ $(function () {
                     $("#view_updatedby").val(p.updatedby || 'N/A');
                     $("#view_updated").val(p.updated || 'N/A');
 
-                    // Detailed Comment: Tab 4 - Medical History Loader for Patient Details Modal
+                    // Detailed Comment: Tab 4 - Medical History Loader for Patient Details Modal with View action button
                     const $histTbody = $("#view_medhistory_table tbody");
-                    $histTbody.html('<tr><td colspan="6" class="text-center py-2"><div class="spinner-border spinner-border-sm text-primary me-1"></div> Loading medical history...</td></tr>');
+                    $histTbody.html('<tr><td colspan="7" class="text-center py-2"><div class="spinner-border spinner-border-sm text-primary me-1"></div> Loading medical history...</td></tr>');
                     $("#view_medhistory_count").text("Loading...");
 
                     $.ajax({
@@ -237,10 +240,11 @@ $(function () {
                         success: function (histRes) {
                             $histTbody.empty();
                             const history = histRes.history || histRes.medhistory || [];
+                            window._docViewMedhistoryRecords = history;
                             $("#view_medhistory_count").text(`${history.length} records`);
 
                             if (history.length === 0) {
-                                $histTbody.append('<tr><td colspan="6" class="text-center text-muted py-3">No consultation history records found.</td></tr>');
+                                $histTbody.append('<tr><td colspan="7" class="text-center text-muted py-3">No consultation history records found.</td></tr>');
                                 return;
                             }
 
@@ -254,7 +258,7 @@ $(function () {
                                 NO_SHOW: "bg-danger text-white"
                             };
 
-                            history.forEach(item => {
+                            history.forEach((item, idx) => {
                                 const photo = item.photo_path || '/images/blank_photo.png';
                                 const dateStr = item.consultation_date ? item.consultation_date.substring(0, 16) : 'N/A';
                                 const reason = item.reasonforconsultation || 'No chief complaint recorded.';
@@ -265,20 +269,25 @@ $(function () {
 
                                 $histTbody.append(`
                                     <tr>
-                                        <td class="text-center">
-                                            <img src="${photo}" alt="patient" class="rounded border" style="width: 36px; height: 36px; object-fit: cover;" onerror="this.src='/images/blank_photo.png'">
+                                        <td class="text-center align-middle">
+                                            <button type="button" class="btn btn-sm btn-primary view-consultation-details-btn btn-view-details" data-source="view_medhistory" data-index="${idx}" data-consultationrefno="${item.consultationrefno || ''}" title="View Consultation Details">
+                                                <i class="fa-solid fa-eye me-1"></i> Details
+                                            </button>
                                         </td>
-                                        <td class="fw-semibold text-nowrap">${dateStr}</td>
-                                        <td>${reason}</td>
-                                        <td><span class="badge ${badgeClass}">${status}</span></td>
-                                        <td class="text-nowrap">${recordedby}</td>
-                                        <td class="text-nowrap">${recordeddate}</td>
+                                        <td class="text-center align-middle">
+                                            <img src="${photo}" alt="patient" class="rounded rounded-circle border shadow-sm" style="width: 36px; height: 36px; object-fit: cover;" onerror="this.src='/images/blank_photo.png'">
+                                        </td>
+                                        <td class="fw-semibold text-nowrap align-middle">${dateStr}</td>
+                                        <td class="align-middle">${reason}</td>
+                                        <td class="align-middle text-center"><span class="badge ${badgeClass}">${status}</span></td>
+                                        <td class="text-nowrap align-middle">${recordedby}</td>
+                                        <td class="text-nowrap align-middle">${recordeddate}</td>
                                     </tr>
                                 `);
                             });
                         },
                         error: function () {
-                            $histTbody.html('<tr><td colspan="6" class="text-center text-danger py-2">Failed to load medical history.</td></tr>');
+                            $histTbody.html('<tr><td colspan="7" class="text-center text-danger py-3">Failed to load medical history.</td></tr>');
                             $("#view_medhistory_count").text("0 records");
                         }
                     });
@@ -330,9 +339,23 @@ $(function () {
                     pxrefno: pxrefno,
                     consultationrefno: consultationrefno
                 },
-                dataSrc: 'history'
+                dataSrc: function (json) {
+                    const list = json.history || json.medhistory || json.data || [];
+                    window._docMedhistoryRecords = list;
+                    return list;
+                }
             },
             columns: [
+                {
+                    data: null,
+                    orderable: false,
+                    className: "text-center align-middle text-nowrap",
+                    render: function (data, type, row, meta) {
+                        return `<button type="button" class="btn btn-sm btn-primary view-consultation-details-btn btn-view-details" data-source="medhistorytable" data-index="${meta.row}" data-consultationrefno="${row.consultationrefno || ''}" title="View Consultation Details">
+                            <i class="fa-solid fa-eye me-1"></i> Details
+                        </button>`;
+                    }
+                },
                 {
                     data: 'photo_path',
                     render: function (data) {
@@ -372,8 +395,8 @@ $(function () {
                 }
             ],
             columnDefs: [
-                { targets: [0, 1, 3, 5], width: '1%', className: "text-nowrap text-center align-middle" },
-                { targets: [2, 4], className: "align-middle" }
+                { targets: [0, 1, 2, 4, 6], width: '1%', className: "text-nowrap text-center align-middle" },
+                { targets: [3, 5], className: "align-middle" }
             ],
             language: { emptyTable: "No consultation history found for this patient." },
             paging: true,
@@ -845,4 +868,406 @@ $(function () {
             });
         });
     }
+
+    /**
+     * Detailed Comment: Normalizes laboratory and radiology attachment paths into valid URLs.
+     * Supports absolute HTTP/HTTPS links, storage routes, and maps relative paths to /preview-file/{path}.
+     */
+    function resolveAttachmentUrl(urlOrPath) {
+        if (!urlOrPath) return null;
+        if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
+            return urlOrPath;
+        }
+        const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
+        if (urlOrPath.startsWith('/preview-file/')) {
+            return `${basePath}${urlOrPath}`;
+        }
+        if (urlOrPath.startsWith('preview-file/')) {
+            return `${basePath}/${urlOrPath}`;
+        }
+        const cleanPath = urlOrPath.replace(/^\/+/, '');
+        return `${basePath}/preview-file/${cleanPath}`;
+    }
+
+    /**
+     * Detailed Comment: Populate and display the comprehensive Consultation Details Modal
+     * for doctor/admin users inspecting patient consultation histories from the Patients Masterlist.
+     * Maps patient demographics, clinical vitals, Impressions & Diagnosis, Rx, Diagnostic requests,
+     * Radiology/Lab files, and Patient Charges into #view_consultation_details_modal.
+     */
+    function openConsultationDetailsModal(record) {
+        if (!record) return;
+
+        // 1. Header Badges
+        const dateStr = record.consultation_date ? record.consultation_date.substring(0, 16) : 'N/A';
+        const cref = record.consultationrefno || record.caseno || 'N/A';
+        const status = record.status || 'N/A';
+        // Detailed Comment: Identify patient payment classification (PHIC YAKAP, HMO, OTHERS, REGULAR)
+        const rawType = (record.modeofpayment || record.patient_type || (record.hmocode ? 'HMO' : (record.phic_pin ? 'PHIC YAKAP' : (record.classification === 'PHIC' ? 'PHIC YAKAP' : (record.classification || 'REGULAR'))))).toUpperCase();
+        const isPhic = rawType.includes('PHIC') || Boolean(record.phic_pin);
+        const ptype = isPhic ? 'PHIC YAKAP' : (rawType === 'HMO' ? 'HMO' : (rawType === 'OTHERS' ? 'OTHERS' : 'REGULAR'));
+
+        const statusBadges = {
+            WAITING: "bg-warning text-white",
+            IN_CONSULTATION: "bg-info text-white",
+            FOR_BILLING: "bg-primary text-white",
+            COMPLETED: "bg-success text-white",
+            UNSCHEDULED: "bg-secondary text-white",
+            CANCELLED: "bg-danger text-white",
+            NO_SHOW: "bg-danger text-white"
+        };
+        const typeBadges = {
+            REGULAR: "bg-warning text-dark",
+            'PHIC YAKAP': "bg-success text-white",
+            PHIC: "bg-success text-white",
+            HMO: "bg-info text-white",
+            OTHERS: "bg-secondary text-white"
+        };
+
+        $("#vcd_consultdate_badge").text(`Date: ${dateStr}`);
+        $("#vcd_consultref_badge").text(`Ref: ${cref}`);
+        $("#vcd_status_badge")
+            .text(`Status: ${status}`)
+            .attr('class', `badge ${statusBadges[status] || 'bg-secondary text-white'} fs-6`);
+        $("#vcd_patient_type_badge")
+            .text(`Type: ${ptype}`)
+            .attr('class', `badge ${typeBadges[ptype] || 'bg-secondary text-white'} fs-6`);
+
+        // 2. Patient Demographics & Vitals
+        $("#vcd_docname").text(record.docname ? `Dr. ${record.docname}` : (record.docfname ? `Dr. ${record.docfname} ${record.doclname || ''}` : 'None Assigned'));
+        $("#vcd_photo").attr('src', record.photo_path || '/images/blank_photo.png');
+        $("#vcd_name").text(record.patientname || [record.pxlastname, record.pxfirstname, record.pxmidname].filter(Boolean).join(', ') || 'N/A');
+        $("#vcd_pincode").text(record.pincode || record.pin || 'N/A');
+        $("#vcd_pxrefno").text(record.pxrefno || 'N/A');
+        $("#vcd_sex").text(record.gender || record.sex || 'N/A');
+        $("#vcd_bday").text(record.birthday || record.birthdate || 'N/A');
+        $("#vcd_age").text(record.age ? `${record.age} yrs` : 'N/A');
+        $("#vcd_cellno").text(record.mobilenumber || record.contactno || 'N/A');
+        $("#vcd_address").text(record.address || 'N/A');
+
+        $("#vcd_weight").text(record.weight ? `${record.weight} ${record.wunit || 'kg'}` : '--');
+        $("#vcd_height").text(record.height ? `${record.height} ${record.hunit || 'cm'}` : '--');
+        $("#vcd_temp").text(record.temp ? `${record.temp} ${record.tempunit || '°C'}` : '--');
+        $("#vcd_resprate").text(record.respiratoryrate ? `${record.respiratoryrate} cpm` : '--');
+        $("#vcd_pulserate").text(record.pulserate ? `${record.pulserate} bpm` : '--');
+        const bp = (record.bpnumerator && record.bpdenominator) ? `${record.bpnumerator}/${record.bpdenominator} mmHg` : '--';
+        $("#vcd_bp").text(bp);
+
+        // 3. Tab 1: Impressions & Diagnosis
+        $("#vcd_chief_complaint").val(record.reasonforconsultation || 'No chief complaint recorded.');
+        $("#vcd_impressions").val(record.impression || 'No impressions recorded.');
+        $("#vcd_diagnosis").val(record.finadiagnosis || record.diagnosis || 'No final diagnosis recorded.');
+
+        // Detailed Comment: Standardized admission status check supporting both foradmit and isforadmission schema keys
+        if (parseInt(record.foradmit || record.isforadmission) === 1) {
+            $("#vcd_admit_badge").text('For Admission').removeClass('bg-secondary').addClass('bg-danger');
+        } else {
+            $("#vcd_admit_badge").text('Not for Admission').removeClass('bg-danger').addClass('bg-secondary');
+        }
+        $("#vcd_admit_instructions").val(record.foradmit_instructions || record.admisionnotes || record.instructions || '');
+
+        // Detailed Comment: Answered Doctor's Questions rendering in Impressions & Diagnosis tab
+        const renderAnsweredQuestions = (answers) => {
+            let $qBox = $("#vcd_doctor_questions_box");
+            if ($qBox.length === 0) {
+                $("#vcd_admit_box").after(`
+                    <div class="border rounded p-3 bg-light mt-2 d-none" id="vcd_doctor_questions_box">
+                        <h6 class="fw-bold text-dark mb-2"><i class="fa-solid fa-clipboard-question text-primary me-2"></i> Answered Doctor's Questions</h6>
+                        <div id="vcd_answered_questions_list" class="d-flex flex-column gap-2"></div>
+                    </div>
+                `);
+                $qBox = $("#vcd_doctor_questions_box");
+            }
+            if (answers && answers.length > 0) {
+                let aHtml = '';
+                answers.forEach(a => {
+                    aHtml += `<div class="p-2 border rounded bg-white">
+                        <strong class="d-block text-dark">${a.question || 'Doctor Question'}</strong>
+                        <span class="text-secondary">${a.answer || 'No answer recorded'}</span>
+                    </div>`;
+                });
+                $("#vcd_answered_questions_list").html(aHtml);
+                $qBox.removeClass('d-none');
+            } else {
+                $("#vcd_answered_questions_list").empty();
+                $qBox.addClass('d-none');
+            }
+        };
+
+        if (record.answers && record.answers.length > 0) {
+            renderAnsweredQuestions(record.answers);
+        } else if (record.consultationrefno) {
+            $.ajax({
+                url: "/api/fetch_consultation",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                data: { consultationrefno: record.consultationrefno },
+                success: function (res) {
+                    if (res && res.answers) {
+                        renderAnsweredQuestions(res.answers);
+                    } else {
+                        renderAnsweredQuestions([]);
+                    }
+                },
+                error: function () {
+                    renderAnsweredQuestions([]);
+                }
+            });
+        } else {
+            renderAnsweredQuestions([]);
+        }
+
+        // 4. Tab 2: Rx & Instructions
+        const basePath = window.location.pathname.startsWith('/kayakapmd_clinic') ? '/kayakapmd_clinic' : '';
+        if (record.consultationrefno) {
+            $("#vcd_print_rx_btn").attr("href", `${basePath}/print_pdf?type=rx&consultationrefno=${record.consultationrefno}`).removeClass('disabled');
+            $("#vcd_print_diag_btn").attr("href", `${basePath}/print_pdf?type=diagnostics&consultationrefno=${record.consultationrefno}`).removeClass('disabled');
+        } else {
+            $("#vcd_print_rx_btn, #vcd_print_diag_btn").attr("href", "#").addClass('disabled');
+        }
+
+        const $rxTbody = $("#vcd_rx_table tbody");
+        $rxTbody.empty();
+        const rxItems = record.rx_items || record.prescriptions || [];
+        if (rxItems.length === 0) {
+            $rxTbody.append('<tr><td colspan="4" class="text-center text-muted">No prescriptions recorded.</td></tr>');
+        } else {
+            rxItems.forEach(item => {
+                const isDispensed = (item.dispensed == 1 || item.dispensed_flag == 1 || item.is_dispensed == 1);
+                $rxTbody.append(`
+                    <tr>
+                        <td class="fw-semibold">${item.item_dscr || item.medname || item.med_name || 'N/A'}</td>
+                        <td>${item.remarks || item.sig || item.dosage || 'N/A'}</td>
+                        <td class="text-center">${item.qty || item.quantity || 1}</td>
+                        <td class="text-center">${isDispensed ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>'}</td>
+                    </tr>
+                `);
+            });
+        }
+        $("#vcd_general_instructions").val(record.instructions || '');
+
+        // 5. Tab 3: Diagnostic Requests
+        const $diagTbody = $("#vcd_diagnostics_table tbody");
+        $diagTbody.empty();
+        const diagItems = record.diagnostic_items || record.diagnostics || [];
+        if (diagItems.length === 0) {
+            $diagTbody.append('<tr><td colspan="3" class="text-center text-muted">No diagnostic requests recorded.</td></tr>');
+        } else {
+            diagItems.forEach(item => {
+                const reqDate = item.requested_at || item.created_at || item.date_requested || item.diagnosticdate || '';
+                const formattedDate = reqDate ? (reqDate.length > 16 ? reqDate.substring(0, 16) : reqDate) : 'N/A';
+                const notes = item.notes || item.remarks || '';
+                $diagTbody.append(`
+                    <tr>
+                        <td class="fw-semibold">
+                            ${item.item_dscr || item.requestname || item.exam_name || 'N/A'}
+                            ${notes ? `<br><small class="text-muted"><i class="fa-solid fa-info-circle me-1"></i>${notes}</small>` : ''}
+                        </td>
+                        <td><span class="badge bg-info text-white">${item.item_grouping || item.category || 'DIAGNOSTIC'}</span></td>
+                        <td><small class="text-muted">${formattedDate}</small></td>
+                    </tr>
+                `);
+            });
+        }
+
+        // 6. Tab 4: Radiology & Laboratory
+        const rawRad = record.radiology_url || record.radiologypath;
+        const radUrl = resolveAttachmentUrl(rawRad);
+        if (radUrl) {
+            $("#vcd_rad_status").html('<span class="text-success"><i class="fa-solid fa-check-circle me-1"></i> Document attached</span>');
+            $("#vcd_rad_preview_btn").attr('href', radUrl).removeClass('d-none');
+        } else {
+            $("#vcd_rad_status").text('No radiology file uploaded.');
+            $("#vcd_rad_preview_btn").attr('href', '#').addClass('d-none');
+        }
+
+        const rawLab = record.laboratory_url || record.laboratorypath;
+        const labUrl = resolveAttachmentUrl(rawLab);
+        if (labUrl) {
+            $("#vcd_lab_status").html('<span class="text-success"><i class="fa-solid fa-check-circle me-1"></i> Document attached</span>');
+            $("#vcd_lab_preview_btn").attr('href', labUrl).removeClass('d-none');
+        } else {
+            $("#vcd_lab_status").text('No laboratory file uploaded.');
+            $("#vcd_lab_preview_btn").attr('href', '#').addClass('d-none');
+        }
+
+        // 7. Tab 5: Patient Charges
+        const $chargesTbody = $("#vcd_charges_table tbody");
+        $chargesTbody.empty();
+        const charges = record.charges || [];
+        let totalAmt = 0;
+
+        if (charges.length === 0) {
+            $chargesTbody.append('<tr><td colspan="5" class="text-center text-muted">No charges recorded.</td></tr>');
+        } else {
+            charges.forEach(c => {
+                const qty = parseFloat(c.qty || c.quantity) || 1;
+                const unitPrice = parseFloat(c.cost_ave || c.retails || c.unit_price || 0);
+                const subTotal = parseFloat(c.totalamt || c.total_amt || (qty * unitPrice));
+                totalAmt += subTotal;
+
+                $chargesTbody.append(`
+                    <tr>
+                        <td class="fw-semibold">${c.item_dscr || c.item_name || 'N/A'}</td>
+                        <td><span class="badge bg-secondary">${c.item_grouping || c.category || 'CHARGE'}</span></td>
+                        <td class="text-center">${qty}</td>
+                        <td class="text-end">PHP ${unitPrice.toFixed(2)}</td>
+                        <td class="text-end fw-bold">PHP ${subTotal.toFixed(2)}</td>
+                    </tr>
+                `);
+            });
+        }
+        if (totalAmt === 0 && record.charges_total) {
+            totalAmt = parseFloat(record.charges_total) || 0;
+        }
+        $("#vcd_charges_total").text(totalAmt.toFixed(2));
+
+        // Detailed Comment: Tab 6: Patient Permanent Medical History population in Patients page details modal
+        const populateMedhistoryFields = (med) => {
+            med = med || {};
+            $("#vcd_allergies").text(med.allergies || record.allergies || "None recorded");
+            $("#vcd_injections").text(med.injections_immunization || med.injections || record.injections_immunization || record.injections || "None recorded");
+            $("#vcd_maintenance_meds").text(med.maintenance_medications || med.maintenance_meds || record.maintenance_medications || record.maintenance_meds || "None recorded");
+            $("#vcd_past_medical_history").text(med.past_medical_history || record.past_medical_history || "None recorded");
+            $("#vcd_surgical_history").text(med.surgical_history || record.surgical_history || "None recorded");
+            $("#vcd_family_history").text(med.family_history || record.family_history || "None recorded");
+            $("#vcd_clinical_notes").text(med.notes || med.clinical_notes || record.notes || record.clinical_notes || "None recorded");
+        };
+
+        if (record.permanent_medhistory) {
+            populateMedhistoryFields(record.permanent_medhistory);
+        } else if (record.allergies || record.past_medical_history || record.surgical_history) {
+            populateMedhistoryFields(record);
+        } else if (record.pincode || record.pxrefno || record.consultationrefno) {
+            $.ajax({
+                url: "/api/fetch_patient_medical_history",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                data: {
+                    pincode: record.pincode || record.pin || '',
+                    pxrefno: record.pxrefno || '',
+                    consultationrefno: record.consultationrefno || ''
+                },
+                success: function (res) {
+                    if (res && res.success && res.data) {
+                        populateMedhistoryFields(res.data);
+                    } else {
+                        populateMedhistoryFields({});
+                    }
+                },
+                error: function () {
+                    populateMedhistoryFields({});
+                }
+            });
+        } else {
+            populateMedhistoryFields({});
+        }
+
+        // Activate first vertical tab (Impressions & Diagnosis)
+        const firstTab = document.querySelector('button[data-bs-target="#vcd_pane_impdiag"]');
+        if (firstTab && window.bootstrap && window.bootstrap.Tab) {
+            window.bootstrap.Tab.getOrCreateInstance(firstTab).show();
+        }
+
+        // Show modal
+        const modalEl = document.getElementById("view_consultation_details_modal");
+        if (modalEl && window.bootstrap && window.bootstrap.Modal) {
+            const modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+    }
+    window.openConsultationDetailsModal = openConsultationDetailsModal;
+    window.populateAndShowConsultationDetails = openConsultationDetailsModal;
+
+    // Detailed Comment: Delegate click handler to open the consultation details viewer modal in Patients page
+    // Supports both .view-consultation-details-btn and .btn-view-details trigger selectors
+    $(document).on("click", ".view-consultation-details-btn, .btn-view-details", function () {
+        const idx = $(this).data("index");
+        const source = $(this).data("source");
+        const refno = $(this).data("consultationrefno") || $(this).attr("data-consultationrefno") || $(this).val();
+        const pincode = $(this).data("pincode");
+        const pxrefno = $(this).data("pxrefno");
+
+        let record = null;
+        if (source === "view_medhistory" && window._docViewMedhistoryRecords && window._docViewMedhistoryRecords[idx]) {
+            record = window._docViewMedhistoryRecords[idx];
+        } else if (source === "medhistorytable" && window._docMedhistoryRecords && window._docMedhistoryRecords[idx]) {
+            record = window._docMedhistoryRecords[idx];
+        } else if (window._docMedhistoryRecords && window._docMedhistoryRecords[idx]) {
+            record = window._docMedhistoryRecords[idx];
+        } else if (window._docViewMedhistoryRecords && window._docViewMedhistoryRecords[idx]) {
+            record = window._docViewMedhistoryRecords[idx];
+        }
+
+        if (record) {
+            openConsultationDetailsModal(record);
+        } else if (refno || pincode || pxrefno) {
+            $.ajax({
+                url: "/api/fetch_patient_medhistory",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                data: { consultationrefno: refno, pincode: pincode, pxrefno: pxrefno },
+                success: function (res) {
+                    const list = res.medhistory || res.history || res.data || [];
+                    if (list.length > 0) {
+                        // Detailed Comment: Exact consultation matching by consultationrefno to prevent naive list[0] bias
+                        const matched = (refno ? list.find(item => item.consultationrefno === refno) : null) || list[0];
+                        openConsultationDetailsModal(matched);
+                    }
+                }
+            });
+        }
+    });
+
+    /**
+     * Detailed Comment: Elevation of nested modal backdrop z-index.
+     * When #view_consultation_details_modal is stacked over another open modal
+     * (such as #patientMedhistoryModal or #viewPatientModal),
+     * elevate the top backdrop to z-index 1065 so it sits between parent and child modal.
+     */
+    $(document).on("show.bs.modal shown.bs.modal", "#view_consultation_details_modal", function () {
+        const $otherModals = $(".modal.show").not("#view_consultation_details_modal");
+        if ($otherModals.length > 0) {
+            $(".modal-backdrop").last().css("z-index", 1065);
+        }
+    });
+
+    /**
+     * Detailed Comment: Robust 3-step nested modal dismissal & backdrop cleanup handler.
+     * Step a: Restore body modal-open class and overflow lock if any parent modal is still visible.
+     * Step b: Ensure visible parent modal maintains overflow-y: auto and focus for smooth scrolling.
+     * Step c: Prune any orphaned .modal-backdrop elements if backdrop count exceeds visible modal count.
+     */
+    $(document).on("hidden.bs.modal", "#view_consultation_details_modal", function () {
+        const $remainingModals = $(".modal.show");
+        if ($remainingModals.length > 0) {
+            // Step a: Restore body modal-open
+            $("body").addClass("modal-open").css("overflow", "hidden");
+
+            // Step b: Restore parent modal scrollability
+            const $topModal = $remainingModals.last();
+            $topModal.css("overflow-y", "auto").focus();
+
+            // Step c: Prune excess orphan backdrops
+            const $backdrops = $(".modal-backdrop");
+            if ($backdrops.length > $remainingModals.length) {
+                $backdrops.slice($remainingModals.length).remove();
+            }
+            $(".modal-backdrop").last().css("z-index", 1050);
+        } else {
+            $(".modal-backdrop").remove();
+            $("body").removeClass("modal-open").css({ "overflow": "", "padding-right": "" });
+        }
+    });
+
+    /**
+     * Detailed Comment: Global safety catch-all for any modal dismissal.
+     * Cleans up all orphaned backdrops and restores body styling when zero modals remain open.
+     */
+    $(document).on("hidden.bs.modal", ".modal", function () {
+        if ($(".modal.show").length === 0) {
+            $(".modal-backdrop").remove();
+            $("body").removeClass("modal-open").css({ "overflow": "", "padding-right": "" });
+        }
+    });
 });

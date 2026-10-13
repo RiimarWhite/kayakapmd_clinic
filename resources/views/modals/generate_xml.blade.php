@@ -12,7 +12,9 @@
 
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-primary" id="btn_save_xml">Save</button>
-                <button type="button" class="btn btn-primary" id="btn_download_xml">Download</button>
+                <button type="button" class="btn btn-success" id="btn_encrypt_modal_xml"><i class="fa-solid fa-lock"></i> Encrypt</button>
+                <button type="button" class="btn btn-warning" id="btn_transmit_xml"><i class="fa-solid fa-paper-plane"></i> Transmit to PhilHealth</button>
+                <button type="button" class="btn btn-primary" id="btn_download_xml"><i class="fa-solid fa-download"></i> Download</button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>

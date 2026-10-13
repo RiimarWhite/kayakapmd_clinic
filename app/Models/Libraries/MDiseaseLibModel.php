@@ -8,6 +8,8 @@ class MDiseaseLibModel extends Model
 {
     protected $table = 'dw_lib_mdiseases';
 
+    public $timestamps = false;
+
     protected $fillable = [
         'mdisease_code',
         'mdisease_desc',

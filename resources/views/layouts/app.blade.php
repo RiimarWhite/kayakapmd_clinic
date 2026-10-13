@@ -2,6 +2,19 @@
 <html class="vh-100">
 
     <head>
+        {{-- Detailed Comment: Immediate synchronous theme initialization to prevent Flash of Unstyled Content (FOUC) --}}
+        <script>
+            (function () {
+                const storedTheme = localStorage.getItem('theme') || 'system';
+                const getPreferredTheme = () => {
+                    if (storedTheme === 'dark' || storedTheme === 'light') {
+                        return storedTheme;
+                    }
+                    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                };
+                document.documentElement.setAttribute('data-bs-theme', getPreferredTheme());
+            })();
+        </script>
         <link rel="icon" type="image/png" href="{{ asset('favicon.ico') }}">
         <title>{{ config('app.name', 'Laravel') }}</title>
         <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -142,6 +155,37 @@
                 background-color: var(--secondary-btn-bg) !important;
                 border-color: var(--secondary-btn-bg) !important;
                 color: var(--secondary-btn-text) !important;
+            }
+
+            /* Detailed Comment: Ensure dynamic light theme styles do not override dark mode theme styling */
+            [data-bs-theme="dark"] body {
+                background-color: #121212 !important;
+                color: #e0e0e0 !important;
+            }
+
+            [data-bs-theme="dark"] .navbar {
+                background-color: #1b1e22 !important;
+                color: #dee2e6 !important;
+            }
+
+            [data-bs-theme="dark"] .navbar .navbar-brand,
+            [data-bs-theme="dark"] .navbar .nav-link,
+            [data-bs-theme="dark"] .navbar .btn-light {
+                background-color: #2b3035 !important;
+                color: #dee2e6 !important;
+                border-color: #495057 !important;
+            }
+
+            [data-bs-theme="dark"] #admin_sidebar,
+            [data-bs-theme="dark"] #management_sidebar {
+                background-color: #181a1d !important;
+                color: #dee2e6 !important;
+            }
+
+            [data-bs-theme="dark"] .app-footer {
+                background-color: #181a1d !important;
+                color: #adb5bd !important;
+                border-color: #373b3e !important;
             }
         </style>
         @vite(['resources/css/app.css', 'resources/js/app.js'])

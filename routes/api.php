@@ -32,7 +32,6 @@ Route::middleware(['web', 'auth:secretary,admin'])->group(function () {
     Route::post('consultation/store', [ConsultationController::class, 'store'])->name('consultation.store');
 
     Route::post('refresh_queue', [ConsultationController::class, 'refreshQueue'])->name('queue.refresh');
-    Route::post('fetch_consultation', [ConsultationController::class, 'fetchConsultation'])->name('consultation.fetch');
     Route::post('save_patient_consultation', [ConsultationController::class, 'saveConsultation'])->name('consultation.save');
     Route::post('update_patient_consultation', [ConsultationController::class, 'updateConsultation'])->name('consultation.update');
     // Detailed Comment: Reorder queue numbers endpoint allowing drag-and-drop persistence from the secretary queue
@@ -43,16 +42,20 @@ Route::middleware(['web', 'auth:secretary,admin'])->group(function () {
 
     Route::post('fetch_doctor_info', [ManagementController::class, 'fetchDoctor']);
 
-    Route::post('fetch_doctor_questions', [SecretaryController::class, 'fetchQuestions'])->name('secretary.fetch_questions');
+    // Detailed Comment: Doctor question management endpoints for Secretary and Admin (list, create, edit, delete, single-ref fetch)
+    Route::match(['get', 'post'], 'fetch_doctor_questions/{docid?}', [SecretaryController::class, 'fetchQuestions'])->name('secretary.fetch_questions');
     Route::post('create_question', [SecretaryController::class, 'createQuestion'])->name('secretary.create_question');
+    Route::post('edit_question', [SecretaryController::class, 'editQuestion'])->name('secretary.edit_question');
+    Route::match(['post', 'delete'], 'delete_question/{id?}', [SecretaryController::class, 'deleteQuestion'])->name('secretary.delete_question');
+    Route::match(['get', 'post'], 'fetch_question_refno/{id?}', [SecretaryController::class, 'fetchQuestionByRef'])->name('secretary.fetch_question_by_ref');
 
+    // Detailed Comment: Doctor schedule management endpoints for Secretary and Admin (specific, list, create, edit, delete, single-ref fetch)
     Route::post('fetch_doctor_schedules_specific', [SecretaryController::class, 'fetchSchedulesSpecific'])->name('secretary.fetch_schedule_specific');
-    Route::post('fetch_doctor_schedules', [SecretaryController::class, 'fetchSchedules'])->name('secretary.fetch_schedule');
+    Route::match(['get', 'post'], 'fetch_doctor_schedules/{docid?}', [SecretaryController::class, 'fetchSchedules'])->name('secretary.fetch_schedule');
     Route::post('create_doctor_schedules', [SecretaryController::class, 'createSchedule'])->name('secretary.create_schedule');
-    Route::post('delete_schedule', [SecretaryController::class, 'deleteSchedule']);
-
-    Route::post('fetch_schedule_refno', [SecretaryController::class, 'fetchScheduleByRef']);
-    Route::post('edit_schedule', [SecretaryController::class, 'editSchedule']);
+    Route::match(['post', 'delete'], 'delete_schedule/{id?}', [SecretaryController::class, 'deleteSchedule'])->name('secretary.delete_schedule');
+    Route::match(['get', 'post'], 'fetch_schedule_refno/{schedrefno?}', [SecretaryController::class, 'fetchScheduleByRef'])->name('secretary.fetch_schedule_refno');
+    Route::post('edit_schedule', [SecretaryController::class, 'editSchedule'])->name('secretary.edit_schedule');
 
     Route::post('fetch_doctors_from_secretary', [SecretaryController::class, 'fetchDoctorsFromSecretary'])->name('secretary.fetch_doctors');
 
@@ -79,6 +82,10 @@ Route::middleware(['web', 'auth:secretary,admin'])->group(function () {
     Route::post('save_settlements', [SecretaryController::class, 'saveSettlements']);
     Route::post('fetch_settlements', [SecretaryController::class, 'fetchSettlements']);
     Route::post('fetch_patient_payment_history', [SecretaryController::class, 'fetchPatientPaymentHistory'])->name('secretary.payment_history');
+
+    // Detailed Comment: Yakap Medical History & Profiling API endpoints for Secretary & Admin consoles
+    Route::post('fetch_patient_yakap_medhistory', [SecretaryController::class, 'fetchPatientYakapMedicalHistory'])->name('secretary.fetch_yakap_medhistory');
+    Route::post('save_patient_yakap_medhistory', [SecretaryController::class, 'savePatientYakapMedicalHistory'])->name('secretary.save_yakap_medhistory');
 });
 
 // Doctor API Routes
@@ -102,11 +109,8 @@ Route::middleware(['web', 'auth:doctor,admin'])->group(function () {
     Route::post('doctor/fetch_schedule_refno', [DoctorController::class, 'fetchScheduleByRef'])->name('doctor.fetch_schedule_refno');
     Route::post('doctor/edit_schedule', [DoctorController::class, 'editSchedule'])->name('doctor.edit_schedule');
     Route::post('doctor/delete_schedule', [DoctorController::class, 'deleteSchedule'])->name('doctor.delete_schedule');
-    // Generic schedule route aliases for doctor guard
-    Route::post('create_doctor_schedules', [DoctorController::class, 'createSchedule']);
-    Route::post('fetch_schedule_refno', [DoctorController::class, 'fetchScheduleByRef']);
-    Route::post('edit_schedule', [DoctorController::class, 'editSchedule']);
-    Route::post('delete_schedule', [DoctorController::class, 'deleteSchedule']);
+    // Detailed Comment: Removed duplicate generic schedule routes (create_doctor_schedules, fetch_schedule_refno, edit_schedule, delete_schedule)
+    // that were previously colliding with and overwriting SecretaryController endpoints. Doctor-specific schedule routes are maintained above with 'doctor/' prefix.
 
     Route::post('add_question', [DoctorController::class, 'addQuestion'])->name('doctor.add_question');
 
@@ -132,14 +136,17 @@ Route::middleware(['web', 'auth:doctor,admin'])->group(function () {
 
 // Utility API Routes for Secretary, Doctor, and Admin consoles
 Route::middleware(['web', 'auth:secretary,doctor,admin'])->group(function () {
+    // Detailed Comment: Consultation details retrieval endpoint accessible across secretary, doctor, and admin consoles
+    Route::post('fetch_consultation', [ConsultationController::class, 'fetchConsultation'])->name('consultation.fetch');
     // Detailed Comment: Medical consultation history & patient details accessible across secretary, doctor, and admin consoles
     Route::post('fetch_patient_medhistory', [SecretaryController::class, 'fetchPatientMedhistory'])->name('secretary.patient_medhistory');
     Route::post('fetch_patient_history', [SecretaryController::class, 'fetchPatientMedhistory']);
     Route::post('fetch_patient_details', [ManagementController::class, 'fetchPatientDetails'])->name('patient.details');
     Route::post('get_hmo_price', [DoctorController::class, 'getHmoPrice']);
 
-    // Detailed Comment: Permanent Patient Medical History endpoints accessible across secretary, doctor, and admin consoles
-    Route::post('fetch_patient_medical_history', [SecretaryController::class, 'fetchPatientMedicalHistory'])->name('patient.medical_history.fetch');
+    // Detailed Comment: Permanent Patient Medical History endpoints accessible across secretary, doctor, and admin consoles;
+    // accepts both GET and POST methods to guarantee seamless client AJAX retrieval without 405 Method Not Allowed exceptions
+    Route::match(['get', 'post'], 'fetch_patient_medical_history', [SecretaryController::class, 'fetchPatientMedicalHistory'])->name('patient.medical_history.fetch');
     Route::post('save_patient_medical_history', [SecretaryController::class, 'savePatientMedicalHistory'])->name('patient.medical_history.save');
 
     // Detailed Comment: Patient Queue Consolidated Daily Financial Income Summary endpoint
@@ -285,7 +292,7 @@ Route::middleware(['web', 'auth:admin'])->group(function () {
     Route::post('generate_xml_first_tranche', [ManagementController::class, 'generateXML']);
     Route::post('save_xml_report', [ManagementController::class, 'saveXML']);
     Route::post('fetch_xml_data', [ManagementController::class, 'fetchXML']);
-    // Route::post('encrypt_xml', [ManagementController::class, 'encryptXML']);
+    Route::post('encrypt_xml', [ManagementController::class, 'encryptXML']);
     Route::post('decrypt_xml', [ManagementController::class, 'decryptXML']);
     Route::post('get_xml_data', [ManagementController::class, 'getXmlData']);
 

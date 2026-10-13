@@ -10,6 +10,7 @@ use App\Models\PatientMasterlist;
 use App\Models\Stocks\StocksListingModel;
 use App\Models\Stocks\StocksLedgerModel;
 use App\Models\ChargesModel;
+use App\Models\ConsultationAnswerModel;
 use App\Models\ConsultationModel;
 use App\Models\DiagnosticsMasterlistModel;
 use App\Models\DiagnosticsModel;
@@ -573,9 +574,13 @@ class DoctorController extends Controller
         ]);
     }
 
+    /**
+     * Detailed Comment: Fetches consultation patients for the doctor on the specified date.
+     * Selects 'queueno' alongside demographics and status so patient queue numbers are visible in the consultation queue table.
+     */
     public function fetchConsultationPatients(Request $request)
     {
-        $patients = ConsultationModel::select('consultationrefno', 'status', 'patientname', 'pxmidname', 'pxlastname', 'pxsuffix', 'reasonforconsultation')
+        $patients = ConsultationModel::select('queueno', 'consultationrefno', 'status', 'patientname', 'pxmidname', 'pxlastname', 'pxsuffix', 'reasonforconsultation')
             ->where(['docrefno' => auth()->guard('doctor')->user()->docrefno])
             ->whereDate('consultation_date', $request->date)
             ->orderBy('queueno', 'ASC')
@@ -810,7 +815,30 @@ class DoctorController extends Controller
             }
         }
 
-        return response()->json(['patient' => $patient]);
+        // Detailed Comment: Pre-hydrate answered doctor questions joining docquestion for actual question text
+        $answers = collect();
+        if ($patient && !empty($patient->consultationrefno)) {
+            $answers = ConsultationAnswerModel::leftJoin('docquestion', 'walkinconsultation_answer.questionrefno', '=', 'docquestion.docquestionrefno')
+                ->where('walkinconsultation_answer.pxconsultationrefno', $patient->consultationrefno)
+                ->select('walkinconsultation_answer.*', 'docquestion.question')
+                ->get();
+        }
+
+        // Detailed Comment: Pre-hydrate permanent medical history by cross-referencing patient pxrefno and pincode
+        $medHistory = null;
+        if ($patient && (!empty($patient->pxrefno) || !empty($patient->pincode))) {
+            $medHistory = PxMedicalHistoryModel::where(function ($q) use ($patient) {
+                if (!empty($patient->pxrefno)) $q->where('pxrefno', $patient->pxrefno);
+                if (!empty($patient->pincode)) $q->orWhere('pincode', $patient->pincode);
+            })->first();
+        }
+
+        return response()->json([
+            'patient' => $patient,
+            'answers' => $answers,
+            'medical_history' => $medHistory,
+            'permanent_medhistory' => $medHistory
+        ]);
     }
 
     public function addQuestion(Request $request)
@@ -961,11 +989,41 @@ class DoctorController extends Controller
                 'docrefno' => null,
             ];
         } else {
-            // Detailed Comment: Resolve address from related PatientMasterlist if not directly on consultation record
-            if (empty($patient->address) && $patient->patient) {
-                $pMaster = $patient->patient;
+            // Detailed Comment: Resolve address and demographics from related PatientMasterlist record
+            // with secondary lookup by pxrefno/pincode to ensure complete details on printable documents.
+            $pMaster = $patient->patient ?? (
+                (!empty($patient->pxrefno) || !empty($patient->pincode))
+                    ? PatientMasterlist::where(function ($q) use ($patient) {
+                        if (!empty($patient->pxrefno)) {
+                            $q->where('pxrefno', $patient->pxrefno);
+                        }
+                        if (!empty($patient->pincode)) {
+                            $q->orWhere('pincode', $patient->pincode);
+                        }
+                    })->first()
+                    : null
+            );
+
+            if (empty($patient->address) && $pMaster) {
                 $addrParts = array_filter([$pMaster->streetadrs, $pMaster->brgy, $pMaster->muncity, $pMaster->province]);
                 $patient->address = !empty($addrParts) ? implode(', ', $addrParts) : ($pMaster->address ?? '');
+            }
+
+            if (empty($patient->age) && (!empty($patient->birthday) || ($pMaster && !empty($pMaster->birthday)))) {
+                $bday = $patient->birthday ?: ($pMaster ? $pMaster->birthday : null);
+                try {
+                    $patient->age = Carbon::parse($bday)->age;
+                } catch (\Throwable $e) {
+                    // Ignore parsing error, age remains unpopulated
+                }
+            }
+
+            if (empty($patient->gender) && $pMaster && !empty($pMaster->gender)) {
+                $patient->gender = $pMaster->gender;
+            }
+
+            if (empty($patient->patientname) && $pMaster && !empty($pMaster->patientname)) {
+                $patient->patientname = $pMaster->patientname;
             }
         }
 
@@ -998,10 +1056,10 @@ class DoctorController extends Controller
                 ->map(function ($item) {
                     return [
                         'medicinename' => $item->item_dscr,
-                        'medicinedosage' => '',
+                        'medicinedosage' => $item->remarks ?? '',
                         'medicineduration' => '',
                         'medicinequantity' => $item->qty ?: 1,
-                        'instructions' => $item->instructions ?? '',
+                        'instructions' => $item->instructions ?: ($item->remarks ?? ''),
                     ];
                 });
 
@@ -1013,6 +1071,7 @@ class DoctorController extends Controller
                         'medicinedosage' => $item->medicinedosage ?? '',
                         'medicineduration' => $item->medicineduration ?? '',
                         'medicinequantity' => $item->medicinequantity ?? 1,
+                        'instructions' => $item->medicinedosage ?? '',
                     ];
                 });
 
@@ -1041,14 +1100,18 @@ class DoctorController extends Controller
                 });
 
             $pxreq = DocRequestsModel::where(['consultationrefno' => $refno])->get();
-            $masterDiags = DiagnosticsMasterlistModel::whereIn('diagnosticrefno', $pxreq->pluck('requestrefno')->toArray())->get()
-                ->map(function ($item) {
-                    return (object)[
-                        'diagnostic_name' => $item->diagnostic_name,
-                    ];
-                });
+            $masterDiagModels = DiagnosticsMasterlistModel::whereIn('diagnosticrefno', $pxreq->pluck('requestrefno')->toArray())
+                ->get()
+                ->keyBy('diagnosticrefno');
 
-            $requests = $ledgerDiags->concat($masterDiags);
+            $legacyDiags = $pxreq->map(function ($req) use ($masterDiagModels) {
+                $master = $masterDiagModels->get($req->requestrefno);
+                return (object)[
+                    'diagnostic_name' => $master->diagnostic_name ?? $req->request_dscr ?? 'Diagnostic Procedure',
+                ];
+            });
+
+            $requests = $ledgerDiags->concat($legacyDiags);
         }
 
         $profile = KayakapProfileModel::first() ?? (object)[
@@ -1273,10 +1336,41 @@ class DoctorController extends Controller
                 'docrefno' => null,
             ];
         } else {
-            if (empty($patient->address) && $patient->patient) {
-                $pMaster = $patient->patient;
+            // Detailed Comment: Resolve address and demographics from related PatientMasterlist record
+            // with secondary lookup by pxrefno/pincode for diagnostic requests printable slip.
+            $pMaster = $patient->patient ?? (
+                (!empty($patient->pxrefno) || !empty($patient->pincode))
+                    ? PatientMasterlist::where(function ($q) use ($patient) {
+                        if (!empty($patient->pxrefno)) {
+                            $q->where('pxrefno', $patient->pxrefno);
+                        }
+                        if (!empty($patient->pincode)) {
+                            $q->orWhere('pincode', $patient->pincode);
+                        }
+                    })->first()
+                    : null
+            );
+
+            if (empty($patient->address) && $pMaster) {
                 $addrParts = array_filter([$pMaster->streetadrs, $pMaster->brgy, $pMaster->muncity, $pMaster->province]);
                 $patient->address = !empty($addrParts) ? implode(', ', $addrParts) : ($pMaster->address ?? '');
+            }
+
+            if (empty($patient->age) && (!empty($patient->birthday) || ($pMaster && !empty($pMaster->birthday)))) {
+                $bday = $patient->birthday ?: ($pMaster ? $pMaster->birthday : null);
+                try {
+                    $patient->age = Carbon::parse($bday)->age;
+                } catch (\Throwable $e) {
+                    // Ignore parsing error, age remains unpopulated
+                }
+            }
+
+            if (empty($patient->gender) && $pMaster && !empty($pMaster->gender)) {
+                $patient->gender = $pMaster->gender;
+            }
+
+            if (empty($patient->patientname) && $pMaster && !empty($pMaster->patientname)) {
+                $patient->patientname = $pMaster->patientname;
             }
         }
 
@@ -1315,14 +1409,18 @@ class DoctorController extends Controller
                 });
 
             $pxreq = DocRequestsModel::where(['consultationrefno' => $refno])->get();
-            $masterDiags = DiagnosticsMasterlistModel::whereIn('diagnosticrefno', $pxreq->pluck('requestrefno')->toArray())->get()
-                ->map(function ($item) {
-                    return (object)[
-                        'diagnostic_name' => $item->diagnostic_name,
-                    ];
-                });
+            $masterDiagModels = DiagnosticsMasterlistModel::whereIn('diagnosticrefno', $pxreq->pluck('requestrefno')->toArray())
+                ->get()
+                ->keyBy('diagnosticrefno');
 
-            $requests = $ledgerDiags->concat($masterDiags);
+            $legacyDiags = $pxreq->map(function ($req) use ($masterDiagModels) {
+                $master = $masterDiagModels->get($req->requestrefno);
+                return (object)[
+                    'diagnostic_name' => $master->diagnostic_name ?? $req->request_dscr ?? 'Diagnostic Procedure',
+                ];
+            });
+
+            $requests = $ledgerDiags->concat($legacyDiags);
         }
 
         $profile = KayakapProfileModel::first() ?? (object)[
@@ -1364,32 +1462,35 @@ class DoctorController extends Controller
             return response()->json(['charges' => []]);
         }
 
-        // Detailed Comment: Auto-populate doctor consultation fee from doctor dashboard configuration if not yet present
+        // Detailed Comment: Auto-populate and synchronize doctor consultation fee from doctor profile configuration
         $consultation = ConsultationModel::where('consultationrefno', $request->consultationrefno)->first();
         if ($consultation && !empty($consultation->docrefno)) {
-            $hasPf = StocksLedgerModel::where('px_consultcode_cn', $request->consultationrefno)
-                ->where('item_grouping', 'PROFESSIONAL FEE')
-                ->exists();
+            $docProfile = DoctorsProfileModel::where('docrefno', $consultation->docrefno)->first();
+            if ($docProfile) {
+                // Detailed Comment: Detect patient payment classification (PHIC/PHIC YAKAP, HMO, OTHERS, REGULAR)
+                // by checking modeofpayment, phic_pin, hmocode, and classification defensively
+                $modeOfPayment = strtoupper($request->patient_type ?? ($consultation->modeofpayment ?? ($consultation->classification ?? 'REGULAR')));
+                $isPhic = str_contains($modeOfPayment, 'PHIC') || !empty($consultation->phic_pin);
 
-            if (!$hasPf) {
-                $docProfile = DoctorsProfileModel::where('docrefno', $consultation->docrefno)->first();
-                if ($docProfile) {
-                    $classification = strtolower($consultation->classification ?? '');
-                    $isPhic = $classification === 'phic' || !empty($consultation->phic_pin);
+                // Detailed Comment: Base consultation fee selection based on patient type (PHIC rate vs default PF rate)
+                if ($isPhic && $docProfile->phicenable && floatval($docProfile->phicrate) > 0) {
+                    $baseFee = floatval($docProfile->phicrate);
+                } else {
+                    $baseFee = floatval($docProfile->pfrate ?: ($docProfile->consultationfee ?? 0));
+                }
 
-                    if ($isPhic && $docProfile->phicenable && floatval($docProfile->phicrate) > 0) {
-                        $baseFee = floatval($docProfile->phicrate);
-                    } else {
-                        $baseFee = floatval($docProfile->pfrate ?: ($docProfile->consultationfee ?? 0));
-                    }
+                // Detailed Comment: Apply other related billing fields (Auto Add VAT based on vatrate)
+                $fee = $baseFee;
+                if (!empty($docProfile->autoAddVAT) && floatval($docProfile->vatrate) > 0) {
+                    $vatAmount = round($baseFee * (floatval($docProfile->vatrate) / 100), 2);
+                    $fee = $baseFee + $vatAmount;
+                }
 
-                    // Detailed Comment: Apply other related billing fields (Auto Add VAT based on vatrate)
-                    $fee = $baseFee;
-                    if (!empty($docProfile->autoAddVAT) && floatval($docProfile->vatrate) > 0) {
-                        $vatAmount = round($baseFee * (floatval($docProfile->vatrate) / 100), 2);
-                        $fee = $baseFee + $vatAmount;
-                    }
+                $existingPf = StocksLedgerModel::where('px_consultcode_cn', $request->consultationrefno)
+                    ->where('item_grouping', 'PROFESSIONAL FEE')
+                    ->first();
 
+                if (!$existingPf) {
                     if ($fee > 0) {
                         StocksLedgerModel::create([
                             'dw_clientcode' => $docProfile->dw_clientcode ?? 'HO1',
@@ -1409,6 +1510,18 @@ class DoctorController extends Controller
                             'updated' => now()
                         ]);
                     }
+                } else {
+                    // Detailed Comment: Synchronize existing default PF record to properly computed rate (including VAT & PHIC rate)
+                    // if it was initially queued with uncomputed 'Default Doctor Consultation Fee'
+                    if ($existingPf->remarks === 'Default Doctor Consultation Fee' && $fee > 0) {
+                        $existingPf->update([
+                            'cost_ave' => $fee,
+                            'retails' => $fee,
+                            'totalamt' => $fee * floatval($existingPf->qty ?: 1),
+                            'remarks' => 'Doctor Consultation Fee calculated from Doctor Dashboard (VAT Applied: ' . (!empty($docProfile->autoAddVAT) ? 'Yes' : 'No') . ')',
+                            'updated' => now()
+                        ]);
+                    }
                 }
             }
         }
@@ -1417,16 +1530,16 @@ class DoctorController extends Controller
         // supplies, procedures, diagnostics, imaging, professional fees, and prescribed medicines (DRUGS AND MEDS).
         $charges = StocksLedgerModel::where('px_consultcode_cn', $request->consultationrefno)->get();
 
-        $charges->transform(function ($item) use ($consultation) {
+        $charges->transform(function ($item) use ($consultation, $request) {
             $qty = (float)($item->qty ?: 1);
             $total = ($item->totalamt !== null && $item->totalamt !== '') ? (float)$item->totalamt : null;
             $unitPrice = ($item->cost_ave !== null && $item->cost_ave !== '') ? (float)$item->cost_ave : null;
 
             // Detailed Comment: Determine current price of the item based on patient type (PHIC, HMO, Others, Regular)
-            $classification = strtoupper($consultation->classification ?? 'REGULAR');
-            $isPhic = strtolower($classification) === 'phic' || !empty($consultation->phic_pin);
-            $isHmo = strtolower($classification) === 'hmo' || !empty($consultation->hmocode);
-            $isOthers = strtolower($classification) === 'others';
+            $modeOfPayment = strtoupper($request->patient_type ?? ($consultation->modeofpayment ?? ($consultation->classification ?? 'REGULAR')));
+            $isPhic = str_contains($modeOfPayment, 'PHIC') || !empty($consultation->phic_pin);
+            $isHmo = $modeOfPayment === 'HMO' || !empty($consultation->hmocode);
+            $isOthers = $modeOfPayment === 'OTHERS';
 
             $tierPrice = null;
             $regularPrice = 0;
@@ -1438,7 +1551,13 @@ class DoctorController extends Controller
                     ? DoctorsProfileModel::where('docrefno', $consultation->docrefno)->first()
                     : null;
 
-                $pfRate = $docProfile ? floatval($docProfile->pfrate ?: ($docProfile->consultationfee ?? 0)) : $unitPrice;
+                // Detailed Comment: If patient is PHIC and doctor has PHIC enabled, use phicrate as base rate; else use pfrate
+                if ($isPhic && $docProfile && $docProfile->phicenable && floatval($docProfile->phicrate) > 0) {
+                    $pfRate = floatval($docProfile->phicrate);
+                } else {
+                    $pfRate = $docProfile ? floatval($docProfile->pfrate ?: ($docProfile->consultationfee ?? 0)) : $unitPrice;
+                }
+
                 $rodRate = $docProfile ? floatval($docProfile->rodrate ?? 0) : 0;
                 $taxPercent = $docProfile ? floatval($docProfile->tax ?? 0) : 0;
                 $vatRate = $docProfile ? floatval($docProfile->vatrate ?? 0) : 0;
@@ -1545,10 +1664,10 @@ class DoctorController extends Controller
             if ($inputAmount !== null && $inputAmount > 0) {
                 $unitPrice = $inputAmount;
             } else {
-                $classification = strtolower($consultation->classification ?? '');
-                $isPhic = $classification === 'phic' || !empty($consultation->phic_pin);
-                $isHmo = $classification === 'hmo' || !empty($consultation->hmocode);
-                $isOthers = $classification === 'others';
+                $modeOfPayment = strtoupper($request->patient_type ?? ($consultation->modeofpayment ?? ($consultation->classification ?? 'REGULAR')));
+                $isPhic = str_contains($modeOfPayment, 'PHIC') || !empty($consultation->phic_pin);
+                $isHmo = $modeOfPayment === 'HMO' || !empty($consultation->hmocode);
+                $isOthers = $modeOfPayment === 'OTHERS';
 
                 if ($isPhic && floatval($charge->price_phic) > 0) {
                     $unitPrice = floatval($charge->price_phic);
@@ -1706,20 +1825,32 @@ class DoctorController extends Controller
             ], 422);
         }
 
-        $updated = $query->update([
+        $ledgerItem = $query->first();
+        if (!$ledgerItem) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Charge record not found or already removed.'
+            ], 404);
+        }
+
+        // Detailed Comment: Update unit price, quantity, total amount, and set remarks to prevent overwrite
+        $ledgerItem->update([
             'cost_ave' => $chargeFee,
             'retails' => $chargeFee,
             'qty' => $qty,
             'totalamt' => $totalAmt,
+            'remarks' => 'Manually adjusted fee',
             'updated' => now()
         ]);
 
-        // Also update legacy DocChargesModel if matching record exists
-        if ($consultationrefno && $chargeId) {
-            DocChargesModel::where([
-                'consultationrefno' => $consultationrefno,
-                'pxchargerefno' => $chargeId
-            ])->update([
+        // Detailed Comment: Defensively update legacy DocChargesModel only if the table exists
+        // and using valid existing column servicerefno rather than non-existent pxchargerefno
+        if ($consultationrefno && \Illuminate\Support\Facades\Schema::hasTable('doctorcharges')) {
+            $docChargeQuery = DocChargesModel::where('consultationrefno', $consultationrefno);
+            if (!empty($prodcode)) {
+                $docChargeQuery->where('servicerefno', $prodcode);
+            }
+            $docChargeQuery->update([
                 'total' => $chargeFee * $qty,
                 'discount' => $discount,
                 'net_total' => $totalAmt
@@ -1733,15 +1864,10 @@ class DoctorController extends Controller
             'charge_fee' => $chargeFee,
             'qty' => $qty,
             'discount' => $discount,
-            'totalamt' => $totalAmt,
-            'updated' => $updated
+            'totalamt' => $totalAmt
         ]);
 
-        if ($updated) {
-            return response()->json(['success' => true]);
-        }
-
-        return response()->json(['success' => false, 'message' => 'Charge not found or failed to update.'], 404);
+        return response()->json(['success' => true]);
     }
 
     // Files
@@ -1893,10 +2019,12 @@ class DoctorController extends Controller
                 ->first();
         }
 
-        $classification = strtolower($request->patient_type ?? $consultation->classification ?? '');
-        $hasHmo = !empty($consultation->hmocode) || $classification === 'hmo';
-        $hasPhic = !empty($consultation->phic_pin) || $classification === 'phic';
-        $isOthers = $classification === 'others';
+        // Detailed Comment: Detect patient payment classification (PHIC/PHIC YAKAP, HMO, OTHERS, REGULAR)
+        // prioritizing explicit request patient_type, then consultation modeofpayment or classification
+        $modeOfPayment = strtoupper($request->patient_type ?? ($consultation->modeofpayment ?? ($consultation->classification ?? 'REGULAR')));
+        $hasPhic = str_contains($modeOfPayment, 'PHIC') || (!empty($consultation->phic_pin));
+        $hasHmo = $modeOfPayment === 'HMO' || (!empty($consultation->hmocode));
+        $isOthers = $modeOfPayment === 'OTHERS';
 
         $stock = StocksListingModel::where('prodcode', $request->prodcode)->first();
         if (!$stock) {

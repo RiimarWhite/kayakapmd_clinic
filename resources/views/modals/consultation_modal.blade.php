@@ -6,7 +6,8 @@
         <div class="modal-content" style="height: 50rem;">
             <div class="modal-header d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-2">
-                    <h2 class="modal-title m-0"><i class="fa-solid fa-stethoscope text-primary me-2"></i> Consultation</h2>
+                    <h2 class="modal-title m-0"><i class="fa-solid fa-stethoscope text-primary me-2"></i> Consultation
+                    </h2>
                     <!-- Detailed Comment: Badges displaying the active consultation date and consultation reference -->
                     <span class="badge bg-primary fs-6" id="doctor_modal_consultdate_badge">Date: Today</span>
                     <span class="badge bg-secondary fs-6" id="doctor_modal_consultref_badge">Ref: --</span>
@@ -14,35 +15,47 @@
                 <button type="button" class="btn-close" id="close-consultation-modal"></button>
             </div>
 
-            <div class="modal-body d-flex flex-column gap-3" id="consul_sidebar">
-                {{-- Detailed Comment: Patient Information styled as a clean, always-visible Bootstrap card with Patient Type badge per user requirement --}}
+            <div class="modal-body" id="consul_sidebar">
+                {{-- Detailed Comment: Patient Information styled as a clean, always-visible Bootstrap card with Patient
+                Type badge per user requirement --}}
                 <div class="card border shadow-sm mb-2" id="rx_patient_card">
                     <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-                        <span class="fw-bold text-dark"><i class="fa-solid fa-user me-2 text-primary"></i> Patient Information</span>
+                        <span class="fw-bold text-dark"><i class="fa-solid fa-user me-2 text-primary"></i> Patient
+                            Information</span>
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge bg-secondary" id="doctor_modal_patient_type_badge">REGULAR</span>
+                            {{-- Detailed Comment: Patient Classification badge displayed alongside patient type --}}
+                            <span class="badge bg-info text-white d-none" id="doctor_modal_classification_badge"></span>
                         </div>
                     </div>
                     <div class="card-body p-3" id="rx_patient_info">
-                        {{-- Detailed Comment: Prominent Allergy Alert Banner visible when patient has recorded allergies --}}
-                        <div class="alert alert-danger py-1 px-3 mb-2 d-none align-items-center gap-2 border-danger" id="doc_allergy_alert_bar" role="alert">
+                        {{-- Detailed Comment: Prominent Allergy Alert Banner visible when patient has recorded
+                        allergies --}}
+                        <div class="alert alert-danger py-1 px-3 mb-2 d-none align-items-center gap-2 border-danger"
+                            id="doc_allergy_alert_bar" role="alert">
                             <i class="fa-solid fa-triangle-exclamation text-danger fs-5"></i>
                             <div class="small">
-                                <strong class="text-danger">KNOWN ALLERGIES:</strong> <span id="doc_allergy_alert_text" class="fw-bold"></span>
+                                <strong class="text-danger">KNOWN ALLERGIES:</strong> <span id="doc_allergy_alert_text"
+                                    class="fw-bold"></span>
                             </div>
                         </div>
 
                         <div class="d-flex gap-3 align-items-center mb-3">
-                            <img id="genphoto" src="/images/blank_photo.png" class="rounded rounded-circle border shadow-sm" style="width: 60px; height: 60px; object-fit: cover;" alt="Patient Photo" onerror="this.src='/images/blank_photo.png'">
+                            <img id="genphoto" src="/images/blank_photo.png"
+                                class="rounded rounded-circle border shadow-sm"
+                                style="width: 60px; height: 60px; object-fit: cover;" alt="Patient Photo"
+                                onerror="this.src='/images/blank_photo.png'">
                             <div>
                                 <h5 class="m-0 fw-bold" id="genname"></h5>
-                                <div class="text-muted small">PIN: <span id="genpincode" class="fw-semibold">N/A</span> | Ref: <span id="genpxrefno" class="fw-semibold">N/A</span></div>
+                                <div class="text-muted small">PIN: <span id="genpincode" class="fw-semibold">N/A</span>
+                                    | Ref: <span id="genpxrefno" class="fw-semibold">N/A</span></div>
                             </div>
                         </div>
                         <div class="d-flex flex-column">
                             <div class="d-flex">
                                 <p class="m-0 w-50">Sex: <strong id="gensex"></strong></p>
-                                <p class="m-0 w-50">Birthdate: <strong id="genbday"></strong> (Age: <strong id="genage"></strong>)</p>
+                                <p class="m-0 w-50">Birthdate: <strong id="genbday"></strong> (Age: <strong
+                                        id="genage"></strong>)</p>
                             </div>
 
                             <div class="d-flex">
@@ -68,74 +81,94 @@
                                 <p class="m-0 w-50">Pulse Rate: <strong id="genpulserate"></strong></p>
                                 <p class="m-0 w-50">Blood Pressure: <strong id="genbp"></strong></p>
                             </div>
+
+                            {{-- Detailed Comment: Dynamic Patient Classification & Case History display container --}}
+                            <div class="mt-2 p-2 bg-light rounded border small d-none"
+                                id="doctor_modal_classification_fields"></div>
                         </div>
                     </div>
                 </div>
 
-                {{-- Detailed Comment: Lower Card with Card-Header separating Consultation clinical tabs from Consultation History and Permanent Medical History --}}
-                <div class="card h-100 border shadow-sm">
-                    <div class="card-header bg-light p-2 pb-0 border-bottom">
-                        <ul class="nav nav-tabs card-header-tabs" id="consultation_main_tabs" role="tablist">
+                {{-- Detailed Comment: Lower Card with Card-Header separating Consultation clinical tabs from
+                Consultation History and Permanent Medical History.
+                Fix: Replaced rigid h-100 with flex-grow-1 and min-height: 0 to prevent modal overflow.
+                Removed Bootstrap .card-header-tabs negative margin (-0.5rem) collision with pb-0 which caused tabs to
+                overlap 8px directly into the card body.
+                Set margin-bottom: -1px on the tab list so active tab aligns seamlessly with the card-header bottom
+                border. --}}
+                <div class="card flex-grow-1 border shadow-sm overflow-hidden" style="min-height: 0;">
+                    <div class="card-header bg-light px-3 pt-2 pb-0 border-bottom position-relative">
+                        <ul class="nav nav-tabs border-bottom-0 flex-nowrap" id="consultation_main_tabs" role="tablist"
+                            style="margin-bottom: -1px;">
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link active fw-bold text-dark px-3" id="main_consultation_tab_btn" data-bs-toggle="tab" data-bs-target="#main_consultation_pane" type="button" role="tab" aria-controls="main_consultation_pane" aria-selected="true">
+                                <button class="nav-link active fw-bold text-dark px-3" id="main_consultation_tab_btn"
+                                    data-bs-toggle="tab" data-bs-target="#main_consultation_pane" type="button"
+                                    role="tab" aria-controls="main_consultation_pane" aria-selected="true">
                                     <i class="fa-solid fa-stethoscope text-primary me-2"></i> Consultation
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link fw-bold text-dark px-3" id="main_medhistory_tab_btn" data-bs-toggle="tab" data-bs-target="#main_medhistory_pane" type="button" role="tab" aria-controls="main_medhistory_pane" aria-selected="false">
+                                <button class="nav-link fw-bold text-dark px-3" id="main_medhistory_tab_btn"
+                                    data-bs-toggle="tab" data-bs-target="#main_medhistory_pane" type="button" role="tab"
+                                    aria-controls="main_medhistory_pane" aria-selected="false">
                                     <i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Consultation History
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link fw-bold text-dark px-3" id="main_permanent_medhistory_tab_btn" data-bs-toggle="tab" data-bs-target="#main_permanent_medhistory_pane" type="button" role="tab" aria-controls="main_permanent_medhistory_pane" aria-selected="false">
+                                <button class="nav-link fw-bold text-dark px-3" id="main_permanent_medhistory_tab_btn"
+                                    data-bs-toggle="tab" data-bs-target="#main_permanent_medhistory_pane" type="button"
+                                    role="tab" aria-controls="main_permanent_medhistory_pane" aria-selected="false">
                                     <i class="fa-solid fa-notes-medical text-danger me-2"></i> Medical History
                                 </button>
                             </li>
                         </ul>
                     </div>
 
-                    <div class="card-body p-2 d-flex flex-column h-100 overflow-hidden">
-                        <div class="tab-content h-100 d-flex flex-column" id="consultation_main_tab_content">
+                    <div class="card-body p-3 d-flex flex-column flex-grow-1 overflow-hidden" style="min-height: 0;">
+                        <div class="tab-content flex-grow-1 d-flex flex-column overflow-hidden"
+                            id="consultation_main_tab_content" style="min-height: 0;">
                             <!-- TAB 1: CURRENT CONSULTATION CLINICAL WORKFLOW -->
-                            <div class="tab-pane fade show active h-100" id="main_consultation_pane" role="tabpanel" aria-labelledby="main_consultation_tab_btn" tabindex="0">
+                            <div class="tab-pane fade show active h-100" id="main_consultation_pane" role="tabpanel"
+                                aria-labelledby="main_consultation_tab_btn" tabindex="0">
                                 <div class="d-flex flex-row h-100 gap-3">
                                     <nav class="nav nav-pills d-flex flex-column w-25 gap-1">
                                         <li class="nav-item">
-                                            <button class="nav-link active w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                                data-bs-target="#impDiagTab" role="tab" aria-controls="impDiagTab"
-                                                aria-selected="true" id="impDiagBtn">
+                                            <button class="nav-link active w-100 text-start text-dark fw-bold"
+                                                data-bs-toggle="tab" data-bs-target="#impDiagTab" role="tab"
+                                                aria-controls="impDiagTab" aria-selected="true" id="impDiagBtn">
                                                 <i class="fa-solid fa-quote-left me-2"></i> Impressions &amp; Diagnosis
                                             </button>
                                         </li>
 
                                         <li class="nav-item">
-                                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                                data-bs-target="#rxTab" role="tab" aria-controls="rxTab"
-                                                aria-selected="false" id="rx_sidebar_btn">
+                                            <button class="nav-link w-100 text-start text-dark fw-bold"
+                                                data-bs-toggle="tab" data-bs-target="#rxTab" role="tab"
+                                                aria-controls="rxTab" aria-selected="false" id="rx_sidebar_btn">
                                                 <i class="fa-solid fa-prescription me-2"></i> Rx &amp; Instructions
                                             </button>
                                         </li>
 
                                         <li class="nav-item">
-                                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                                data-bs-target="#dReqsTab" role="tab" aria-controls="dReqsTab"
-                                                aria-selected="false" id="dReqsTabBtn">
+                                            <button class="nav-link w-100 text-start text-dark fw-bold"
+                                                data-bs-toggle="tab" data-bs-target="#dReqsTab" role="tab"
+                                                aria-controls="dReqsTab" aria-selected="false" id="dReqsTabBtn">
                                                 <i class="fa-solid fa-envelope-open-text me-2"></i> Diagnostic Requests
                                             </button>
                                         </li>
 
                                         <li class="nav-item">
-                                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                                data-bs-target="#radLabTab" role="tab" aria-controls="radLabTab"
-                                                aria-selected="false" id="radLabTabBtn">
+                                            <button class="nav-link w-100 text-start text-dark fw-bold"
+                                                data-bs-toggle="tab" data-bs-target="#radLabTab" role="tab"
+                                                aria-controls="radLabTab" aria-selected="false" id="radLabTabBtn">
                                                 <i class="fa-solid fa-vial me-2"></i> Radiology &amp; Laboratory
                                             </button>
                                         </li>
 
                                         <li class="nav-item">
-                                            <button class="nav-link w-100 text-start text-dark fw-bold" data-bs-toggle="tab"
-                                                data-bs-target="#patientChargeTab" role="tab" aria-controls="patientChargeTab"
-                                                aria-selected="false" id="patient_charge_tab_btn">
+                                            <button class="nav-link w-100 text-start text-dark fw-bold"
+                                                data-bs-toggle="tab" data-bs-target="#patientChargeTab" role="tab"
+                                                aria-controls="patientChargeTab" aria-selected="false"
+                                                id="patient_charge_tab_btn">
                                                 <i class="fa-solid fa-coins me-2"></i> Patient Charges
                                             </button>
                                         </li>
@@ -143,316 +176,422 @@
 
                                     <div class="tab-content d-flex overflow-y-auto w-75 px-2">
                                         <!-- Impressions and Diagnosis (Active by default) -->
-                                        <div class="tab-pane active w-100" id="impDiagTab" role="tabpanel" aria-labelledby="impDiagTab-tab"
-                                            tabindex="0">
+                                        <div class="tab-pane active w-100" id="impDiagTab" role="tabpanel"
+                                            aria-labelledby="impDiagTab-tab" tabindex="0">
                                             <h4>Impressions &amp; Diagnosis</h4>
                                             <hr class="m-0 mb-4">
 
-                            <form class="d-flex flex-column gap-2">
-                                <div>
-                                    <label class="form-label fw-bold" for="reasonforconsultation">Chief Complaints</label>
-                                    <textarea rows="4" class="form-control" name="reasonforconsultation" id="reasonforconsultation"></textarea>
-                                </div>
+                                            <form class="d-flex flex-column gap-2">
+                                                {{-- Detailed Comment: Answered Doctor's Questions section displaying
+                                                patient questionnaire responses --}}
+                                                <div class="border rounded p-3 bg-light mt-2 d-none"
+                                                    id="doctor_answered_questions_container">
+                                                    <h6 class="fw-bold text-dark mb-2"><i
+                                                            class="fa-solid fa-clipboard-question text-primary me-2"></i>
+                                                        Answered Doctor's Questions</h6>
+                                                    <div id="doctor_answered_questions_list"
+                                                        class="d-flex flex-column gap-2"></div>
+                                                </div>
+                                                <div>
+                                                    <label class="form-label fw-bold" for="reasonforconsultation">Chief
+                                                        Complaints</label>
+                                                    <textarea rows="4" class="form-control" name="reasonforconsultation"
+                                                        id="reasonforconsultation"></textarea>
+                                                </div>
 
-                                <div>
-                                    <label class="form-label fw-bold" for="impressions">Impressions</label>
-                                    <textarea rows="4" class="form-control" name="impressions" id="impressions"></textarea>
-                                </div>
+                                                <div>
+                                                    <label class="form-label fw-bold"
+                                                        for="impressions">Impressions</label>
+                                                    <textarea rows="4" class="form-control" name="impressions"
+                                                        id="impressions"></textarea>
+                                                </div>
 
-                                <div>
-                                    <label class="form-label fw-bold" for="diagnosis">Diagnosis</label>
-                                    <textarea rows="4" class="form-control" name="diagnosis" id="diagnosis"></textarea>
-                                </div>
+                                                <div>
+                                                    <label class="form-label fw-bold" for="diagnosis">Diagnosis</label>
+                                                    <textarea rows="4" class="form-control" name="diagnosis"
+                                                        id="diagnosis"></textarea>
+                                                </div>
 
-                                {{-- Detailed Comment: Admission Orders & Instructions to Kin (Database A in OPD Consultation Workflow Plan) --}}
-                                <div class="border rounded p-3 bg-light mt-2">
-                                    <div class="form-check form-switch mb-2">
-                                        <input class="form-check-input" type="checkbox" role="switch" name="foradmit" id="foradmit" value="1">
-                                        <label class="form-check-label fw-bold text-danger" for="foradmit">
-                                            <i class="fa-solid fa-hospital-user me-1"></i> Patient Recommended for Admission
-                                        </label>
-                                    </div>
-                                    <div class="d-flex flex-column gap-1" id="admit_instructions_container">
-                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                            <label class="form-label fw-bold m-0" for="foradmit_instructions">Admission Orders & Instructions to Kin / Caregiver</label>
-                                            <a target="_blank" class="btn btn-sm btn-danger text-white" id="print_admit_btn">
-                                                <i class="fa-solid fa-print"></i> Print Admission Orders
-                                            </a>
+                                                {{-- Detailed Comment: Admission Orders & Instructions to Kin (Database
+                                                A in OPD Consultation Workflow Plan) --}}
+                                                <div class="border rounded p-3 bg-light mt-2">
+                                                    <div class="form-check form-switch mb-2">
+                                                        <input class="form-check-input" type="checkbox" role="switch"
+                                                            name="foradmit" id="foradmit" value="1">
+                                                        <label class="form-check-label fw-bold text-danger"
+                                                            for="foradmit">
+                                                            <i class="fa-solid fa-hospital-user me-1"></i> Patient
+                                                            Recommended for Admission
+                                                        </label>
+                                                    </div>
+                                                    <div class="d-flex flex-column gap-1"
+                                                        id="admit_instructions_container">
+                                                        <div
+                                                            class="d-flex justify-content-between align-items-center mb-1">
+                                                            <label class="form-label fw-bold m-0"
+                                                                for="foradmit_instructions">Admission Orders &
+                                                                Instructions to Kin / Caregiver</label>
+                                                            <a target="_blank" class="btn btn-sm btn-danger text-white"
+                                                                id="print_admit_btn">
+                                                                <i class="fa-solid fa-print"></i> Print Admission Orders
+                                                            </a>
+                                                        </div>
+                                                        <textarea rows="4" class="form-control"
+                                                            name="foradmit_instructions" id="foradmit_instructions"
+                                                            placeholder="Enter admission orders, initial IV fluids, monitoring instructions, and instructions to kin..."></textarea>
+                                                    </div>
+                                                </div>
+
+                                                <div class="d-flex gap-2 align-items-center mt-2">
+                                                    <button type="button" class="btn btn-primary fw-bold w-25"
+                                                        id="save_impressions_diagnosis">Save Details</button>
+                                                </div>
+                                            </form>
                                         </div>
-                                        <textarea rows="4" class="form-control" name="foradmit_instructions" id="foradmit_instructions" placeholder="Enter admission orders, initial IV fluids, monitoring instructions, and instructions to kin..."></textarea>
+
+                                        <!-- RX and Instructions -->
+                                        <div class="tab-pane w-100" id="rxTab" role="tabpanel"
+                                            aria-labelledby="rxTab-tab" tabindex="0">
+                                            <h4>Rx & Instructions</h4>
+                                            <hr class="m-0 mb-4">
+
+                                            <div>
+                                                <div class="table-responsive mb-4">
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <h6 class="m-0 fw-bold">List of Rx</h6>
+                                                        <a target="_blank" class="btn btn-sm btn-info text-white"
+                                                            id="print_rx_btn"><i class="fa-solid fa-print"></i>
+                                                            Print</a>
+                                                    </div>
+
+                                                    <table class="table table-sm table-bordered"
+                                                        id="dashboard_rx_table">
+                                                        <thead class="table-info">
+                                                            <tr>
+                                                                <th scope="col">Medicine Name</th>
+                                                                <th scope="col">Instructions / Sig</th>
+                                                                <th scope="col">Quantity</th>
+                                                                <th scope="col">Dispense Status</th>
+                                                            </tr>
+                                                        </thead>
+
+                                                        <tbody></tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+
+                                            <hr>
+
+                                            <div>
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <h6 class="m-0 fw-bold">Instructions</h6>
+                                                    <a target="_blank" class="btn btn-sm btn-warning text-white"
+                                                        id="print_inst_btn"><i class="fa-solid fa-print"></i> Print</a>
+                                                </div>
+                                                <textarea class="form-control" name="instructions" rows="3"
+                                                    id="patient_instructions" disabled></textarea>
+                                            </div>
+                                        </div>
+
+                                        <!-- Diagnostics Request -->
+                                        <div class="tab-pane w-100" id="dReqsTab" role="tabpanel"
+                                            aria-labelledby="dReqsTab-tab" tabindex="0">
+                                            <h4>Diagnostics Requests</h4>
+                                            <hr class="m-0 mb-4">
+
+                                            <div class="table-responsive">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <h6 class="m-0 fw-bold">List of Requests</h6>
+                                                    <div>
+                                                        <button class="btn btn-primary btn-sm text-white"
+                                                            data-bs-target="#diagnostic_modal" id="diagnostic_btn_2"
+                                                            data-bs-toggle="modal"><i class="fa-solid fa-plus"></i> Add
+                                                            Requests</button>
+                                                        <a target="_blank" class="btn btn-sm btn-info text-white"
+                                                            id="print_diagnostics"><i class="fa-solid fa-print"></i>
+                                                            Print</a>
+                                                    </div>
+                                                </div>
+
+                                                <table class="table table-sm table-bordered" id="diagnostics_table">
+                                                    <thead class="table-success">
+                                                        <tr>
+                                                            <th scope="col">Actions</th>
+                                                            <th scope="col">Name</th>
+                                                        </tr>
+                                                    </thead>
+
+                                                    <tbody>
+                                                        <tr>
+                                                            <td></td>
+                                                            <td></td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        <!-- Radiology and Laboratory -->
+                                        <div class="tab-pane w-100" id="radLabTab" role="tabpanel"
+                                            aria-labelledby="radLabTab-tab" tabindex="0">
+                                            <h4>Radiology & Laboratory</h4>
+                                            <hr class="m-0 mb-4">
+
+                                            <form class="d-flex gap-4" id="rad_lab_form">
+                                                @csrf
+
+                                                <div class=" w-50">
+                                                    <label class="form-label fw-bold" for="preview_radiology">Radiology
+                                                        <span class="bg-success text-white rounded px-2 py-0 d-none"
+                                                            style="font-size: 14px;" id="radiology_hasfile"><i
+                                                                class="fa-solid fa-check"></i> Document
+                                                            Available</span></label>
+                                                    <div class="input-group input-group-sm">
+                                                        <input class="form-control form-control-sm" type="file"
+                                                            name="radiology" id="radiology_result">
+                                                        <button type="button" class="btn btn-sm btn-primary"
+                                                            name="preview_radiology"
+                                                            id="preview_radiology">Preview</button>
+                                                    </div>
+                                                </div>
+
+                                                <div class=" w-50">
+                                                    <label class="form-label fw-bold"
+                                                        for="preview_laboratory">Laboratory <span
+                                                            class="bg-success text-white rounded px-2 py-0 d-none"
+                                                            style="font-size: 14px;" id="laboratory_hasfile"><i
+                                                                class="fa-solid fa-check"></i> Document
+                                                            Available</span></label>
+                                                    <div class="input-group">
+                                                        <input class="form-control form-control-sm" type="file"
+                                                            name="laboratory" id="laboratory_result">
+                                                        <button type="button" class="btn btn-sm btn-primary"
+                                                            name="preview_laboratory"
+                                                            id="preview_laboratory">Preview</button>
+                                                    </div>
+                                                </div>
+                                            </form>
+                                            <div class="form-text mb-2">Uploading files will overwrite the old one.
+                                                Images can be previewed while document files are downloaded.</div>
+
+                                            <div>
+                                                <button type="button" class="btn btn-sm btn-primary"
+                                                    id="update_files_btn">Save updates</button>
+                                                <div class="form-text">Save updated files before switching tabs.</div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Patient Charges -->
+                                        <div class="tab-pane w-100" id="patientChargeTab" role="tabpanel"
+                                            aria-labelledby="patientChargeTab-tab" tabindex="0">
+                                            <h4>Patient Charges</h4>
+                                            <hr class="m-0 mb-4">
+
+                                            <div class="table-responsive">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <h6 class="m-0 fw-bold">List of Charges</h6>
+                                                    {{-- Detailed Comment: Removed data-bs-toggle="modal" so opening
+                                                    append charges does not dismiss consultation_modal --}}
+                                                    <button class="btn btn-sm btn-warning text-white"
+                                                        id="append_charge_btn" type="button">
+                                                        <i class="fa-solid fa-plus"></i> Append Charges
+                                                    </button>
+                                                </div>
+
+                                                <table class="table table-sm table-bordered align-middle"
+                                                    id="charges_table">
+                                                    <thead class="table-warning">
+                                                        <tr>
+                                                            <th scope="col">Actions</th>
+                                                            <th scope="col">Description</th>
+                                                            <th scope="col">Quantity</th>
+                                                            <th scope="col">Unit Price</th>
+                                                            <th scope="col">Total Amount</th>
+                                                        </tr>
+                                                    </thead>
+
+                                                    <tbody></tbody>
+                                                </table>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
+                            </div>
 
-                                <div class="d-flex gap-2 align-items-center mt-2">
-                                    <button type="button" class="btn btn-primary fw-bold w-25" id="save_impressions_diagnosis">Save Details</button>
+                            <!-- TAB 2: CONSULTATION HISTORY (Full-width dedicated history pane) -->
+                            <div class="tab-pane fade h-100" id="main_medhistory_pane" role="tabpanel"
+                                aria-labelledby="main_medhistory_tab_btn" tabindex="0">
+                                <div class="d-flex flex-column h-100 p-2 overflow-y-auto">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <div>
+                                            <h5 class="fw-bold m-0 text-dark"><i
+                                                    class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Patient
+                                                Consultation History</h5>
+                                            <small class="text-muted">Previous recorded consultations, impressions, and
+                                                diagnoses for this patient</small>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            id="refresh_medhistory_btn" title="Refresh Consultation History">
+                                            <i class="fa-solid fa-rotate me-1"></i> Refresh
+                                        </button>
+                                    </div>
+
+                                    <div class="table-responsive flex-grow-1">
+                                        <table class="table table-sm table-bordered table-hover align-middle w-100"
+                                            id="medhistory_table">
+                                            <thead class="table-warning">
+                                                <tr>
+                                                    <th scope="col" style="width: 80px;" class="text-center">Action</th>
+                                                    <th scope="col" style="width: 70px;" class="text-center">Photo</th>
+                                                    <th scope="col" style="width: 130px;">Consultation Date</th>
+                                                    <th scope="col">Chief Complaint</th>
+                                                    <th scope="col">Diagnosis</th>
+                                                    <th scope="col" style="width: 100px;" class="text-center">Status
+                                                    </th>
+                                                    <th scope="col" style="width: 140px;">Doctor / Recorded By</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody></tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                            </form>
-                        </div>
+                            </div> {{-- Detailed Comment: Closed #main_medhistory_pane container before
+                            #main_permanent_medhistory_pane --}}
 
-                        <!-- RX and Instructions -->
-                        <div class="tab-pane w-100" id="rxTab" role="tabpanel" aria-labelledby="rxTab-tab"
-                            tabindex="0">
-                            <h4>Rx & Instructions</h4>
-                            <hr class="m-0 mb-4">
-
-                            <div>
-                                <div class="table-responsive mb-4">
+                            <!-- TAB 3: PERMANENT MEDICAL HISTORY (Allergies, Injections, Medical/Surgical/Family history, Maintenance meds) -->
+                            <div class="tab-pane fade h-100" id="main_permanent_medhistory_pane" role="tabpanel"
+                                aria-labelledby="main_permanent_medhistory_tab_btn" tabindex="0">
+                                <div class="d-flex flex-column h-100 p-2 overflow-y-auto">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <h6 class="m-0 fw-bold">List of Rx</h6>
-                                        <a target="_blank" class="btn btn-sm btn-info text-white" id="print_rx_btn"><i class="fa-solid fa-print"></i> Print</a>
+                                        <div>
+                                            <h5 class="fw-bold m-0 text-dark"><i
+                                                    class="fa-solid fa-notes-medical text-danger me-2"></i> Permanent
+                                                Clinical &amp; Medical History</h5>
+                                            <small class="text-muted">Lifetime clinical profile, allergies, injections,
+                                                chronic conditions, and surgical history persisting across all
+                                                visits</small>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-primary fw-bold"
+                                            id="save_doctor_medhistory_btn">
+                                            <i class="fa-solid fa-floppy-disk me-1"></i> Save Medical History
+                                        </button>
                                     </div>
 
-                                    <table class="table table-sm table-bordered" id="dashboard_rx_table">
-                                        <thead class="table-info">
-                                            <tr>
-                                                <th scope="col">Medicine Name</th>
-                                                <th scope="col">Instructions / Sig</th>
-                                                <th scope="col">Quantity</th>
-                                                <th scope="col">Dispense Status</th>
-                                            </tr>
-                                        </thead>
+                                    <div class="row g-2 flex-grow-1">
+                                        <div class="col-12 col-lg-6">
+                                            <div class="card h-100 border">
+                                                <div class="card-header bg-light py-1 fw-bold text-dark small">
+                                                    <i class="fa-solid fa-triangle-exclamation text-danger me-1"></i>
+                                                    Critical Alerts &amp; Immunizations
+                                                </div>
+                                                <div class="card-body p-2 d-flex flex-column gap-2">
+                                                    <div>
+                                                        <label class="form-label fw-bold text-danger small mb-1"
+                                                            for="doc_allergies">
+                                                            Allergies &amp; Adverse Drug Reactions:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm border-danger"
+                                                            id="doc_allergies" rows="2"
+                                                            placeholder="e.g. Seafood, Penicillin, Aspirin, Latex"></textarea>
+                                                        <div class="form-text text-danger" style="font-size: 10px;">
+                                                            Warning banner appears in patient summary card if allergies
+                                                            are specified.</div>
+                                                    </div>
 
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
-                            </div>
+                                                    <div>
+                                                        <label class="form-label fw-bold text-dark small mb-1"
+                                                            for="doc_injections">
+                                                            <i class="fa-solid fa-syringe text-primary me-1"></i>
+                                                            Injections &amp; Immunization Log:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm"
+                                                            id="doc_injections" rows="2"
+                                                            placeholder="e.g. Flu Vaccine (2025), Pneumococcal, Tetanus Toxoid"></textarea>
+                                                    </div>
 
-                            <hr>
+                                                    <div>
+                                                        <label class="form-label fw-bold text-dark small mb-1"
+                                                            for="doc_maintenance_meds">
+                                                            <i class="fa-solid fa-pills text-info me-1"></i> Daily
+                                                            Maintenance Medications:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm"
+                                                            id="doc_maintenance_meds" rows="2"
+                                                            placeholder="e.g. Amlodipine 5mg OD, Losartan 50mg OD, Metformin 500mg BID"></textarea>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
 
-                            <div>
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="m-0 fw-bold">Instructions</h6>
-                                    <a target="_blank" class="btn btn-sm btn-warning text-white" id="print_inst_btn"><i class="fa-solid fa-print"></i> Print</a>
-                                </div>
-                                <textarea class="form-control" name="instructions" rows="3" id="patient_instructions" disabled></textarea>
-                            </div>
-                        </div>
+                                        <div class="col-12 col-lg-6">
+                                            <div class="card h-100 border">
+                                                <div class="card-header bg-light py-1 fw-bold text-dark small">
+                                                    <i class="fa-solid fa-heart-pulse text-secondary me-1"></i> Medical,
+                                                    Surgical &amp; Family History
+                                                </div>
+                                                <div class="card-body p-2 d-flex flex-column gap-2">
+                                                    <div>
+                                                        <label class="form-label fw-bold text-dark small mb-1"
+                                                            for="doc_past_medical_history">
+                                                            Past Medical History (Chronic Illnesses):
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm"
+                                                            id="doc_past_medical_history" rows="2"
+                                                            placeholder="e.g. Hypertension (5 yrs), Type 2 Diabetes Mellitus, Bronchial Asthma"></textarea>
+                                                    </div>
 
-                        <!-- Diagnostics Request -->
-                        <div class="tab-pane w-100" id="dReqsTab" role="tabpanel" aria-labelledby="dReqsTab-tab" tabindex="0">
-                            <h4>Diagnostics Requests</h4>
-                            <hr class="m-0 mb-4">
+                                                    <div>
+                                                        <label class="form-label fw-bold text-dark small mb-1" for="doc_surgical_history">
+                                                            {{-- Detailed Comment: Renamed label to Past Surgical/Operations History as required --}}
+                                                            <i class="fa-solid fa-bandage text-warning me-1"></i> Past Surgical/Operations History:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm"
+                                                            id="doc_surgical_history" rows="2"
+                                                            placeholder="e.g. Appendectomy (2018), Cholecystectomy (2022)"></textarea>
+                                                    </div>
 
-                            <div class="table-responsive">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="m-0 fw-bold">List of Requests</h6>
-                                    <div>
-                                        <button class="btn btn-primary btn-sm text-white" data-bs-target="#diagnostic_modal" id="diagnostic_btn_2" data-bs-toggle="modal"><i class="fa-solid fa-plus"></i> Add Requests</button>
-                                        <a target="_blank" class="btn btn-sm btn-info text-white" id="print_diagnostics"><i class="fa-solid fa-print"></i> Print</a>
+                                                    <div>
+                                                        <label class="form-label fw-bold text-dark small mb-1"
+                                                            for="doc_family_history">
+                                                            <i class="fa-solid fa-users text-success me-1"></i> Family
+                                                            Medical History:
+                                                        </label>
+                                                        <textarea class="form-control form-control-sm"
+                                                            id="doc_family_history" rows="2"
+                                                            placeholder="e.g. Maternal DM, Paternal CAD/Stroke"></textarea>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-12">
+                                            <div class="p-2 border rounded bg-light">
+                                                <label class="form-label fw-bold text-dark small mb-1"
+                                                    for="doc_clinical_notes">
+                                                    <i class="fa-solid fa-comment-medical text-secondary me-1"></i>
+                                                    Special Clinical Notes &amp; Precautions:
+                                                </label>
+                                                <textarea class="form-control form-control-sm" id="doc_clinical_notes"
+                                                    rows="2"
+                                                    placeholder="Special patient precautions, dietary restrictions, or notes"></textarea>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-
-                                <table class="table table-sm table-bordered" id="diagnostics_table">
-                                    <thead class="table-success">
-                                        <tr>
-                                            <th scope="col">Actions</th>
-                                            <th scope="col">Name</th>
-                                        </tr>
-                                    </thead>
-
-                                    <tbody>
-                                        <tr>
-                                            <td></td>
-                                            <td></td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Radiology and Laboratory -->
-                        <div class="tab-pane w-100" id="radLabTab" role="tabpanel" aria-labelledby="radLabTab-tab" tabindex="0">
-                            <h4>Radiology & Laboratory</h4>
-                            <hr class="m-0 mb-4">
-
-                            <form class="d-flex gap-4" id="rad_lab_form">
-                                @csrf
-
-                                <div class=" w-50">
-                                    <label class="form-label fw-bold" for="preview_radiology">Radiology <span class="bg-success text-white rounded px-2 py-0 d-none" style="font-size: 14px;" id="radiology_hasfile"><i class="fa-solid fa-check"></i> Document Available</span></label>
-                                    <div class="input-group input-group-sm">
-                                        <input class="form-control form-control-sm" type="file" name="radiology" id="radiology_result">
-                                        <button type="button" class="btn btn-sm btn-primary" name="preview_radiology" id="preview_radiology">Preview</button>
-                                    </div>
-                                </div>
-
-                                <div class=" w-50">
-                                    <label class="form-label fw-bold" for="preview_laboratory">Laboratory <span class="bg-success text-white rounded px-2 py-0 d-none" style="font-size: 14px;" id="laboratory_hasfile"><i class="fa-solid fa-check"></i> Document Available</span></label>
-                                    <div class="input-group">
-                                        <input class="form-control form-control-sm" type="file" name="laboratory" id="laboratory_result">
-                                        <button type="button" class="btn btn-sm btn-primary" name="preview_laboratory" id="preview_laboratory">Preview</button>
-                                    </div>
-                                </div>
-                            </form>
-                            <div class="form-text mb-2">Uploading files will overwrite the old one. Images can be previewed while document files are downloaded.</div>
-
-                            <div>
-                                <button type="button" class="btn btn-sm btn-primary" id="update_files_btn">Save updates</button>
-                                <div class="form-text">Save updated files before switching tabs.</div>
-                            </div>
-                        </div>
-
-                        <!-- Patient Charges -->
-                        <div class="tab-pane w-100" id="patientChargeTab" role="tabpanel" aria-labelledby="patientChargeTab-tab"
-                            tabindex="0">
-                            <h4>Patient Charges</h4>
-                            <hr class="m-0 mb-4">
-
-                            <div class="table-responsive">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="m-0 fw-bold">List of Charges</h6>
-                                    {{-- Detailed Comment: Removed data-bs-toggle="modal" so opening append charges does not dismiss consultation_modal --}}
-                                    <button class="btn btn-sm btn-warning text-white" id="append_charge_btn" type="button">
-                                        <i class="fa-solid fa-plus"></i> Append Charges
-                                    </button>
-                                </div>
-
-                                <table class="table table-sm table-bordered align-middle" id="charges_table">
-                                    <thead class="table-warning">
-                                        <tr>
-                                            <th scope="col">Actions</th>
-                                            <th scope="col">Description</th>
-                                            <th scope="col">Quantity</th>
-                                            <th scope="col">Unit Price</th>
-                                            <th scope="col">Total Amount</th>
-                                        </tr>
-                                    </thead>
-
-                                    <tbody></tbody>
-                                </table>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <!-- TAB 2: CONSULTATION HISTORY (Full-width dedicated history pane) -->
-            <div class="tab-pane fade h-100" id="main_medhistory_pane" role="tabpanel" aria-labelledby="main_medhistory_tab_btn" tabindex="0">
-                <div class="d-flex flex-column h-100 p-2 overflow-y-auto">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div>
-                            <h5 class="fw-bold m-0 text-dark"><i class="fa-solid fa-clock-rotate-left text-primary me-2"></i> Patient Consultation History</h5>
-                            <small class="text-muted">Previous recorded consultations, impressions, and diagnoses for this patient</small>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="refresh_medhistory_btn" title="Refresh Consultation History">
-                            <i class="fa-solid fa-rotate me-1"></i> Refresh
-                        </button>
-                    </div>
-
-                    <div class="table-responsive flex-grow-1">
-                        <table class="table table-sm table-bordered table-hover align-middle w-100" id="medhistory_table">
-                            <thead class="table-warning">
-                                <tr>
-                                    <th scope="col" style="width: 80px;" class="text-center">Action</th>
-                                    <th scope="col" style="width: 70px;" class="text-center">Photo</th>
-                                    <th scope="col" style="width: 130px;">Consultation Date</th>
-                                    <th scope="col">Chief Complaint</th>
-                                    <th scope="col">Diagnosis</th>
-                                    <th scope="col" style="width: 100px;" class="text-center">Status</th>
-                                    <th scope="col" style="width: 140px;">Doctor / Recorded By</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                </div>
-            </div>
-
-            <!-- TAB 3: PERMANENT MEDICAL HISTORY (Allergies, Injections, Medical/Surgical/Family history, Maintenance meds) -->
-            <div class="tab-pane fade h-100" id="main_permanent_medhistory_pane" role="tabpanel" aria-labelledby="main_permanent_medhistory_tab_btn" tabindex="0">
-                <div class="d-flex flex-column h-100 p-2 overflow-y-auto">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div>
-                            <h5 class="fw-bold m-0 text-dark"><i class="fa-solid fa-notes-medical text-danger me-2"></i> Permanent Clinical &amp; Medical History</h5>
-                            <small class="text-muted">Lifetime clinical profile, allergies, injections, chronic conditions, and surgical history persisting across all visits</small>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-primary fw-bold" id="save_doctor_medhistory_btn">
-                            <i class="fa-solid fa-floppy-disk me-1"></i> Save Medical History
-                        </button>
-                    </div>
-
-                    <div class="row g-2 flex-grow-1">
-                        <div class="col-12 col-lg-6">
-                            <div class="card h-100 border">
-                                <div class="card-header bg-light py-1 fw-bold text-dark small">
-                                    <i class="fa-solid fa-triangle-exclamation text-danger me-1"></i> Critical Alerts &amp; Immunizations
-                                </div>
-                                <div class="card-body p-2 d-flex flex-column gap-2">
-                                    <div>
-                                        <label class="form-label fw-bold text-danger small mb-1" for="doc_allergies">
-                                            Allergies &amp; Adverse Drug Reactions:
-                                        </label>
-                                        <textarea class="form-control form-control-sm border-danger" id="doc_allergies" rows="2" placeholder="e.g. Seafood, Penicillin, Aspirin, Latex"></textarea>
-                                        <div class="form-text text-danger" style="font-size: 10px;">Warning banner appears in patient summary card if allergies are specified.</div>
-                                    </div>
-
-                                    <div>
-                                        <label class="form-label fw-bold text-dark small mb-1" for="doc_injections">
-                                            <i class="fa-solid fa-syringe text-primary me-1"></i> Injections &amp; Immunization Log:
-                                        </label>
-                                        <textarea class="form-control form-control-sm" id="doc_injections" rows="2" placeholder="e.g. Flu Vaccine (2025), Pneumococcal, Tetanus Toxoid"></textarea>
-                                    </div>
-
-                                    <div>
-                                        <label class="form-label fw-bold text-dark small mb-1" for="doc_maintenance_meds">
-                                            <i class="fa-solid fa-pills text-info me-1"></i> Daily Maintenance Medications:
-                                        </label>
-                                        <textarea class="form-control form-control-sm" id="doc_maintenance_meds" rows="2" placeholder="e.g. Amlodipine 5mg OD, Losartan 50mg OD, Metformin 500mg BID"></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-12 col-lg-6">
-                            <div class="card h-100 border">
-                                <div class="card-header bg-light py-1 fw-bold text-dark small">
-                                    <i class="fa-solid fa-heart-pulse text-secondary me-1"></i> Medical, Surgical &amp; Family History
-                                </div>
-                                <div class="card-body p-2 d-flex flex-column gap-2">
-                                    <div>
-                                        <label class="form-label fw-bold text-dark small mb-1" for="doc_past_medical_history">
-                                            Past Medical History (Chronic Illnesses):
-                                        </label>
-                                        <textarea class="form-control form-control-sm" id="doc_past_medical_history" rows="2" placeholder="e.g. Hypertension (5 yrs), Type 2 Diabetes Mellitus, Bronchial Asthma"></textarea>
-                                    </div>
-
-                                    <div>
-                                        <label class="form-label fw-bold text-dark small mb-1" for="doc_surgical_history">
-                                            <i class="fa-solid fa-bandage text-warning me-1"></i> Past Surgical History:
-                                        </label>
-                                        <textarea class="form-control form-control-sm" id="doc_surgical_history" rows="2" placeholder="e.g. Appendectomy (2018), Cholecystectomy (2022)"></textarea>
-                                    </div>
-
-                                    <div>
-                                        <label class="form-label fw-bold text-dark small mb-1" for="doc_family_history">
-                                            <i class="fa-solid fa-users text-success me-1"></i> Family Medical History:
-                                        </label>
-                                        <textarea class="form-control form-control-sm" id="doc_family_history" rows="2" placeholder="e.g. Maternal DM, Paternal CAD/Stroke"></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-12">
-                            <div class="p-2 border rounded bg-light">
-                                <label class="form-label fw-bold text-dark small mb-1" for="doc_clinical_notes">
-                                    <i class="fa-solid fa-comment-medical text-secondary me-1"></i> Special Clinical Notes &amp; Precautions:
-                                </label>
-                                <textarea class="form-control form-control-sm" id="doc_clinical_notes" rows="2" placeholder="Special patient precautions, dietary restrictions, or notes"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-</div>
 
             <div class="modal-footer">
                 {{-- Detailed Comment: Trigger append charge modal without toggling/closing consultation_modal --}}
-                <button type="button" class="btn btn-sm btn-info fw-bold" id="append_charge_btn_2">Append Patient Charges</button>
-                <button type="button" class="btn btn-sm btn-info fw-bold" data-bs-target="#diagnostic_modal" id="diagnostic_btn" data-bs-toggle="modal">Diagnostic Requests</button>
-                <button type="button" class="btn btn-sm btn-info fw-bold" data-bs-target="#rx_modal" id="gen_rx_btn" data-bs-toggle="modal">Generate Rx</button>
+                <button type="button" class="btn btn-sm btn-info fw-bold" id="append_charge_btn_2">Append Patient
+                    Charges</button>
+                <button type="button" class="btn btn-sm btn-info fw-bold" data-bs-target="#diagnostic_modal"
+                    id="diagnostic_btn" data-bs-toggle="modal">Diagnostic Requests</button>
+                <button type="button" class="btn btn-sm btn-info fw-bold" data-bs-target="#rx_modal" id="gen_rx_btn"
+                    data-bs-toggle="modal">Generate Rx</button>
                 <button type="button" class="btn btn-sm btn-primary fw-bold" id="save_consul">Save Consultation</button>
             </div>
         </div>
@@ -465,7 +604,8 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">Diagnostic Requests</h2>
-                <button type="button" class="btn-close return_btn" data-bs-target="#consultation_modal" data-bs-toggle="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close return_btn" data-bs-target="#consultation_modal"
+                    data-bs-toggle="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
@@ -488,7 +628,8 @@
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary w-25 return_btn" data-bs-target="#consultation_modal" data-bs-toggle="modal" id="diag_to_consul">Cancel</button>
+                <button type="button" class="btn btn-outline-secondary w-25 return_btn"
+                    data-bs-target="#consultation_modal" data-bs-toggle="modal" id="diag_to_consul">Cancel</button>
                 <button type="button" class="btn btn-info text-white w-25" id="save_requests">Save Requests</button>
             </div>
         </div>
@@ -501,7 +642,8 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title">Generate Rx</h2>
-                <button type="button" class="btn-close return_btn" data-bs-target="#consultation_modal" data-bs-toggle="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close return_btn" data-bs-target="#consultation_modal"
+                    data-bs-toggle="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
@@ -509,7 +651,9 @@
                     <!-- Patient Information in Rx Modal -->
                     <div class="accordion-item">
                         <h2 class="accordion-header">
-                            <button class="accordion-button fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#rx_modal_patient_info" aria-expanded="true" aria-controls="rx_modal_patient_info">
+                            <button class="accordion-button fw-bold" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#rx_modal_patient_info" aria-expanded="true"
+                                aria-controls="rx_modal_patient_info">
                                 <i class="fa-solid fa-user me-2"></i> Patient Information
                             </button>
                         </h2>
@@ -551,10 +695,10 @@
                 </div>
 
                 <ul class="nav nav-tabs nav-fill" role="tablist">
-                    <li class="nav-item" role="presentation">
+                    <!-- <li class="nav-item" role="presentation">
                         <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#rx" role="tab"
                             aria-controls="rx" aria-selected="true" id="usemyrx">Use My Rx</button>
-                    </li>
+                    </li> -->
 
                     <!-- <li class="nav-item" role="presentation">
                         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#new_rx" role="tab"
@@ -564,8 +708,7 @@
 
                 <div class="tab-content border border-top-0 rounded-bottom d-flex p-4 flex-column flex-grow-1">
                     <!-- My Rx -->
-                    <div class="tab-pane active h-100" id="rx" role="tabpanel" aria-labelledby="rx-tab"
-                        tabindex="0">
+                    <div class="tab-pane active h-100" id="rx" role="tabpanel" aria-labelledby="rx-tab" tabindex="0">
                         <div class="table-responsive">
                             <table class="table table-sm table-bordered align-middle caption-top" id="rx_table">
                                 <caption>Prescriptions</caption>
@@ -592,21 +735,23 @@
 
                             <div class="d-flex flex-column flex-fill" style="min-width: 250px;">
                                 <label class="form-label fw-bold" for="myinstructions">Instructions / Sig</label>
-                                <input class="form-control" type="text" name="myinstructions" id="myinstructions" placeholder="e.g. 1 tab 3x a day after meals">
+                                <input class="form-control" type="text" name="myinstructions" id="myinstructions"
+                                    placeholder="e.g. 1 tab 3x a day after meals">
                             </div>
 
                             <div style="width: 100px;">
                                 <label class="form-label fw-bold" for="myquantity">Quantity</label>
-                                <input class="form-control" type="number" name="myquantity" id="myquantity" value="1" min="1" required>
+                                <input class="form-control" type="number" name="myquantity" id="myquantity" value="1"
+                                    min="1" required>
                             </div>
 
-                            <button type="button" class="btn btn-primary align-self-end mt-2" id="add_rx">Add Medicine</button>
+                            <button type="button" class="btn btn-primary align-self-end mt-2" id="add_rx">Add
+                                Medicine</button>
                         </form>
                     </div>
 
                     <!-- Create New Rx -->
-                    <div class="tab-pane h-100" id="new_rx" role="tabpanel" aria-labelledby="new_rx-tab"
-                        tabindex="0">
+                    <div class="tab-pane h-100" id="new_rx" role="tabpanel" aria-labelledby="new_rx-tab" tabindex="0">
                         <div class="table-responsive">
                             <table class="table table-bordered caption-top" id="create_new_rx_table">
                                 <caption>Prescription</caption>
@@ -628,14 +773,16 @@
                 <div class="mt-4 mx-4">
                     <div class="">
                         <label class="form-label" for="pxinstructions">Instructions</label>
-                        <textarea class="form-control" name="pxinstructions" rows="3" id="pxinstructions" required></textarea>
+                        <textarea class="form-control" name="pxinstructions" rows="3" id="pxinstructions"
+                            required></textarea>
                         <div class="form-text">Enter patient instructions here.</div>
                     </div>
                 </div>
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary w-25 return_btn" data-bs-target="#consultation_modal" data-bs-toggle="modal">Cancel</button>
+                <button type="button" class="btn btn-outline-secondary w-25 return_btn"
+                    data-bs-target="#consultation_modal" data-bs-toggle="modal">Cancel</button>
                 <button type="button" class="btn btn-info text-white w-25" id="save_rx_btn">Save Rx</button>
             </div>
         </div>
@@ -644,15 +791,15 @@
 
 <!-- Append Charges Modal -->
 {{-- Detailed Comment: Stacked child modal with z-index 1060 positioned over consultation_modal (z-index 1055) --}}
-<div class="modal fade" data-bs-backdrop="static" id="append_charge_modal" tabindex="-1" aria-labelledby="append_charge_modalModalLabel"
-	aria-hidden="true" style="z-index: 1060;">
-	<div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-		<form class="modal-content" id="appended_charges_form">
-			<div class="modal-header">
-				<h3 class="modal-title"><i class="fa-solid fa-coins"></i> Append Charges</h3>
-				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-			</div>
-			<div class="modal-body d-flex flex-column gap-3">
+<div class="modal fade" data-bs-backdrop="static" id="append_charge_modal" tabindex="-1"
+    aria-labelledby="append_charge_modalModalLabel" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <form class="modal-content" id="appended_charges_form">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fa-solid fa-coins"></i> Append Charges</h3>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body d-flex flex-column gap-3">
                 <div class="">
                     <label class="form-label fw-bold" for="search_charge">Search Charges</label>
                     <div class="input-group">
@@ -675,16 +822,19 @@
                 <div class="d-flex align-items-end gap-2">
                     <div class="flex-fill">
                         <label class="form-label fw-bold" for="charge_qty">Quantity</label>
-                        <input class="form-control" type="number" name="charge_qty" id="charge_qty" min="0" value="0" required>
+                        <input class="form-control" type="number" name="charge_qty" id="charge_qty" min="0" value="0"
+                            required>
                     </div>
                     <div class="flex-fill d-flex flex-column">
                         <label class="form-label fw-bold" for="charge_amount">Charge Amount</label>
-                        <input class="form-control" type="number" name="charge_amount" id="charge_amount" min="0" value="0" required>
+                        <input class="form-control" type="number" name="charge_amount" id="charge_amount" min="0"
+                            value="0" required>
                         <!-- <select class="form-select" name="charge_amount" id="charge_amount">
                             <option selected disabled>-- Select Price --</option>
                         </select> -->
                     </div>
-                    <button type="button" class="btn btn-primary text-white" id="append_to_charges_btn"><i class="fa-solid fa-plus"></i> Append Charge</button>
+                    <button type="button" class="btn btn-primary text-white" id="append_to_charges_btn"><i
+                            class="fa-solid fa-plus"></i> Append Charge</button>
                 </div>
                 <div class="">
                     <label class="form-label fw-bold">Appended Charges</label>
@@ -703,13 +853,13 @@
                         </table>
                     </div>
                 </div>
-			</div>
-			<div class="modal-footer">
+            </div>
+            <div class="modal-footer">
                 <button type="button" class="btn btn-primary" id="save_charges_btn">Save</button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-			</div>
+            </div>
         </form>
-	</div>
+    </div>
 </div>
 
 <!-- Preview File -->
@@ -724,12 +874,15 @@
 
             <div class="modal-body text-center p-3">
                 <iframe id="docPreview" width="100%" height="600px" style="display: none; border: none;"></iframe>
-                <img id="imgPreview" class="img-fluid mx-auto d-none rounded shadow-sm" style="max-height: 600px; object-fit: contain;" src="" alt="Document Preview">
+                <img id="imgPreview" class="img-fluid mx-auto d-none rounded shadow-sm"
+                    style="max-height: 600px; object-fit: contain;" src="" alt="Document Preview">
             </div>
 
             <div class="modal-footer">
-                <a id="preview_download_btn" href="#" target="_blank" download class="btn btn-outline-primary d-none"><i class="fa-solid fa-download me-1"></i> Download File</a>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="preview_close_btn">Close</button>
+                <a id="preview_download_btn" href="#" target="_blank" download class="btn btn-outline-primary d-none"><i
+                        class="fa-solid fa-download me-1"></i> Download File</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"
+                    id="preview_close_btn">Close</button>
             </div>
         </div>
     </div>

@@ -49,6 +49,8 @@
     @include('modals.doctor_info')
     @include('modals.add_patient')
     @include('modals.patient_masterlist')
+    {{-- Detailed Comment: Dedicated Consultation Details Viewer modal for viewing previous consultation history --}}
+    @include('modals.view_consultation_details')
     {{-- Detailed Comment: Camera capture modal for patient photo --}}
     @include('modals.take_photo')
 @endpush

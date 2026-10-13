@@ -8,13 +8,9 @@ class XmlTransModel extends Model
 {
     protected $table = 'xml_transmittal_reports';
 
-    protected $primaryKey = 'UPLOAD_ID';
+    protected $primaryKey = 'id';
 
     public $timestamps = false;
-
-    public $incrementing = false;
-
-    protected $keyType = 'string';
 
     protected $fillable = [
         'dw_clientcode',

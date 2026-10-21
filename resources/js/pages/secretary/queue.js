@@ -111,7 +111,8 @@ $(function () {
     updateDoctorQueueBadges();
     // Detailed Comment: Load consolidated daily queue financial summary card metrics at initial page load
     loadQueueFinancialSummary();
-    // Detailed Comment: Initialize dynamic classification visibility based on initial selection
+    // Detailed Comment: Initialize dynamic doctor classification filtering and subfield visibility based on initial selection
+    filterClassificationBySelectedDoctor();
     updateClassificationFields($("#patient_classification").val() || 'MEDICAL');
 
     /**
@@ -784,41 +785,104 @@ $(function () {
      * Shows/hides dynamic classification groups (Medical sub-classification, OB/GYN case history,
      * Delivery procedure, New Born procedure source, and Pathologic case) based on selected classification.
      */
+    /**
+     * Detailed Comment: Dynamic classification fields renderer for the consultation encounter form.
+     * Evaluates both specific classification codes and data-subfields configured on the classification.
+     */
     function updateClassificationFields(classification) {
-        const val = String(classification || $("#patient_classification").val() || "").trim().toUpperCase();
+        const $classSelect = $("#patient_classification");
+        const val = String(classification || $classSelect.val() || "").trim().toUpperCase();
         const $container = $("#classification_dynamic_container");
+        const $selectedOpt = $classSelect.find(`option[value="${val}"]`).first();
+        let subFields = $selectedOpt.data("subfields");
+        if (typeof subFields === "string") {
+            try { subFields = JSON.parse(subFields); } catch(e) { subFields = []; }
+        }
+        if (!Array.isArray(subFields)) subFields = [];
+
         $(".dynamic-class-pane").addClass("d-none");
 
-        if (val === "MEDICAL") {
+        const hasSubMedical = subFields.includes("medical_subclassification") || val === "MEDICAL" || val === "GENERAL";
+        const hasSubObGyn = subFields.includes("gravida") || subFields.includes("lmp_date") || val === "OBSTETRICS" || val === "GYNECOLOGY";
+        const hasSubDelivery = subFields.includes("delivery_procedure") || val === "OBSTETRICS" || val === "NEW BORN";
+        const hasSubNewborn = subFields.includes("newborn_procedure") || val === "NEW BORN";
+
+        if (hasSubMedical || hasSubObGyn || hasSubDelivery || hasSubNewborn) {
             $container.removeClass("d-none");
-            $("#dynamic_fields_medical").removeClass("d-none");
-        } else if (val === "OBSTETRICS") {
-            $container.removeClass("d-none");
-            $("#dynamic_fields_obgyn").removeClass("d-none");
-            $("#dynamic_fields_delivery").removeClass("d-none");
-            $("#delivery_proc_col").removeClass("d-none");
-            $("#newborn_source_col").addClass("d-none");
-            $("#dynamic_fields_pathologic").removeClass("d-none");
-        } else if (val === "GYNECOLOGY") {
-            $container.removeClass("d-none");
-            $("#dynamic_fields_obgyn").removeClass("d-none");
-            $("#dynamic_fields_delivery").addClass("d-none");
-            $("#dynamic_fields_pathologic").removeClass("d-none");
-        } else if (val === "NEW BORN") {
-            $container.removeClass("d-none");
-            $("#dynamic_fields_obgyn").addClass("d-none");
-            $("#dynamic_fields_delivery").removeClass("d-none");
-            $("#delivery_proc_col").removeClass("d-none");
-            $("#newborn_source_col").removeClass("d-none");
-            $("#dynamic_fields_pathologic").removeClass("d-none");
+            if (hasSubMedical) $("#dynamic_fields_medical").removeClass("d-none");
+            if (hasSubObGyn) $("#dynamic_fields_obgyn").removeClass("d-none");
+            if (hasSubDelivery) {
+                $("#dynamic_fields_delivery").removeClass("d-none");
+                $("#delivery_proc_col").removeClass("d-none");
+                $("#dynamic_fields_pathologic").removeClass("d-none");
+            }
+            if (hasSubNewborn) {
+                $("#dynamic_fields_delivery").removeClass("d-none");
+                $("#newborn_source_col").removeClass("d-none");
+                $("#dynamic_fields_pathologic").removeClass("d-none");
+            }
+            if (val === "OBSTETRICS" || val === "GYNECOLOGY") {
+                $("#dynamic_fields_pathologic").removeClass("d-none");
+            }
         } else {
             $container.addClass("d-none");
         }
     }
     window.updateClassificationFields = updateClassificationFields;
 
+    /**
+     * Detailed Comment: Filters the consultation form Patient Classification dropdown to only show
+     * classifications available on the currently selected doctor.
+     * When the selected doctor is assigned the 'GENERAL' classification or has no restrictions configured,
+     * ALL active patient classifications remain enabled and available for selection.
+     */
+    function filterClassificationBySelectedDoctor() {
+        const $docSelect = $("#doctor_for_consult");
+        const $classSelect = $("#patient_classification");
+        const $selectedDocOpt = $docSelect.find("option:selected");
+
+        let docSpecs = $selectedDocOpt.data("specializations");
+        if (typeof docSpecs === "string") {
+            try { docSpecs = JSON.parse(docSpecs); } catch(e) {
+                docSpecs = docSpecs.split(",").map(s => s.trim().toUpperCase());
+            }
+        }
+        if (!Array.isArray(docSpecs)) docSpecs = [];
+
+        // Detailed Comment: Check if doctor has GENERAL classification (case-insensitive)
+        const isGeneralDoctor = docSpecs.some(s => String(s).trim().toUpperCase() === "GENERAL");
+
+        let firstAvailableVal = null;
+        const currentVal = String($classSelect.val() || "").trim().toUpperCase();
+        let currentValStillAvailable = false;
+
+        $classSelect.find("option").each(function () {
+            const optVal = String($(this).val() || "").trim().toUpperCase();
+            // If doctor has GENERAL or has no defined specializations, allow ALL classifications; otherwise filter by docSpecs
+            const isMatch = isGeneralDoctor || (docSpecs.length === 0) || docSpecs.includes(optVal);
+            if (isMatch) {
+                $(this).prop("disabled", false).show();
+                if (!firstAvailableVal) firstAvailableVal = optVal;
+                if (optVal === currentVal) currentValStillAvailable = true;
+            } else {
+                $(this).prop("disabled", true).hide();
+            }
+        });
+
+        if (!currentValStillAvailable && firstAvailableVal) {
+            $classSelect.val(firstAvailableVal).trigger("change");
+        } else {
+            updateClassificationFields($classSelect.val());
+        }
+    }
+    window.filterClassificationBySelectedDoctor = filterClassificationBySelectedDoctor;
+
     $(document).on("change", "#patient_classification", function () {
         updateClassificationFields($(this).val());
+    });
+
+    $(document).on("change", "#doctor_for_consult", function () {
+        filterClassificationBySelectedDoctor();
     });
 
     /**
@@ -1275,11 +1339,38 @@ $(function () {
             .text(`Type: ${ptype}`)
             .attr('class', `badge ${typeBadges[ptype] || 'bg-secondary text-white'} fs-6`);
 
-        // Detailed Comment: Update patient classification badge in consultation details viewer
+        // Detailed Comment: Update patient classification badge & dynamic sub-fields in consultation details viewer
+        const rawClass = (record.classification || 'MEDICAL').toUpperCase();
         if (record.classification) {
-            $("#vcd_classification_badge").text(`Class: ${record.classification.toUpperCase()}`).removeClass('d-none');
+            $("#vcd_classification_badge").text(`Class: ${rawClass}`).removeClass('d-none');
         } else {
             $("#vcd_classification_badge").addClass('d-none');
+        }
+
+        let classDetails = [];
+        if ((rawClass === 'MEDICAL' || rawClass === 'GENERAL') && record.subclassification) {
+            classDetails.push(`<strong>Sub-classification:</strong> ${record.subclassification}`);
+        } else if (rawClass === 'OBSTETRICS' || rawClass === 'GYNECOLOGY') {
+            let obScores = [];
+            if (record.gravida !== null && record.gravida !== undefined && record.gravida !== '') obScores.push(`G: ${record.gravida}`);
+            if (record.para !== null && record.para !== undefined && record.para !== '') obScores.push(`P: ${record.para}`);
+            if (record.abortion !== null && record.abortion !== undefined && record.abortion !== '') obScores.push(`A: ${record.abortion}`);
+            if (record.iufd !== null && record.iufd !== undefined && record.iufd !== '') obScores.push(`IUFD: ${record.iufd}`);
+            if (record.died !== null && record.died !== undefined && record.died !== '') obScores.push(`Died: ${record.died}`);
+            if (obScores.length > 0) classDetails.push(`<strong>OB Scores:</strong> ${obScores.join(', ')}`);
+            if (record.lmp_date) classDetails.push(`<strong>LMP Date:</strong> ${record.lmp_date}`);
+            if (record.delivery_procedure) classDetails.push(`<strong>Delivery:</strong> ${record.delivery_procedure}`);
+            if (record.pathologic) classDetails.push(`<span class="badge bg-danger">Pathologic Case</span>`);
+        } else if (rawClass === 'NEW BORN') {
+            if (record.infacilitydelivery) classDetails.push(`<strong>Source:</strong> ${record.infacilitydelivery}`);
+            if (record.delivery_procedure) classDetails.push(`<strong>Delivery:</strong> ${record.delivery_procedure}`);
+            if (record.pathologic) classDetails.push(`<span class="badge bg-danger">Pathologic Case</span>`);
+        }
+
+        if (classDetails.length > 0) {
+            $("#vcd_classification_fields_row").html(classDetails.join(' | ')).removeClass('d-none');
+        } else {
+            $("#vcd_classification_fields_row").addClass('d-none').empty();
         }
 
         // 2. Patient Demographics & Vitals

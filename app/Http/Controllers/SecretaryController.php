@@ -55,18 +55,21 @@ class SecretaryController extends Controller
         $isAdmin = auth()->guard('admin')->check();
 
         if ($isAdmin) {
-            $doctors = DoctorsProfileModel::select(['docrefno', 'docname'])->get();
+            $doctors = DoctorsProfileModel::select(['docrefno', 'docname', 'specializations', 'expertise'])->get();
         } else {
             $assigned_doctors = $secUser ? SecretaryDoctorsModel::where([
                 'secrefno' => $secUser->secrefno
             ])->pluck('docrefno') : collect();
 
-            $doctors = DoctorsProfileModel::select(['docrefno', 'docname'])
+            $doctors = DoctorsProfileModel::select(['docrefno', 'docname', 'specializations', 'expertise'])
                 ->whereIn('docrefno', $assigned_doctors)
                 ->get();
         }
 
         $secretaries = SecretaryModel::select(['secrefno', 'seclname', 'secfname'])->get();
+
+        // Detailed Comment: Load active patient classifications and dynamic sub-fields for secretary consultation form
+        $patientClassifications = \App\Models\PatientClassificationModel::active()->get();
 
         // Detailed Comment: Load active disease library entries for Yakap Medical History/Profiling modal checklist
         $mDiseaseLibrary = MDiseaseLibModel::where('lib_stat', 1)
@@ -80,11 +83,13 @@ class SecretaryController extends Controller
             'secrefno' => $secUser ? $secUser->secrefno : null,
             'assigned_doctors_count' => $doctors->count(),
             'mdisease_count' => $mDiseaseLibrary->count(),
+            'patient_classifications_count' => $patientClassifications->count(),
         ]);
 
         return view('pages.secretary.queue', [
             'doctors' => $doctors,
             'secretaries' => $secretaries,
+            'patientClassifications' => $patientClassifications,
             'mDiseaseLibrary' => $mDiseaseLibrary,
         ]);
     }
@@ -443,6 +448,12 @@ class SecretaryController extends Controller
 
         $sched->update($updateData);
 
+        // Detailed Comment: Automatically re-synchronize doctor's clinichours with updated docschedules
+        $doctorProfile = DoctorsProfileModel::where('docrefno', $sched->docrefno)->first();
+        if ($doctorProfile) {
+            $doctorProfile->syncClinicHoursFromSchedules();
+        }
+
         Log::info('Doctor schedule updated', [
             'schedrefno' => $request->schedrefno,
             'day' => $request->day,
@@ -507,6 +518,9 @@ class SecretaryController extends Controller
 
         $schedule = ScheduleModel::create($scheduleData);
 
+        // Detailed Comment: Automatically synchronize doctor's clinichours with newly created schedule
+        $doctor->syncClinicHoursFromSchedules();
+
         // Detailed Comment: Structured logging for schedule creation
         Log::info('Doctor schedule created', [
             'schedrefno' => $schedrefno,
@@ -541,7 +555,16 @@ class SecretaryController extends Controller
             return response()->json(['success' => false, 'message' => 'Schedule not found.'], 404);
         }
 
+        $docRefToDelete = $sched->docrefno;
         $sched->delete();
+
+        // Detailed Comment: Automatically re-synchronize doctor's clinichours after deletion
+        if ($docRefToDelete) {
+            $doctorProfile = DoctorsProfileModel::where('docrefno', $docRefToDelete)->first();
+            if ($doctorProfile) {
+                $doctorProfile->syncClinicHoursFromSchedules();
+            }
+        }
 
         Log::info('Doctor schedule deleted', [
             'schedrefno' => $request->schedrefno,

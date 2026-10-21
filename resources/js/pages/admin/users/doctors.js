@@ -23,6 +23,39 @@ $(function () {
         fullAddressInput: '#eadrs'
     });
 
+    // Detailed Comment: Load active patient classifications to populate doctor specializations multi-select
+    let availableClassifications = [];
+    function loadClassificationsDropdowns() {
+        $.ajax({
+            url: '/api/patient_classifications?active_only=1',
+            type: 'GET',
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            success: function (res) {
+                availableClassifications = res.data || [];
+                let optionsHtml = '';
+                availableClassifications.forEach(c => {
+                    optionsHtml += `<option value="${c.classification_code}">${c.classification_name} (${c.classification_code})</option>`;
+                });
+                $('#add_doctor_specializations').html(optionsHtml);
+                $('#edit_doctor_specializations').html(optionsHtml);
+
+                if ($.fn.select2) {
+                    $('#add_doctor_specializations').select2({
+                        dropdownParent: $('#add_doctor_modal'),
+                        placeholder: 'Select doctor specializations...',
+                        width: '100%'
+                    });
+                    $('#edit_doctor_specializations').select2({
+                        dropdownParent: $('#edit_doctor_modal'),
+                        placeholder: 'Select doctor specializations...',
+                        width: '100%'
+                    });
+                }
+            }
+        });
+    }
+    loadClassificationsDropdowns();
+
     loadDoctors();
 
     // Detailed Comment: Auto-populate doctor username from lowercase last name
@@ -117,6 +150,15 @@ $(function () {
                     // Tab 3: Practice & Clinic
                     $("#eproftype").val(doc.proftype || '');
                     $("#eexpertise").val(doc.expertise || '');
+                    let specs = [];
+                    if (Array.isArray(doc.specializations)) {
+                        specs = doc.specializations;
+                    } else if (typeof doc.specializations === 'string' && doc.specializations.startsWith('[')) {
+                        try { specs = JSON.parse(doc.specializations); } catch(e) {}
+                    } else if (doc.expertise) {
+                        specs = doc.expertise.split(',').map(s => s.trim().toUpperCase());
+                    }
+                    $("#edit_doctor_specializations").val(specs).trigger('change');
                     $("#edepartment").val(doc.department || '');
                     $("#eprofgroup").val(doc.profgroup || '');
                     $("#ecatg").val(doc.catg || '');
@@ -160,6 +202,9 @@ $(function () {
         var form = document.getElementById("add_doctor_form");
         if (!form.checkValidity()) { form.reportValidity(); return; }
 
+        const addSpecs = $('#add_doctor_specializations').val() || [];
+        $('#expertise').val(addSpecs.join(', '));
+
         $.ajax({
             url: "/api/add_doctor",
             type: "POST",
@@ -171,6 +216,7 @@ $(function () {
                     Swal.fire({ title: 'Success', text: 'Doctor account added successfully.', icon: 'success', confirmButtonText: 'Okay' })
                         .then(() => {
                             $("#add_doctor_form")[0].reset();
+                            $('#add_doctor_specializations').val([]).trigger('change');
                             addDocAddressCascade.reset();
                             $("#docusername").data("auto-generated", false);
                             loadDoctors();
@@ -192,6 +238,9 @@ $(function () {
     $("#edit_doctor_form_btn").on("click", function () {
         var form = document.getElementById("edit_doctor_form");
         if (!form.checkValidity()) { form.reportValidity(); return; }
+
+        const editSpecs = $('#edit_doctor_specializations').val() || [];
+        $('#eexpertise').val(editSpecs.join(', '));
 
         Swal.fire({ title: "Confirmation", text: "Save edited doctor information?", icon: "warning", showCancelButton: true, confirmButtonText: "Yes, save" })
             .then((result) => {
@@ -395,4 +444,67 @@ $(function () {
                 }
             });
     });
+
+    // Detailed Comment: Synchronize clinic hours input from doctor's schedules in docschedules
+    $(document).on("click", ".sync-clinic-hours-btn", function () {
+        const docrefno = $("#edocrefno").val() || $("#choose_doctor").val();
+        if (!docrefno) {
+            Swal.fire({ title: 'Notice', text: 'Please select or load a doctor profile first.', icon: 'info' });
+            return;
+        }
+
+        const $btn = $(this);
+        const originalHtml = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin me-1"></i> Syncing...');
+
+        $.ajax({
+            url: "/api/fetch_doctor_schedules",
+            type: "POST",
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            data: { docrefno: docrefno },
+            success: function (res) {
+                $btn.prop('disabled', false).html(originalHtml);
+                if (res.success && Array.isArray(res.schedules)) {
+                    if (res.schedules.length === 0) {
+                        $("#eclinichours, #prof_clinichours").val('');
+                        Swal.fire({ title: 'Clinic Hours', text: 'Doctor has no active clinic schedules configured.', icon: 'info' });
+                        return;
+                    }
+                    const dayAbbr = { 'Sunday':'Sun', 'Monday':'Mon', 'Tuesday':'Tue', 'Wednesday':'Wed', 'Thursday':'Thu', 'Friday':'Fri', 'Saturday':'Sat' };
+                    const groups = {};
+                    res.schedules.forEach(s => {
+                        const start = s.start ? formatTime12(s.start) : '';
+                        const end = s.end ? formatTime12(s.end) : '';
+                        const slot = `${start} - ${end}`.trim();
+                        const day = dayAbbr[s.day] || s.day;
+                        if (!groups[slot]) groups[slot] = [];
+                        if (!groups[slot].includes(day)) groups[slot].push(day);
+                    });
+                    const formattedParts = Object.keys(groups).map(slot => `${groups[slot].join(', ')} ${slot}`);
+                    const finalStr = formattedParts.join('; ');
+                    $("#eclinichours, #prof_clinichours").val(finalStr);
+                    Swal.fire({ title: 'Synced!', text: `Clinic hours updated: ${finalStr}`, icon: 'success', timer: 2000, showConfirmButton: false });
+                } else {
+                    Swal.fire({ title: 'Error', text: res.message || 'Unable to fetch schedules.', icon: 'error' });
+                }
+            },
+            error: function () {
+                $btn.prop('disabled', false).html(originalHtml);
+                Swal.fire({ title: 'Error', text: 'Failed to synchronize clinic hours.', icon: 'error' });
+            }
+        });
+    });
+
+    // Helper: Convert HH:mm:ss to 12-hour format
+    function formatTime12(timeStr) {
+        if (!timeStr) return '';
+        const parts = timeStr.split(':');
+        let hours = parseInt(parts[0], 10);
+        const mins = parts[1] || '00';
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        const strHours = hours < 10 ? '0' + hours : hours;
+        return `${strHours}:${mins} ${ampm}`;
+    }
 });

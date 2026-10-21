@@ -2,22 +2,67 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
 <head>
+    {{-- Detailed Comment: Immediate synchronous theme initialization to prevent Flash of Unstyled Content (FOUC) --}}
+    <script>
+        (function () {
+            try {
+                const storedTheme = localStorage.getItem('theme') || 'system';
+                const getPreferredTheme = () => {
+                    if (storedTheme === 'dark' || storedTheme === 'light') {
+                        return storedTheme;
+                    }
+                    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                };
+                document.documentElement.setAttribute('data-bs-theme', getPreferredTheme());
+            } catch (e) {
+                document.documentElement.setAttribute('data-bs-theme', 'light');
+            }
+        })();
+    </script>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <title>{{ config('app.name', 'Laravel') }} | Register</title>
-    <link rel="icon" type="image/png" href="favicon.ico">
-    @vite(['resources/js/app.js'])
+    <link rel="icon" type="image/png" href="{{ asset('favicon.ico') }}">
+    {{-- Detailed Comment: Apply active clinic theme CSS variables and dark mode styling to patient registration page --}}
+    <style>
+        :root {
+            --app-bg: {{ $activeTheme->app_background ?? '#f8f9fa' }};
+            --header-bg: {{ $activeTheme->header_bg ?? '#0d6efd' }};
+            --header-text: {{ $activeTheme->header_text_color ?? '#ffffff' }};
+            --primary-btn-bg: {{ $activeTheme->primary_button_bg ?? '#0d6efd' }};
+            --primary-btn-text: {{ $activeTheme->primary_button_text ?? '#ffffff' }};
+            --body-text: {{ $activeTheme->text_color ?? '#212529' }};
+        }
+
+        body {
+            background-color: var(--app-bg);
+            color: var(--body-text);
+        }
+
+        .navbar {
+            background-color: var(--header-bg) !important;
+            color: var(--header-text) !important;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-btn-bg) !important;
+            border-color: var(--primary-btn-bg) !important;
+            color: var(--primary-btn-text) !important;
+        }
+    </style>
+    @vite(['resources/js/app.js', 'resources/css/app.css'])
 </head>
 
 <body class="d-flex flex-column h-100" id="registration">
     <!-- Navbar -->
     <nav class="navbar bg-primary d-flex">
         <div class="navbar-brand d-flex align-items-center px-2 gap-2">
-            <img style="height: 50px;" src="{{ asset('images/logo.png') }}" alt="company_logo">
+            {{-- Detailed Comment: Dynamically render clinic logo configured in App Theme Settings --}}
+            <img style="height: 50px; object-fit: contain;" src="{{ asset($activeTheme->logo_path ?? 'images/logo.png') }}" alt="company_logo">
             <div class="d-flex flex-column">
                 <h3 class="fw-bold text-white m-0">E-Consultation</h3>
-                <p class="text-white m-0" style="font-size: 12px;">Company Name</p>
+                <p class="text-white m-0" style="font-size: 12px;">{{ $activeProfile->HOSP_NAME ?? 'Company Name' }}</p>
             </div>
         </div>
     </nav>

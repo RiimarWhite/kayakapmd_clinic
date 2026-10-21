@@ -24,7 +24,8 @@
 
 ## Admin
 - ~~Company profile~~
-- PhilHealth integration
+- ~~PhilHealth integration~~
+- ~~Patient classification management & doctor specializations multi-select~~
 - Charging
 - ~~Users management~~
     - ~~Doctors~~

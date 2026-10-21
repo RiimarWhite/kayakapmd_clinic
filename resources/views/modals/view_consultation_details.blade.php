@@ -89,6 +89,10 @@ laptops, and tablets without horizontal or vertical clipping.
                                 <strong id="vcd_bp" class="text-dark">--</strong>
                             </div>
                         </div>
+
+                        {{-- Detailed Comment: Dynamic Patient Classification & Case History display container --}}
+                        <div class="mt-2 p-2 bg-light rounded border small d-none"
+                            id="vcd_classification_fields_row"></div>
                     </div>
                 </div>
 

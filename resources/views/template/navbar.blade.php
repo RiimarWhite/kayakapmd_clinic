@@ -1,7 +1,8 @@
-<nav class="navbar" style="background-color: beige;">
+{{-- Detailed Comment: Template navigation header using dynamic clinic theme background and active logo --}}
+<nav class="navbar" style="background-color: var(--header-bg, beige);">
     <div class="container-fluid m-0">
         <div class="navbar-brand d-flex gap-3 align-items-center">
-            <img style="height: 7.5rem;" src="{{ asset('images/logo.png') }}" alt="company_logo">
+            <img style="height: 7.5rem; object-fit: contain;" src="{{ asset($activeTheme->logo_path ?? 'images/logo.png') }}" alt="company_logo">
         </div>
 
         <div class="d-flex gap-3">

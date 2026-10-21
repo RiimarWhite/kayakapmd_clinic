@@ -426,7 +426,11 @@
                                             <select class="form-select form-select-sm" name="doctor_for_consult"
                                                 id="doctor_for_consult" required>
                                                 @foreach (($doctors ?? []) as $doctor)
-                                                    <option value="{{ $doctor->docrefno }}">DR. {{ $doctor->docname }}
+                                                    @php
+                                                        $specs = $doctor->specializations ?: ($doctor->expertise ? array_values(array_filter(array_map('trim', explode(',', $doctor->expertise)))) : []);
+                                                    @endphp
+                                                    <option value="{{ $doctor->docrefno }}" data-specializations="{{ json_encode($specs) }}">
+                                                        DR. {{ $doctor->docname }}
                                                     </option>
                                                 @endforeach
                                             </select>
@@ -452,7 +456,7 @@
                                             <div class="d-flex flex-column" id="questions_container"></div>
                                         </div>
 
-                                        {{-- Detailed Comment: Patient Classification dropdown wrapped in col-12 col-sm-4 to match Weight field width --}}
+                                        {{-- Detailed Comment: Dynamic Patient Classification dropdown populated from patient_classifications master table --}}
                                         <div class="row g-2 mb-2">
                                             <div class="col-12 col-sm-4">
                                                 <label class="form-label fw-bold m-0 small" for="patient_classification">
@@ -460,16 +464,26 @@
                                                 </label>
                                                 <select class="form-select form-select-sm" name="patient_classification"
                                                     id="patient_classification">
-                                                    <option value="MEDICAL" selected>MEDICAL</option>
-                                                    <option value="PEDIA">PEDIA</option>
-                                                    <option value="OBSTETRICS">OBSTETRICS</option>
-                                                    <option value="GYNECOLOGY">GYNECOLOGY</option>
-                                                    <option value="NEW BORN">NEW BORN</option>
-                                                    <option value="ORTHO">ORTHO</option>
-                                                    <option value="DENTISTRY">DENTISTRY</option>
-                                                    <option value="DERMA">DERMA</option>
-                                                    <option value="HEMODIALYSIS">HEMODIALYSIS</option>
-                                                    <option value="OTHERS">OTHERS</option>
+                                                    @if(isset($patientClassifications) && $patientClassifications->isNotEmpty())
+                                                        @foreach ($patientClassifications as $pClass)
+                                                            <option value="{{ $pClass->classification_code }}"
+                                                                data-subfields="{{ json_encode($pClass->sub_fields ?? []) }}"
+                                                                {{ $loop->first ? 'selected' : '' }}>
+                                                                {{ $pClass->classification_name }}
+                                                            </option>
+                                                        @endforeach
+                                                    @else
+                                                        <option value="MEDICAL" data-subfields='["medical_subclassification"]' selected>MEDICAL</option>
+                                                        <option value="PEDIA" data-subfields='[]'>PEDIA</option>
+                                                        <option value="OBSTETRICS" data-subfields='["gravida","para","abortion","iufd","died","lmp_date","delivery_procedure"]'>OBSTETRICS</option>
+                                                        <option value="GYNECOLOGY" data-subfields='["gravida","para","abortion","iufd","died","lmp_date"]'>GYNECOLOGY</option>
+                                                        <option value="NEW BORN" data-subfields='["newborn_procedure"]'>NEW BORN</option>
+                                                        <option value="ORTHO" data-subfields='[]'>ORTHO</option>
+                                                        <option value="DENTISTRY" data-subfields='[]'>DENTISTRY</option>
+                                                        <option value="DERMA" data-subfields='[]'>DERMA</option>
+                                                        <option value="HEMODIALYSIS" data-subfields='[]'>HEMODIALYSIS</option>
+                                                        <option value="OTHERS" data-subfields='[]'>OTHERS</option>
+                                                    @endif
                                                 </select>
                                             </div>
                                         </div>

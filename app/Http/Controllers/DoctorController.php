@@ -138,7 +138,8 @@ class DoctorController extends Controller
             'cellno' => $request->cellno,
             'adrs' => $request->adrs,
             'proftype' => $request->proftype,
-            'expertise' => $request->expertise,
+            'expertise' => (!empty($request->expertise) ? $request->expertise : (is_array($request->input('specializations')) ? implode(', ', $request->input('specializations')) : $request->expertise)),
+            'specializations' => is_array($request->input('specializations')) ? array_values(array_filter($request->input('specializations'))) : ($request->filled('specializations') ? array_values(array_filter(explode(',', $request->input('specializations')))) : ($request->filled('expertise') ? array_values(array_filter(array_map('trim', explode(',', $request->expertise)))) : [])),
             'department' => $request->department,
             'profgroup' => $request->profgroup,
             'catg' => $request->catg,
@@ -666,6 +667,9 @@ class DoctorController extends Controller
             'end' => $end,
         ]);
 
+        // Detailed Comment: Automatically synchronize doctor's clinichours with newly created schedule
+        $doctor->syncClinicHoursFromSchedules();
+
         Log::info('Doctor created clinic schedule', [
             'docrefno' => $doctor->docrefno,
             'schedrefno' => $schedrefno,
@@ -729,6 +733,9 @@ class DoctorController extends Controller
             'end' => $request->end,
         ]);
 
+        // Detailed Comment: Automatically re-synchronize doctor's clinichours with updated schedule
+        $doctor->syncClinicHoursFromSchedules();
+
         Log::info('Doctor updated clinic schedule', [
             'docrefno' => $doctor->docrefno,
             'schedrefno' => $request->schedrefno,
@@ -759,6 +766,9 @@ class DoctorController extends Controller
         }
 
         $schedule->delete();
+
+        // Detailed Comment: Automatically re-synchronize doctor's clinichours after deletion
+        $doctor->syncClinicHoursFromSchedules();
 
         Log::info('Doctor deleted clinic schedule', [
             'docrefno' => $doctor->docrefno,

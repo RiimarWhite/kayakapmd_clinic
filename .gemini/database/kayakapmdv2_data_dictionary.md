@@ -316,7 +316,8 @@ Physician and front-office (secretary) staff records: credentials, schedules, se
 | `accountno` | varchar(50) | NULL | NULL |  |
 | `tax` | double(11, 2) | NULL | NULL |  |
 | `issuehospOR` | tinyint | NULL | NULL |  |
-| `expertise` | varchar(150) | NULL | NULL |  |
+| `expertise` | varchar(150) | NULL | NULL | Legacy doctor specialty / expertise text |
+| `specializations` | json | NULL | NULL | Multi-selected patient classification codes assigned to doctor |
 | `clinichours` | longtext | NULL |  |  |
 | `otherinfo` | longtext | NULL |  |  |
 | `biodata` | longtext | NULL |  |  |
@@ -536,6 +537,22 @@ Physician and front-office (secretary) staff records: credentials, schedules, se
 | `request_catg` | varchar(191) | NULL | NULL |  |
 | `created_at` | datetime | NULL | NULL |  |
 | `updated_at` | datetime | NULL | NULL |  |
+
+### `patient_classifications`
+
+Master table of clinical patient classifications, dynamic sub-field metadata, and status toggles for doctor specializations and secretary consultation forms.
+
+| Column | Type | Null? | Default | Notes |
+|---|---|---|---|---|
+| `id` | bigint unsigned | NO | auto_increment | Primary Key |
+| `classification_code` | varchar(50) | NO | NULL | Unique code (e.g. MEDICAL, PEDIA, OBSTETRICS) |
+| `classification_name` | varchar(100) | NO | NULL | Display name |
+| `description` | text | YES | NULL | Description of classification specialty |
+| `sub_fields` | json | YES | NULL | JSON array of dynamic subfield keys (e.g. ['medical_subclassification'], ['lmp_date']) |
+| `is_active` | tinyint(1) | NO | 1 | 1 = Active, 0 = Inactive |
+| `sort_order` | int | NO | 0 | Display sequence order |
+| `created_at` | timestamp | YES | NULL | Creation timestamp |
+| `updated_at` | timestamp | YES | NULL | Update timestamp |
 
 ## 4. Patient Master Data & Walk-in Consultations
 

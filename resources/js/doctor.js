@@ -1159,6 +1159,33 @@ $(function () {
     // Detailed Comment: Self-service Doctor Profile modal lifecycle (populate 5 tabs and save updates)
     const doctorProfileModalEl = document.getElementById("doctor_profile_modal");
     if (doctorProfileModalEl) {
+        // Detailed Comment: Load active patient classifications into doctor profile specializations dropdown
+        function loadDoctorProfileSpecializations(selectedSpecs) {
+            $.ajax({
+                url: "/api/patient_classifications?active_only=1",
+                type: "GET",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                success: function (res) {
+                    const list = res.data || [];
+                    let opts = '';
+                    list.forEach(c => {
+                        opts += `<option value="${c.classification_code}">${c.classification_name} (${c.classification_code})</option>`;
+                    });
+                    $('#prof_doctor_specializations').html(opts);
+                    if (selectedSpecs && selectedSpecs.length) {
+                        $('#prof_doctor_specializations').val(selectedSpecs);
+                    }
+                    if ($.fn.select2) {
+                        $('#prof_doctor_specializations').select2({
+                            dropdownParent: $('#doctor_profile_modal'),
+                            placeholder: 'Select your clinical specializations...',
+                            width: '100%'
+                        });
+                    }
+                }
+            });
+        }
+
         doctorProfileModalEl.addEventListener("show.bs.modal", () => {
             $.ajax({
                 url: "/api/fetch_doctor_data",
@@ -1191,6 +1218,15 @@ $(function () {
                         $("#prof_ptr").val(u.PTR || '');
 
                         // Tab 3: Practice & Clinic
+                        let specs = [];
+                        if (Array.isArray(u.specializations)) {
+                            specs = u.specializations;
+                        } else if (typeof u.specializations === 'string' && u.specializations.startsWith('[')) {
+                            try { specs = JSON.parse(u.specializations); } catch(e) {}
+                        } else if (u.expertise) {
+                            specs = u.expertise.split(',').map(s => s.trim().toUpperCase());
+                        }
+                        loadDoctorProfileSpecializations(specs);
                         $("#prof_expertise").val(u.expertise || '');
                         $("#prof_proftype").val(u.proftype || 'ATTENDING');
                         $("#prof_department").val(u.department || '');
@@ -1249,6 +1285,9 @@ $(function () {
             const form = document.getElementById("doctor_profile_form");
             if (form && !form.checkValidity()) return form.reportValidity();
 
+            const specs = $('#prof_doctor_specializations').val() || [];
+            $('#prof_expertise').val(specs.join(', '));
+
             const $btn = $(this);
             const originalHtml = $btn.html();
             $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status"></span> Saving...');
@@ -1256,7 +1295,7 @@ $(function () {
             $.ajax({
                 url: "/api/doctor/update_profile",
                 type: "POST",
-                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                headers: { "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr("content") },
                 data: $("#doctor_profile_form").serialize(),
                 success: function (response) {
                     if (response.success) {
@@ -1278,6 +1317,59 @@ $(function () {
                 }
             });
         });
+
+        // Detailed Comment: Synchronize clinic hours button for doctor self-service modal
+        $(document).on("click", "#doctor_info_modal .sync-clinic-hours-btn", function () {
+            const $btn = $(this);
+            const originalHtml = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin me-1"></i> Syncing...');
+
+            $.ajax({
+                url: "/api/fetch_doctor_schedules_dashboard",
+                type: "POST",
+                headers: { "X-CSRF-TOKEN": $("meta[name='csrf-token']").attr("content") },
+                success: function (res) {
+                    $btn.prop('disabled', false).html(originalHtml);
+                    if (res.success && Array.isArray(res.schedules)) {
+                        if (res.schedules.length === 0) {
+                            $("#prof_clinichours").val('');
+                            Swal.fire({ title: 'Clinic Hours', text: 'You have no active clinic schedules configured.', icon: 'info' });
+                            return;
+                        }
+                        const dayAbbr = { 'Sunday':'Sun', 'Monday':'Mon', 'Tuesday':'Tue', 'Wednesday':'Wed', 'Thursday':'Thu', 'Friday':'Fri', 'Saturday':'Sat' };
+                        const groups = {};
+                        res.schedules.forEach(s => {
+                            const start = s.start ? formatTime12(s.start) : '';
+                            const end = s.end ? formatTime12(s.end) : '';
+                            const slot = `${start} - ${end}`.trim();
+                            const day = dayAbbr[s.day] || s.day;
+                            if (!groups[slot]) groups[slot] = [];
+                            if (!groups[slot].includes(day)) groups[slot].push(day);
+                        });
+                        const formattedParts = Object.keys(groups).map(slot => `${groups[slot].join(', ')} ${slot}`);
+                        const finalStr = formattedParts.join('; ');
+                        $("#prof_clinichours").val(finalStr);
+                        Swal.fire({ title: 'Synced!', text: `Clinic hours updated: ${finalStr}`, icon: 'success', timer: 2000, showConfirmButton: false });
+                    }
+                },
+                error: function () {
+                    $btn.prop('disabled', false).html(originalHtml);
+                    Swal.fire({ title: 'Error', text: 'Failed to synchronize clinic hours.', icon: 'error' });
+                }
+            });
+        });
+
+        function formatTime12(timeStr) {
+            if (!timeStr) return '';
+            const parts = timeStr.split(':');
+            let hours = parseInt(parts[0], 10);
+            const mins = parts[1] || '00';
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            const strHours = hours < 10 ? '0' + hours : hours;
+            return `${strHours}:${mins} ${ampm}`;
+        }
     }
 
     // Append charges modal

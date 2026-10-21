@@ -215,24 +215,27 @@
                     <div class="tab-pane fade" id="edit-pane-practice" role="tabpanel">
                         <div class="row g-2 mb-3">
                             <div class="col-md-4">
-                                <label class="form-label fw-bold" for="eproftype">Professional Type</label>
-                                <input class="form-control" type="text" name="eproftype" id="eproftype">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold" for="eexpertise">Expertise / Specialization</label>
-                                <input class="form-control" type="text" name="eexpertise" id="eexpertise">
+                                <label class="form-label fw-bold" for="edit_doctor_specializations">
+                                    <i class="fa-solid fa-user-doctor text-primary me-1"></i> Professional Type
+                                </label>
+                                <select class="form-select select2-specializations" name="specializations[]" id="edit_doctor_specializations" multiple="multiple" style="width: 100%;">
+                                    {{-- Dynamically populated from patient_classifications API --}}
+                                </select>
+                                <input type="hidden" name="eexpertise" id="eexpertise">
+                                <input type="hidden" name="eproftype" id="eproftype">
+                                <div class="form-text small">Select patient classifications / professional types handled by this doctor.</div>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-bold" for="edepartment">Department</label>
                                 <input class="form-control" type="text" name="edepartment" id="edepartment">
                             </div>
-                        </div>
-
-                        <div class="row g-2 mb-3">
                             <div class="col-md-4">
                                 <label class="form-label fw-bold" for="eprofgroup">Professional Group</label>
                                 <input class="form-control" type="text" name="eprofgroup" id="eprofgroup">
                             </div>
+                        </div>
+
+                        <div class="row g-2 mb-3">
                             <div class="col-md-4">
                                 <label class="form-label fw-bold" for="ecatg">Category Code</label>
                                 <input class="form-control" type="text" name="ecatg" id="ecatg" maxlength="3">
@@ -241,16 +244,25 @@
                                 <label class="form-label fw-bold" for="estation">Station</label>
                                 <input class="form-control" type="text" name="estation" id="estation">
                             </div>
-                        </div>
-
-                        <div class="row g-2 mb-3">
                             <div class="col-md-4">
                                 <label class="form-label fw-bold" for="eclinicroom">Clinic Room</label>
                                 <input class="form-control" type="text" name="eclinicroom" id="eclinicroom">
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold" for="eclinichours">Clinic Hours</label>
-                                <input class="form-control" type="text" name="eclinichours" id="eclinichours">
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-8">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <label class="form-label fw-bold m-0" for="eclinichours">Clinic Hours</label>
+                                    <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2 sync-clinic-hours-btn" title="Sync from Doctor Schedule">
+                                        <i class="fa-solid fa-arrows-rotate me-1"></i> Sync from Schedule
+                                    </button>
+                                </div>
+                                <div class="input-group">
+                                    <input class="form-control" type="text" name="eclinichours" id="eclinichours"
+                                        placeholder="e.g. Mon, Wed 09:00 AM - 12:00 PM">
+                                </div>
+                                <div class="form-text small">Automatically synchronized from Doctor Schedules or synced with button.</div>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-bold" for="egroupname">Group Name</label>

@@ -213,12 +213,13 @@ if [ ! -f .env ]; then
     update_env_key "DB_USERNAME" "$DB_U"
     update_env_key "DB_PASSWORD" "$DB_PASS"
     update_env_key "APP_URL" "$A_URL"
+    update_env_key "PHILHEALTH_INTEGRATION_ENABLED" "true"
     update_env_key "PHILHEALTH_URL" "$PH_URL"
     update_env_key "PHILHEALTH_PASSPHRASE" "$PH_PASS"
 
     echo -e "  [✓] ${COLOR_GREEN}.env configured successfully.${COLOR_RESET}"
 else
-    # Detailed Comment: Ensure existing .env files also contain required PhilHealth keys
+    # Detailed Comment: Ensure existing .env files also contain required PhilHealth keys and feature toggles
     update_env_key_if_missing() {
         local key="$1"
         local default_val="$2"
@@ -226,6 +227,7 @@ else
             echo "${key}=${default_val}" >> .env
         fi
     }
+    update_env_key_if_missing "PHILHEALTH_INTEGRATION_ENABLED" "true"
     update_env_key_if_missing "PHILHEALTH_URL" "https://epress.philhealth.gov.ph"
     update_env_key_if_missing "PHILHEALTH_PASSPHRASE" "kayakapmd"
     echo -e "  [✓] ${COLOR_GREEN}Existing .env file detected. Verified PhilHealth configuration.${COLOR_RESET}"

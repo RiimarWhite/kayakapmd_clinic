@@ -238,7 +238,7 @@ $(function () {
 
                         const classKey = rawClass.toUpperCase();
                         let classDetails = [];
-                        if (classKey === 'MEDICAL' && p.subclassification) {
+                        if ((classKey === 'MEDICAL' || classKey === 'GENERAL') && p.subclassification) {
                             classDetails.push(`<strong>Sub-classification:</strong> ${p.subclassification}`);
                         } else if (classKey === 'OBSTETRICS' || classKey === 'GYNECOLOGY') {
                             let obScores = [];

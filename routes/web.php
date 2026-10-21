@@ -65,6 +65,8 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('admin/profile', [ManagementController::class, 'profilePage'])->name('admin.profile');
     // Detailed Comment: Admin Theme Settings customization view route
     Route::get('admin/settings/theme', [ManagementController::class, 'themeSettingsPage'])->name('admin.settings.theme');
+    // Detailed Comment: Admin Patient Classification management settings view route
+    Route::get('admin/settings/patient-classification', [ManagementController::class, 'patientClassificationPage'])->name('admin.settings.patient_classification');
     Route::get('admin/secretary', [ManagementController::class, 'secretaryPanelPage'])->name('admin.secretary');
     Route::get('admin/hmo', [ManagementController::class, 'hmoPanelPage'])->name('admin.hmo');
 

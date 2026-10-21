@@ -9,6 +9,7 @@ use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\ManagementController;
 use App\Http\Controllers\SecretaryController;
 use App\Http\Controllers\Api\AdminVerificationController;
+use App\Http\Controllers\Api\PatientClassificationApiController;
 use Illuminate\Support\Facades\Route;
 
 // Secretary API Routes
@@ -158,6 +159,9 @@ Route::middleware(['web', 'auth:secretary,doctor,admin'])->group(function () {
     Route::post('fetch_all_charges', [ManagementController::class, 'fetchAllCharges']);
     Route::post('fetch_charge_payments', [ManagementController::class, 'fetchChargePrice']);
 
+    // Detailed Comment: Patient classifications retrieval endpoint for dynamic form rendering and doctor assignment
+    Route::match(['get', 'post'], 'patient_classifications', [PatientClassificationApiController::class, 'index'])->name('patient_classifications.index');
+
     // Detailed Comment: Consultation charges endpoints accessible across secretary, doctor, and admin consoles
     Route::post('fetch_patient_charges', [DoctorController::class, 'fetchPatientCharges'])->name('doctor.fetch_patient_charges');
     Route::post('fetch_pxcharges', [DoctorController::class, 'fetchPatientCharges'])->name('secretary.fetch_pxcharges');
@@ -224,6 +228,12 @@ Route::middleware(['web', 'auth:admin'])->group(function () {
     Route::post('admin/theme/fetch', [ManagementController::class, 'fetchThemeSettings'])->name('admin.theme.fetch');
     Route::post('admin/theme/update', [ManagementController::class, 'updateThemeSettings'])->name('admin.theme.update');
     Route::post('admin/theme/reset', [ManagementController::class, 'resetThemeSettings'])->name('admin.theme.reset');
+
+    // Detailed Comment: Patient Classifications Admin CRUD and status toggle endpoints
+    Route::post('admin/patient_classifications', [PatientClassificationApiController::class, 'store'])->name('patient_classifications.store');
+    Route::match(['put', 'post'], 'admin/patient_classifications/{id}/update', [PatientClassificationApiController::class, 'update'])->name('patient_classifications.update');
+    Route::post('admin/patient_classifications/{id}/toggle-status', [PatientClassificationApiController::class, 'toggleStatus'])->name('patient_classifications.toggle_status');
+    Route::match(['delete', 'post'], 'admin/patient_classifications/{id}/delete', [PatientClassificationApiController::class, 'destroy'])->name('patient_classifications.destroy');
 
     Route::post('fetch_address_data', [ManagementController::class, 'fetchAddressData']);
     Route::post('load_company_profile', [ManagementController::class, 'loadCompanyProfile']);

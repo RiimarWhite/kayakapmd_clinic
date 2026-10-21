@@ -214,4 +214,32 @@ class AdminThemeSettingsTest extends TestCase
         $this->assertEquals($profile->clientcode, $theme->profile->clientcode);
         $this->assertEquals($theme->id, $profile->theme->id);
     }
+
+    /**
+     * Detailed Comment: Verifies the login page dynamically renders the active theme logo,
+     * custom theme CSS variables (primary button & header accent), and dark mode switcher controls.
+     */
+    public function test_login_page_renders_dynamic_theme_logo_colors_and_dark_mode(): void
+    {
+        ThemeModel::create([
+            'clientcode'           => 'CLI001',
+            'theme_name'           => 'Login Custom Brand',
+            'header_bg'            => '#027F9F',
+            'header_accent_color'  => '#B2C10E',
+            'primary_button_bg'    => '#027F9F',
+            'primary_button_text'  => '#FFFFFF',
+            'logo_path'            => 'images/theme/clinic_custom_logo_test.png',
+            'is_active'            => true,
+        ]);
+
+        $response = $this->get(route('login'));
+
+        $response->assertStatus(200);
+        $response->assertSee('images/theme/clinic_custom_logo_test.png', false);
+        $response->assertSee('--primary-btn-bg: #027F9F;', false);
+        $response->assertSee('--header-accent: #B2C10E;', false);
+        $response->assertSee('data-bs-theme', false);
+        $response->assertSee('id="bd-theme"', false);
+        $response->assertSee('data-bs-theme-value="dark"', false);
+    }
 }

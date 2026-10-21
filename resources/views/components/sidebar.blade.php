@@ -57,6 +57,47 @@
         </a>
     </li>
 
+    {{-- Detailed Comment: PhilHealth Integration menu toggle controlled by PHILHEALTH_INTEGRATION_ENABLED .env flag --}}
+    @if (config('services.philhealth.enabled', true))
+    <li class="nav-item">
+        <button class="d-flex align-items-center gap-2 nav-link w-100 text-start text-dark"
+            data-bs-toggle="collapse" data-bs-target="#philhealthMenuBtn" type="button" aria-controls="philhealthMenuBtn"
+            aria-expanded="{{ request()->routeIs('admin.philhealth.*') ? 'true' : 'false' }}">
+            <i class="fa-solid fa-file-waveform"></i>
+            PhilHealth Integration
+            <i class="fa-solid fa-caret-down ms-auto"></i>
+        </button>
+        <div class="collapse {{ request()->routeIs('admin.philhealth.*') ? 'show' : '' }}" id="philhealthMenuBtn">
+            <div class="card card-body bg-transparent border-0 p-0 gap-1 flex-column">
+                <a class="nav-link text-dark {{ request()->routeIs('admin.philhealth.overview') ? 'active' : '' }}"
+                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.philhealth.overview') }}">
+                    Overview
+                </a>
+                <a class="nav-link text-dark {{ request()->routeIs('admin.philhealth.management') ? 'active' : '' }}"
+                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.philhealth.management') }}">
+                    Management
+                </a>
+                <a class="nav-link text-dark {{ request()->routeIs('admin.philhealth.uploading') ? 'active' : '' }}"
+                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.philhealth.uploading') }}">
+                    Uploading &amp; Transmittal
+                </a>
+                <a class="nav-link text-dark {{ request()->routeIs('admin.philhealth.tools') ? 'active' : '' }}"
+                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.philhealth.tools') }}">
+                    Tools &amp; Maintenance
+                </a>
+                <a class="nav-link text-dark {{ request()->routeIs('admin.philhealth.consultations') ? 'active' : '' }}"
+                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.philhealth.consultations') }}">
+                    Consultations
+                </a>
+                <a class="nav-link text-dark {{ request()->routeIs('admin.philhealth.masterlist') ? 'active' : '' }}"
+                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.philhealth.masterlist') }}">
+                    Masterlist
+                </a>
+            </div>
+        </div>
+    </li>
+    @endif
+
     <li class="nav-item">
         <button class="d-flex align-items-center gap-2 nav-link w-100 text-start text-dark"
             data-bs-toggle="collapse" data-bs-target="#stockSrvBtn" type="button" aria-controls="stockSrvBtn"
@@ -87,9 +128,7 @@
         </div>
     </li>
 
-
-
-    {{-- Detailed Comment: Collapsible Settings menu providing access to Theme Settings and Facility Profile --}}
+    {{-- Detailed Comment: Collapsible Settings menu providing access to Theme Settings, Facility Profile, and Patient Classification --}}
     <li class="nav-item">
         <button class="d-flex align-items-center gap-2 nav-link w-100 text-start text-dark"
             data-bs-toggle="collapse" data-bs-target="#settingsBtn" type="button" aria-controls="settingsBtn"
@@ -103,6 +142,10 @@
                 <a class="nav-link text-dark {{ request()->routeIs('admin.settings.theme') ? 'active' : '' }}"
                     style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.settings.theme') }}">
                     <i class="fa-solid fa-palette me-1"></i> Theme Settings
+                </a>
+                <a class="nav-link text-dark {{ request()->routeIs('admin.settings.patient_classification') ? 'active' : '' }}"
+                    style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.settings.patient_classification') }}">
+                    <i class="fa-solid fa-tags me-1"></i> Patient Classification
                 </a>
                 <a class="nav-link text-dark {{ request()->routeIs('admin.profile') ? 'active' : '' }}"
                     style="font-size: 14px; padding-left: 3rem;" href="{{ route('admin.profile') }}">

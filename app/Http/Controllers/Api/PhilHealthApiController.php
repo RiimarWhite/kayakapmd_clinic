@@ -6,15 +6,36 @@ use App\Http\Controllers\Controller;
 use App\Models\HMOModel;
 use App\Services\YakapManagement\ApiService;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Detailed Comment: Controller handling PhilHealth e-Claims API integration requests.
  * Proxies calls to ApiService with structured error handling and standardized JSON responses.
  */
-class PhilHealthApiController extends Controller
+class PhilHealthApiController extends Controller implements HasMiddleware
 {
     private $apiService;
+
+    /**
+     * Detailed Comment: Laravel 11 controller middleware definition.
+     * Enforces feature toggle check so that PhilHealth integration endpoints return 403 when disabled in .env.
+     */
+    public static function middleware(): array
+    {
+        return [
+            function ($request, $next) {
+                if (!config('services.philhealth.enabled', true)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'PhilHealth integration is currently disabled in system settings.'
+                    ], 403);
+                }
+                return $next($request);
+            }
+        ];
+    }
 
     public function __construct(ApiService $apiService)
     {

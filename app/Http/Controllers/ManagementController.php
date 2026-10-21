@@ -78,6 +78,15 @@ class ManagementController extends Controller
         return view('pages.admin.settings.theme', compact('theme', 'profile'));
     }
 
+    /**
+     * Detailed Comment: Renders the Admin Patient Classification Settings view.
+     * Allows clinic administrators to manage clinical classifications, dynamic sub-field metadata, and toggles.
+     */
+    public function patientClassificationPage()
+    {
+        return view('pages.admin.settings.patient_classification');
+    }
+
     public function secretariesPage()
     {
         return view('pages.admin.users.secretaries');
@@ -96,15 +105,18 @@ class ManagementController extends Controller
 
     public function secretaryPanelPage()
     {
-        $doctors = DoctorsProfileModel::select(['docrefno', 'docname'])
+        $doctors = DoctorsProfileModel::select(['docrefno', 'docname', 'specializations', 'expertise'])
             ->get();
 
         $secretaries = SecretaryModel::select(['secrefno', 'seclname'])
             ->get();
 
+        $patientClassifications = \App\Models\PatientClassificationModel::active()->get();
+
         return view('pages.secretary.queue', [
             'doctors' => $doctors,
-            'secretaries' => $secretaries
+            'secretaries' => $secretaries,
+            'patientClassifications' => $patientClassifications
         ]);
     }
 
@@ -177,32 +189,50 @@ class ManagementController extends Controller
 
     public function philhealthOverviewPage()
     {
+        if (!config('services.philhealth.enabled', true)) {
+            abort(403, 'PhilHealth integration is currently disabled in system settings.');
+        }
         return view('pages.admin.philhealth.overview');
     }
 
     public function philhealthManagementPage()
     {
+        if (!config('services.philhealth.enabled', true)) {
+            abort(403, 'PhilHealth integration is currently disabled in system settings.');
+        }
         return view('pages.admin.philhealth.management');
     }
 
 
     public function philhealthUploadingPage()
     {
+        if (!config('services.philhealth.enabled', true)) {
+            abort(403, 'PhilHealth integration is currently disabled in system settings.');
+        }
         return view('pages.admin.philhealth.uploading');
     }
 
     public function philhealthToolsPage()
     {
+        if (!config('services.philhealth.enabled', true)) {
+            abort(403, 'PhilHealth integration is currently disabled in system settings.');
+        }
         return view('pages.admin.philhealth.tools');
     }
 
     public function philhealthConsultationsPage()
     {
+        if (!config('services.philhealth.enabled', true)) {
+            abort(403, 'PhilHealth integration is currently disabled in system settings.');
+        }
         return view('pages.admin.philhealth.consultations');
     }
 
     public function philhealthMasterlistPage()
     {
+        if (!config('services.philhealth.enabled', true)) {
+            abort(403, 'PhilHealth integration is currently disabled in system settings.');
+        }
         return view('pages.admin.philhealth.masterlist');
     }
 
@@ -758,7 +788,8 @@ class ManagementController extends Controller
             'cellno' => $request->cellno,
             'adrs' => $request->adrs,
             'proftype' => $request->proftype,
-            'expertise' => $request->expertise,
+            'expertise' => (!empty($request->expertise) ? $request->expertise : (is_array($request->input('specializations')) ? implode(', ', $request->input('specializations')) : $request->expertise)),
+            'specializations' => is_array($request->input('specializations')) ? array_values(array_filter($request->input('specializations'))) : ($request->filled('specializations') ? array_values(array_filter(explode(',', $request->input('specializations')))) : ($request->filled('expertise') ? array_values(array_filter(array_map('trim', explode(',', $request->expertise)))) : [])),
             'department' => $request->department,
             'profgroup' => $request->profgroup,
             'catg' => $request->catg,
@@ -855,7 +886,8 @@ class ManagementController extends Controller
                 'cellno' => $request->ecellno,
                 'adrs' => $request->eadrs,
                 'proftype' => $request->eproftype,
-                'expertise' => $request->eexpertise,
+                'expertise' => (!empty($request->eexpertise) ? $request->eexpertise : (is_array($request->input('specializations')) ? implode(', ', $request->input('specializations')) : $request->eexpertise)),
+                'specializations' => is_array($request->input('specializations')) ? array_values(array_filter($request->input('specializations'))) : ($request->filled('specializations') ? array_values(array_filter(explode(',', $request->input('specializations')))) : ($request->filled('eexpertise') ? array_values(array_filter(array_map('trim', explode(',', $request->eexpertise)))) : [])),
                 'department' => $request->edepartment,
                 'profgroup' => $request->eprofgroup,
                 'catg' => $request->ecatg,
